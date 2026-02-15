@@ -18,9 +18,13 @@ export default function CustomerDashboardPage() {
     <main className="space-y-4">
       <h1 className="text-2xl font-bold">Customer dashboard</h1>
       {vehicles.map((vehicle) => (
-        <Link key={vehicle.id} href={`/customer/vehicles/${vehicle.id}`} className="block">
-          <Card className="transition hover:border-brand-red/40 hover:shadow-md">
-            <div className="flex items-center justify-between">
+        <Card key={vehicle.id} className="relative transition hover:border-brand-red/40 hover:shadow-md">
+          <Link
+            href={`/customer/vehicles/${vehicle.id}`}
+            className="absolute inset-0 rounded-lg"
+            aria-label={`View vehicle details for ${vehicle.rego}`}
+          />
+          <div className="relative flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-semibold">{vehicle.rego}</h2>
                 <p className="text-sm text-gray-600">Status: {vehicle.status}</p>
@@ -30,11 +34,12 @@ export default function CustomerDashboardPage() {
               <div className="text-right text-sm">
                 <p>Outstanding recs: {vehicle.recommendations}</p>
                 <p>Total spend: {vehicle.totalSpend}</p>
-                <span className="text-brand-red underline">View details</span>
+                <Link href={`/customer/vehicles/${vehicle.id}`} className="relative z-10 text-brand-red underline">
+                  View details
+                </Link>
               </div>
-            </div>
-          </Card>
-        </Link>
+          </div>
+        </Card>
       ))}
     </main>
   );
