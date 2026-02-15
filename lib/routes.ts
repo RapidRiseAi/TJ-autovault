@@ -1,13 +1,13 @@
 export function customerDashboard() {
-  return '/dashboard';
+  return '/customer/dashboard';
 }
 
 export function customerVehicle(id: string) {
-  return `/vehicles/${id}`;
+  return `/customer/vehicles/${id}`;
 }
 
 export function customerVehicleNew() {
-  return '/vehicles/new';
+  return '/customer/vehicles/new';
 }
 
 export function workshopDashboard() {
