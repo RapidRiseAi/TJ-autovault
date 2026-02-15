@@ -13,10 +13,10 @@ Production-ready foundation for a **multi-tenant mechanic customer portal + work
 ```text
 app/
   (auth)/login
-  (customer)/dashboard
+  (customer)/customer/dashboard
   (customer)/vehicles/[id]
   (customer)/reports/new
-  (workshop)/dashboard
+  (workshop)/workshop/dashboard
   (workshop)/jobs/[id]
   api/
 components/
