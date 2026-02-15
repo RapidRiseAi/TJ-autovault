@@ -15,7 +15,7 @@ on conflict do nothing;
 
 -- Create admin user in Supabase dashboard auth, then update UUID below.
 insert into public.profiles (id, workshop_account_id, role, display_name)
-values ('00000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'admin', 'TJ Admin')
+values ('80f7bc23-252e-4334-8b07-a7ad46c3fb56', '11111111-1111-1111-1111-111111111111', 'admin', 'TJ Admin')
 on conflict do nothing;
 
 insert into public.customer_accounts (id, workshop_account_id, name, tier)
