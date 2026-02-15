@@ -5,6 +5,7 @@ export const appConfig = {
     maxUploadSizeMb: 10,
     allowedImageMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
     allowedPdfMimeTypes: ['application/pdf'],
+    maxImagesPerReport: 4,
     maxImagesPerJobByTier: {
       free: 8,
       standard: 20,
