@@ -1,10 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import type { CookieOptions } from '@supabase/ssr';
+import { getDashboardPathForRole, type UserRole } from '@/lib/auth/role-redirect';
 
 type CookieToSet = { name: string; value: string; options?: CookieOptions };
-
-const protectedPrefixes = ['/customer', '/workshop'];
 
 export async function middleware(request: NextRequest) {
   const response = NextResponse.next({ request });
@@ -29,8 +28,30 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
-  if (protectedPrefixes.some((prefix) => path.startsWith(prefix)) && !user) {
+  const isWorkshopRoute = path.startsWith('/workshop');
+  const isCustomerRoute = path.startsWith('/customer');
+
+  if ((isWorkshopRoute || isCustomerRoute) && !user) {
     return NextResponse.redirect(new URL('/login', request.url));
+  }
+
+  if (!user) {
+    return response;
+  }
+
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+  const role = profile?.role as UserRole | undefined;
+
+  if ((path === '/login' || path === '/signup') && role) {
+    return NextResponse.redirect(new URL(getDashboardPathForRole(role), request.url));
+  }
+
+  if (isWorkshopRoute && role !== 'admin' && role !== 'technician') {
+    return NextResponse.redirect(new URL(getDashboardPathForRole(role), request.url));
+  }
+
+  if (isCustomerRoute && role !== 'customer' && role !== 'admin') {
+    return NextResponse.redirect(new URL(getDashboardPathForRole(role), request.url));
   }
 
   return response;
