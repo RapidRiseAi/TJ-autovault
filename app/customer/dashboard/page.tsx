@@ -1,29 +1,20 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Card } from '@/components/ui/card';
+import { getCurrentCustomerContext } from '@/lib/customer-account';
 import { customerVehicle, customerVehicleNew } from '@/lib/routes';
 import { createClient } from '@/lib/supabase/server';
 
 export default async function CustomerDashboardPage() {
+  const context = await getCurrentCustomerContext();
+  if (!context) notFound();
+
   const supabase = await createClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
-
-  if (!user) notFound();
-
-  const { data: memberships } = await supabase
-    .from('customer_users')
-    .select('customer_account_id')
-    .eq('profile_id', user.id);
-
-  const customerAccountIds = memberships?.map((membership) => membership.customer_account_id) ?? [];
-
-  const { data: vehicles } = customerAccountIds.length
+  const { data: vehicles } = context.customerAccountIds.length
     ? await supabase
         .from('vehicles')
         .select('id,registration_number,make,model,status,created_at')
-        .in('current_customer_account_id', customerAccountIds)
+        .in('current_customer_account_id', context.customerAccountIds)
         .order('created_at', { ascending: false })
     : { data: [] };
 
