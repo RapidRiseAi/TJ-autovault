@@ -15,18 +15,20 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
     .from('vehicles')
     .select('id,registration_number,make,model,year,vin,odometer_km,status,current_customer_account_id')
     .eq('id', id)
-    .single();
-
-  if (!vehicle?.current_customer_account_id) notFound();
-
-  const { data: membership } = await supabase
-    .from('customer_users')
-    .select('id')
-    .eq('profile_id', user.id)
-    .eq('customer_account_id', vehicle.current_customer_account_id)
     .maybeSingle();
 
-  if (!membership) notFound();
+  if (!vehicle) {
+    if (process.env.NODE_ENV !== 'production') {
+      return (
+        <Card className="space-y-2">
+          <h1 className="text-xl font-bold">Vehicle not accessible (RLS)</h1>
+          <p className="text-sm text-gray-600">Vehicle ID: {id}</p>
+        </Card>
+      );
+    }
+
+    notFound();
+  }
 
   return (
     <div className="space-y-4">
