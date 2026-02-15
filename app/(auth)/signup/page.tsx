@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { customerDashboard } from '@/lib/routes';
 import { createClient } from '@/lib/supabase/client';
 
 export default function SignupPage() {
@@ -31,7 +32,7 @@ export default function SignupPage() {
     }
 
     if (data.session) {
-      router.push('/customer/dashboard');
+      router.push(customerDashboard());
       return;
     }
 

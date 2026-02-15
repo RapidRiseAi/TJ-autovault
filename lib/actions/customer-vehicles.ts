@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
+import { customerDashboard, customerVehicle } from '@/lib/routes';
 import { createClient } from '@/lib/supabase/server';
 
 const createVehicleSchema = z.object({
@@ -42,8 +43,8 @@ export async function createCustomerVehicle(input: unknown) {
 
   if (error || !data) throw error ?? new Error('Failed to create vehicle');
 
-  revalidatePath('/customer/dashboard');
-  revalidatePath(`/customer/vehicles/${data}`);
+  revalidatePath(customerDashboard());
+  revalidatePath(customerVehicle(data as string));
 
   return { vehicleId: data as string };
 }

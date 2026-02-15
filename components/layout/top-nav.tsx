@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { customerDashboard, workshopDashboard } from '@/lib/routes';
 
 export function TopNav() {
   return (
@@ -13,8 +14,8 @@ export function TopNav() {
           </span>
         </div>
         <nav className="space-x-4 text-sm">
-          <Link href="/customer/dashboard">Customer</Link>
-          <Link href="/workshop/dashboard">Workshop</Link>
+          <Link href={customerDashboard()}>Customer</Link>
+          <Link href={workshopDashboard()}>Workshop</Link>
         </nav>
       </div>
     </header>

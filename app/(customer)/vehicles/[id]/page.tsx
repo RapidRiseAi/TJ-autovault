@@ -1,6 +1,48 @@
-import { redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
+import { Card } from '@/components/ui/card';
+import { createClient } from '@/lib/supabase/server';
 
-export default async function LegacyVehicleDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function VehicleDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  redirect(`/customer/vehicles/${id}`);
+  const supabase = await createClient();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
+  if (!user) notFound();
+
+  const { data: vehicle } = await supabase
+    .from('vehicles')
+    .select('id,registration_number,make,model,year,vin,odometer_km,status,current_customer_account_id')
+    .eq('id', id)
+    .single();
+
+  if (!vehicle?.current_customer_account_id) notFound();
+
+  const { data: membership } = await supabase
+    .from('customer_users')
+    .select('id')
+    .eq('profile_id', user.id)
+    .eq('customer_account_id', vehicle.current_customer_account_id)
+    .maybeSingle();
+
+  if (!membership) notFound();
+
+  return (
+    <div className="space-y-4">
+      <Card className="space-y-2">
+        <h1 className="text-2xl font-bold">{vehicle.registration_number}</h1>
+        <p className="text-sm text-gray-600">{vehicle.make ? `${vehicle.make} ${vehicle.model ?? ''}`.trim() : 'Make/model unavailable'}</p>
+        <p className="text-sm text-gray-600">Status: {vehicle.status ?? 'pending_verification'}</p>
+        <p className="text-sm text-gray-600">Year: {vehicle.year ?? 'Not provided'}</p>
+        <p className="text-sm text-gray-600">VIN: {vehicle.vin ?? 'Not provided'}</p>
+        <p className="text-sm text-gray-600">Current mileage: {vehicle.odometer_km ?? 'Not provided'}</p>
+      </Card>
+
+      <Card>
+        <h2 className="mb-2 text-lg font-semibold">Reports</h2>
+        <p className="text-sm text-gray-600">No reports yet.</p>
+      </Card>
+    </div>
+  );
 }
