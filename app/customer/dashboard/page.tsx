@@ -1,19 +1,29 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Card } from '@/components/ui/card';
-import { getOrCreateCustomerContext } from '@/lib/customer-context';
 import { customerVehicle, customerVehicleNew } from '@/lib/routes';
 import { createClient } from '@/lib/supabase/server';
 
 export default async function CustomerDashboardPage() {
-  const context = await getOrCreateCustomerContext();
-  if (!context) notFound();
-
   const supabase = await createClient();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
+  if (!user) notFound();
+
+  const { data: customerAccount } = await supabase
+    .from('customer_accounts')
+    .select('id')
+    .eq('auth_user_id', user.id)
+    .maybeSingle();
+
+  if (!customerAccount) notFound();
+
   const { data: vehicles } = await supabase
     .from('vehicles')
     .select('id,registration_number,make,model,status,created_at')
-    .eq('current_customer_account_id', context.customerAccountId)
+    .eq('current_customer_account_id', customerAccount.id)
     .order('created_at', { ascending: false });
 
   return (

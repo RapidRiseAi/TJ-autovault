@@ -2,7 +2,6 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { UploadsSection } from '@/components/customer/uploads-section';
 import { Card } from '@/components/ui/card';
-import { getOrCreateCustomerContext } from '@/lib/customer-context';
 import { customerDashboard } from '@/lib/routes';
 import { createClient } from '@/lib/supabase/server';
 
@@ -12,11 +11,21 @@ export default async function VehicleDetailPage({
   params: Promise<{ vehicleId: string }>;
 }) {
   const { vehicleId } = await params;
-  const context = await getOrCreateCustomerContext();
-
-  if (!context) notFound();
 
   const supabase = await createClient();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
+  if (!user) notFound();
+
+  const { data: customerAccount } = await supabase
+    .from('customer_accounts')
+    .select('id')
+    .eq('auth_user_id', user.id)
+    .maybeSingle();
+
+  if (!customerAccount) notFound();
 
   const { data: vehicle } = await supabase
     .from('vehicles')
@@ -24,7 +33,7 @@ export default async function VehicleDetailPage({
       'id,registration_number,make,model,year,vin,odometer_km,status,current_customer_account_id'
     )
     .eq('id', vehicleId)
-    .eq('current_customer_account_id', context.customerAccountId)
+    .eq('current_customer_account_id', customerAccount.id)
     .maybeSingle();
 
   if (!vehicle) {
