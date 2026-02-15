@@ -3,7 +3,6 @@
 import { useRouter } from 'next/navigation';
 import { FormEvent, useState } from 'react';
 import { createCustomerVehicle } from '@/lib/actions/customer-vehicles';
-import { customerVehicle } from '@/lib/routes';
 
 export function AddVehicleForm() {
   const router = useRouter();
@@ -20,7 +19,7 @@ export function AddVehicleForm() {
     const mileageValue = formData.get('currentMileage')?.toString().trim() ?? '';
 
     try {
-      const { vehicleId } = await createCustomerVehicle({
+      await createCustomerVehicle({
         registrationNumber: formData.get('registrationNumber')?.toString() ?? '',
         make: formData.get('make')?.toString() ?? '',
         model: formData.get('model')?.toString() ?? '',
@@ -30,9 +29,17 @@ export function AddVehicleForm() {
         notes: formData.get('notes')?.toString() ?? ''
       });
 
-      router.push(customerVehicle(vehicleId));
       router.refresh();
     } catch (submitError) {
+      if (
+        submitError &&
+        typeof submitError === 'object' &&
+        'digest' in submitError &&
+        typeof submitError.digest === 'string' &&
+        submitError.digest.startsWith('NEXT_REDIRECT')
+      ) {
+        throw submitError;
+      }
       setError(submitError instanceof Error ? submitError.message : 'Could not add vehicle');
       setIsSubmitting(false);
     }

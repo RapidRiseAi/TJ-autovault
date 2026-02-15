@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { getOrCreateCustomerContext } from '@/lib/customer-context';
 import { customerDashboard, customerVehicle } from '@/lib/routes';
@@ -92,5 +93,5 @@ export async function createCustomerVehicle(input: unknown) {
   revalidatePath(customerDashboard());
   revalidatePath(customerVehicle(vehicle.id));
 
-  return { vehicleId: vehicle.id };
+  redirect(customerVehicle(vehicle.id));
 }
