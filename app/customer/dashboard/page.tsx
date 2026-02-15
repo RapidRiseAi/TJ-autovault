@@ -16,7 +16,7 @@ export default async function CustomerDashboardPage() {
     .from('customer_accounts')
     .select('id')
     .eq('auth_user_id', user.id)
-    .maybeSingle();
+    .single();
 
   if (!customerAccount) notFound();
 

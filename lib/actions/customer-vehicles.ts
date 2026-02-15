@@ -3,7 +3,6 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
-import { getOrCreateCustomerContext } from '@/lib/customer-context';
 import { customerDashboard, customerVehicle } from '@/lib/routes';
 import { createClient } from '@/lib/supabase/server';
 
@@ -39,17 +38,29 @@ const createVehicleSchema = z.object({
 
 export async function createCustomerVehicle(input: unknown) {
   const payload = createVehicleSchema.parse(input);
-  const context = await getOrCreateCustomerContext();
-
-  if (!context) throw new Error('Unauthorized');
-
   const supabase = await createClient();
+
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
+  if (!user) throw new Error('Unauthorized');
+
+  const { data: customerAccount, error: customerAccountError } = await supabase
+    .from('customer_accounts')
+    .select('id,workshop_account_id')
+    .eq('auth_user_id', user.id)
+    .single();
+
+  if (customerAccountError || !customerAccount) {
+    throw customerAccountError ?? new Error('Customer account not found');
+  }
 
   const { data: vehicle, error: vehicleError } = await supabase
     .from('vehicles')
     .insert({
-      workshop_account_id: context.workshopAccountId,
-      current_customer_account_id: context.customerAccountId,
+      workshop_account_id: customerAccount.workshop_account_id,
+      current_customer_account_id: customerAccount.id,
       registration_number: payload.registrationNumber,
       make: payload.make,
       model: payload.model,
@@ -61,16 +72,17 @@ export async function createCustomerVehicle(input: unknown) {
     .select('id')
     .single();
 
-  if (vehicleError || !vehicle)
+  if (vehicleError || !vehicle) {
     throw vehicleError ?? new Error('Failed to create vehicle');
+  }
 
   const { error: ownershipError } = await supabase
     .from('vehicle_ownership_history')
     .insert({
       vehicle_id: vehicle.id,
       from_customer_account_id: null,
-      to_customer_account_id: context.customerAccountId,
-      transferred_by: context.userId
+      to_customer_account_id: customerAccount.id,
+      transferred_by: user.id
     });
 
   if (ownershipError) throw ownershipError;
@@ -78,9 +90,9 @@ export async function createCustomerVehicle(input: unknown) {
   const { error: timelineError } = await supabase
     .from('timeline_events')
     .insert({
-      workshop_account_id: context.workshopAccountId,
+      workshop_account_id: customerAccount.workshop_account_id,
       vehicle_id: vehicle.id,
-      actor_profile_id: context.userId,
+      actor_profile_id: user.id,
       event_type: 'vehicle_added_by_customer',
       payload: {
         message: 'Vehicle added by customer (pending verification)',
