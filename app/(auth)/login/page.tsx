@@ -1,19 +1,41 @@
 'use client';
 
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { getDashboardPathForRole, type UserRole } from '@/lib/auth/role-redirect';
 import { Button } from '@/components/ui/button';
 
+const showOtp = process.env.NEXT_PUBLIC_ENABLE_EMAIL_OTP === 'true';
+
 export default function LoginPage() {
-  const supabase = createClient();
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
   const [msg, setMsg] = useState('');
 
   async function signIn() {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setMsg(error ? error.message : 'Signed in.');
+    const supabase = createClient();
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      setMsg(error.message);
+      return;
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', data.user.id)
+      .single();
+
+    if (profileError) {
+      setMsg(profileError.message);
+      return;
+    }
+
+    router.push(getDashboardPathForRole(profile.role as UserRole));
   }
 
   async function sendOtp() {
@@ -26,6 +48,7 @@ export default function LoginPage() {
   }
 
   async function verifyOtp() {
+    const supabase = createClient();
     const { error } = await supabase.auth.verifyOtp({ email, token: otp, type: 'email' });
     setMsg(error ? error.message : 'Email verified.');
   }
@@ -47,21 +70,29 @@ export default function LoginPage() {
         onChange={(e) => setPassword(e.target.value)}
       />
       <Button onClick={signIn}>Sign in</Button>
-      <div className="rounded border p-3">
-        <p className="mb-2 text-sm font-medium">Email OTP verification</p>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={sendOtp}>
-            Send OTP
-          </Button>
-          <input
-            className="flex-1 rounded border p-2"
-            placeholder="6-digit OTP"
-            value={otp}
-            onChange={(e) => setOtp(e.target.value)}
-          />
-          <Button onClick={verifyOtp}>Verify</Button>
+      <p className="text-sm text-gray-600">
+        New here?{' '}
+        <Link href="/signup" className="text-brand-red underline">
+          Create account
+        </Link>
+      </p>
+      {showOtp && (
+        <div className="rounded border p-3">
+          <p className="mb-2 text-sm font-medium">Email OTP verification</p>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={sendOtp}>
+              Send OTP
+            </Button>
+            <input
+              className="flex-1 rounded border p-2"
+              placeholder="6-digit OTP"
+              value={otp}
+              onChange={(e) => setOtp(e.target.value)}
+            />
+            <Button onClick={verifyOtp}>Verify</Button>
+          </div>
         </div>
-      </div>
+      )}
       {msg && <p className="text-sm text-gray-600">{msg}</p>}
     </main>
   );
