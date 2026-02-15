@@ -96,7 +96,7 @@ export function ReportIssueForm({ vehicleId }: { vehicleId: string }) {
       try {
         setUploads((prev) => prev.map((entry) => (entry.id === item.id ? { ...entry, status: 'uploading' } : entry)));
 
-        const uploadUrlResponse = await fetch('/api/customer/reports/upload-url', {
+        const uploadUrlResponse = await fetch('/api/uploads/sign', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ vehicleId, fileName: item.name, contentType: item.mimeType })
@@ -157,7 +157,7 @@ export function ReportIssueForm({ vehicleId }: { vehicleId: string }) {
 
   return (
     <form className="space-y-3" onSubmit={onSubmit}>
-      <h2 className="text-lg font-semibold">Report a new issue</h2>
+      <h2 className="text-lg font-semibold">Report an issue</h2>
       <input
         value={title}
         onChange={(event) => setTitle(event.target.value)}
