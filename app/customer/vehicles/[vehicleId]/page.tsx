@@ -1,36 +1,46 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { UploadsSection } from '@/components/customer/uploads-section';
 import { Card } from '@/components/ui/card';
+import { getCurrentCustomerContext } from '@/lib/customer-account';
 import { customerDashboard } from '@/lib/routes';
 import { createClient } from '@/lib/supabase/server';
 
 export default async function VehicleDetailPage({ params }: { params: Promise<{ vehicleId: string }> }) {
   const { vehicleId } = await params;
-  const supabase = await createClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  const context = await getCurrentCustomerContext();
 
-  if (!user) notFound();
+  if (!context) notFound();
+
+  const supabase = await createClient();
 
   const { data: vehicle } = await supabase
     .from('vehicles')
     .select('id,registration_number,make,model,year,vin,odometer_km,status,current_customer_account_id')
     .eq('id', vehicleId)
+    .in('current_customer_account_id', context.customerAccountIds)
     .maybeSingle();
 
   if (!vehicle) {
-    if (process.env.NODE_ENV !== 'production') {
-      return (
+    return (
+      <main className="space-y-4">
         <Card className="space-y-2">
-          <h1 className="text-xl font-bold">Vehicle not accessible (RLS)</h1>
-          <p className="text-sm text-gray-600">Vehicle ID: {vehicleId}</p>
+          <h1 className="text-xl font-bold">Vehicle not found or you don&apos;t have access</h1>
+          <p className="text-sm text-gray-600">Please confirm the vehicle belongs to your account.</p>
         </Card>
-      );
-    }
-
-    notFound();
+        <Link href={customerDashboard()} className="inline-block text-sm font-medium text-brand-red underline">
+          Back to dashboard
+        </Link>
+      </main>
+    );
   }
+
+  const { data: attachments } = await supabase
+    .from('attachments')
+    .select('id,bucket,storage_path,original_name,mime_type,size_bytes,created_at')
+    .eq('entity_type', 'vehicle')
+    .eq('entity_id', vehicle.id)
+    .order('created_at', { ascending: false });
 
   return (
     <div className="space-y-4">
@@ -43,14 +53,11 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
         <p className="text-sm text-gray-600">Current mileage: {vehicle.odometer_km ?? 'Not provided'}</p>
       </Card>
 
+      <UploadsSection vehicleId={vehicle.id} attachments={attachments ?? []} />
+
       <Link href={customerDashboard()} className="inline-block text-sm font-medium text-brand-red underline">
         Back to dashboard
       </Link>
-
-      <Card>
-        <h2 className="mb-2 text-lg font-semibold">Reports</h2>
-        <p className="text-sm text-gray-600">No reports yet.</p>
-      </Card>
     </div>
   );
 }

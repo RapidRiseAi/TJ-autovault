@@ -7,7 +7,7 @@ const requestSchema = z.object({
   vehicleId: z.string().uuid(),
   fileName: z.string().min(1),
   contentType: z.string().min(1),
-  bucket: z.enum(['private-images', 'private-documents']).default('private-images')
+  kind: z.enum(['image', 'document'])
 });
 
 export async function POST(request: NextRequest) {
@@ -16,9 +16,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid request payload' }, { status: 400 });
   }
 
-  const { vehicleId, fileName, contentType, bucket } = parsed.data;
+  const { vehicleId, fileName, contentType, kind } = parsed.data;
 
-  if (bucket === 'private-images' && !appConfig.uploads.allowedImageMimeTypes.some((mimeType) => mimeType === contentType)) {
+  const bucket = kind === 'image' ? 'private-images' : 'private-documents';
+  const allowedDocumentTypes = [...appConfig.uploads.allowedPdfMimeTypes, ...appConfig.uploads.allowedImageMimeTypes];
+
+  if (kind === 'image' && !appConfig.uploads.allowedImageMimeTypes.some((mimeType) => mimeType === contentType)) {
+    return NextResponse.json({ error: 'Unsupported file type' }, { status: 400 });
+  }
+
+  if (kind === 'document' && !allowedDocumentTypes.some((mimeType) => mimeType === contentType)) {
     return NextResponse.json({ error: 'Unsupported file type' }, { status: 400 });
   }
 
@@ -52,8 +59,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Access denied' }, { status: 403 });
   }
 
-  const extension = fileName.split('.').pop()?.toLowerCase() ?? 'jpg';
-  const storagePath = `${vehicleId}/${user.id}/${crypto.randomUUID()}.${extension}`;
+  const extension = fileName.split('.').pop()?.toLowerCase() ?? (kind === 'image' ? 'jpg' : 'pdf');
+  const sanitizedName = fileName.replace(/[^a-zA-Z0-9._-]/g, '-').slice(0, 80) || `upload.${extension}`;
+  const storagePath = `customers/${vehicle.current_customer_account_id}/vehicles/${vehicleId}/${Date.now()}-${crypto.randomUUID()}-${sanitizedName}`;
 
   const { data, error } = await supabase.storage.from(bucket).createSignedUploadUrl(storagePath);
 
@@ -62,11 +70,8 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json({
+    bucket,
     path: storagePath,
-    token: data.token,
-    signedUrl:
-      'signedUrl' in data && data.signedUrl
-        ? data.signedUrl
-        : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/upload/sign/${bucket}/${storagePath}?token=${data.token}`
+    token: data.token
   });
 }
