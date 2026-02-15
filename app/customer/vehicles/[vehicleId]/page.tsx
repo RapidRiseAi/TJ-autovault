@@ -23,7 +23,7 @@ export default async function VehicleDetailPage({
     .from('customer_accounts')
     .select('id')
     .eq('auth_user_id', user.id)
-    .maybeSingle();
+    .single();
 
   if (!customerAccount) notFound();
 
@@ -34,7 +34,7 @@ export default async function VehicleDetailPage({
     )
     .eq('id', vehicleId)
     .eq('current_customer_account_id', customerAccount.id)
-    .maybeSingle();
+    .single();
 
   if (!vehicle) {
     return (
