@@ -1,12 +1,15 @@
-import { Resend } from '@resend/node';
-import { appConfig } from '@/lib/config/app-config';
+import { Resend } from 'resend';
 
-const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+const resendApiKey = process.env.RESEND_API_KEY;
+const resendFromEmail = process.env.RESEND_FROM_EMAIL;
+
+const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
 export async function sendEmail(to: string, subject: string, html: string) {
-  if (!resend) return;
+  if (!resend || !resendFromEmail) return;
+
   await resend.emails.send({
-    from: appConfig.email.from,
+    from: resendFromEmail,
     to,
     subject,
     html
