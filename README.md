@@ -72,6 +72,31 @@ npm run test
 3. Ensure Supabase redirect URLs include deployed domain.
 4. Deploy.
 
+## CI: automatic Supabase migrations
+Migrations are applied automatically on every push to the `main` branch via GitHub Actions (`.github/workflows/supabase-migrations.yml`).
+
+### 1) Find `SUPABASE_DB_URL` in Supabase
+1. Open your Supabase project dashboard.
+2. Go to **Project Settings** → **Database**.
+3. Copy the **Connection string** for direct Postgres access (URI format like `postgresql://...`).
+4. Use that full URI as `SUPABASE_DB_URL`.
+
+### 2) Add `SUPABASE_DB_URL` as a GitHub Actions secret
+1. Open your GitHub repository.
+2. Go to **Settings** → **Secrets and variables** → **Actions**.
+3. Click **New repository secret**.
+4. Set:
+   - **Name:** `SUPABASE_DB_URL`
+   - **Secret:** paste the Postgres connection string from Supabase.
+
+### 3) How it works
+- Triggered on:
+  - pushes to `main`
+  - manual runs via **workflow_dispatch**
+- The workflow installs the Supabase CLI and runs:
+  - `supabase db push --db-url $SUPABASE_DB_URL`
+- If `SUPABASE_DB_URL` is missing, the job fails with a clear error before running migrations.
+
 ## Supabase manual dashboard setup
 1. **Auth settings**
    - Enable Email provider.
