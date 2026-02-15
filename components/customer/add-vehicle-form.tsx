@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { FormEvent, useState } from 'react';
 import { createCustomerVehicle } from '@/lib/actions/customer-vehicles';
+import { customerVehicle } from '@/lib/routes';
 
 export function AddVehicleForm() {
   const router = useRouter();
@@ -29,7 +30,7 @@ export function AddVehicleForm() {
         notes: formData.get('notes')?.toString() ?? ''
       });
 
-      router.push(`/customer/vehicles/${vehicleId}`);
+      router.push(customerVehicle(vehicleId));
       router.refresh();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Could not add vehicle');

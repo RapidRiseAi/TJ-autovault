@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { appConfig } from '@/lib/config/app-config';
+import { customerVehicle } from '@/lib/routes';
 import { createClient } from '@/lib/supabase/server';
 
 const createCustomerReportSchema = z.object({
@@ -92,6 +93,6 @@ export async function createCustomerReport(input: unknown) {
 
   if (timelineError) throw timelineError;
 
-  revalidatePath(`/customer/vehicles/${payload.vehicleId}`);
+  revalidatePath(customerVehicle(payload.vehicleId));
   return { reportId: report.id };
 }
