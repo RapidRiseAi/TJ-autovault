@@ -1,7 +1,6 @@
 import { notFound } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { createClient } from '@/lib/supabase/server';
-import { ReportIssueForm } from '@/components/customer/report-issue-form';
 
 export default async function VehicleDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -14,7 +13,7 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
 
   const { data: vehicle } = await supabase
     .from('vehicles')
-    .select('id,registration_number,make,model,current_customer_account_id')
+    .select('id,registration_number,make,model,year,vin,odometer_km,status,current_customer_account_id')
     .eq('id', id)
     .single();
 
@@ -29,52 +28,20 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
 
   if (!membership) notFound();
 
-  const { data: latestWorkOrder } = await supabase
-    .from('work_orders')
-    .select('status,completed_at,created_at')
-    .eq('vehicle_id', id)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const { data: timelineEvents } = await supabase
-    .from('timeline_events')
-    .select('id,event_type,created_at,payload')
-    .eq('vehicle_id', id)
-    .order('created_at', { ascending: false })
-    .limit(8);
-
-  const status = latestWorkOrder?.status ?? 'No active work order';
-  const lastService = latestWorkOrder?.completed_at
-    ? new Date(latestWorkOrder.completed_at).toLocaleDateString()
-    : 'Not recorded yet';
-
   return (
     <div className="space-y-4">
-      <Card className="space-y-1">
-        <h1 className="text-2xl font-bold">
-          {vehicle.registration_number} {vehicle.make ? `• ${vehicle.make} ${vehicle.model ?? ''}` : ''}
-        </h1>
-        <p className="text-sm text-gray-600">Status: {status}</p>
-        <p className="text-sm text-gray-600">Last service: {lastService}</p>
-        <p className="text-sm text-gray-600">Next service due: To be confirmed by workshop</p>
+      <Card className="space-y-2">
+        <h1 className="text-2xl font-bold">{vehicle.registration_number}</h1>
+        <p className="text-sm text-gray-600">{vehicle.make ? `${vehicle.make} ${vehicle.model ?? ''}`.trim() : 'Make/model unavailable'}</p>
+        <p className="text-sm text-gray-600">Status: {vehicle.status ?? 'pending_verification'}</p>
+        <p className="text-sm text-gray-600">Year: {vehicle.year ?? 'Not provided'}</p>
+        <p className="text-sm text-gray-600">VIN: {vehicle.vin ?? 'Not provided'}</p>
+        <p className="text-sm text-gray-600">Current mileage: {vehicle.odometer_km ?? 'Not provided'}</p>
       </Card>
 
       <Card>
-        <h2 className="mb-2 text-lg font-semibold">Timeline</h2>
-        <ul className="space-y-2 text-sm">
-          {(timelineEvents ?? []).length === 0 ? <li className="text-gray-600">No timeline entries yet.</li> : null}
-          {(timelineEvents ?? []).map((event) => (
-            <li key={event.id} className="rounded bg-gray-50 p-2">
-              <p className="font-medium">{event.event_type.replaceAll('_', ' ')}</p>
-              <p className="text-xs text-gray-500">{new Date(event.created_at).toLocaleString()}</p>
-            </li>
-          ))}
-        </ul>
-      </Card>
-
-      <Card>
-        <ReportIssueForm vehicleId={id} />
+        <h2 className="mb-2 text-lg font-semibold">Reports</h2>
+        <p className="text-sm text-gray-600">No reports yet.</p>
       </Card>
     </div>
   );
