@@ -30,23 +30,12 @@ export default function SignupPage() {
       return;
     }
 
-    if (!data.user) {
-      setMsg('Signup succeeded. Please check your email to continue.');
+    if (data.session) {
+      router.push('/customer/dashboard');
       return;
     }
 
-    const { error: profileError } = await supabase.from('profiles').insert({
-      id: data.user.id,
-      display_name: displayName,
-      role: 'customer'
-    });
-
-    if (profileError) {
-      setMsg(profileError.message);
-      return;
-    }
-
-    router.push('/customer/dashboard');
+    setMsg('Check your email to confirm, then sign in.');
   }
 
   return (
