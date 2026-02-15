@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 255 255 255;
+  --foreground: 17 17 17;
+}
+
+body {
+  color: rgb(var(--foreground));
+  background: rgb(var(--background));
+}
+
+.watermark {
+  position: fixed;
+  right: 12px;
+  bottom: 8px;
+  z-index: 50;
+  opacity: 0.78;
+  font-size: 12px;
+  font-weight: 700;
+  pointer-events: none;
+  background: #111;
+  color: #fff;
+  border-radius: 9999px;
+  padding: 6px 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
