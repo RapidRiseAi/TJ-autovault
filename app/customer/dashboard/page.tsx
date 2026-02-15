@@ -21,19 +21,29 @@ export default async function CustomerDashboardPage() {
   const { data: vehicles } = customerAccountIds.length
     ? await supabase
         .from('vehicles')
-        .select('id,registration_number,make,model,created_at')
+        .select('id,registration_number,make,model,status,created_at')
         .in('current_customer_account_id', customerAccountIds)
         .order('created_at', { ascending: false })
     : { data: [] };
 
   return (
     <main className="space-y-4">
-      <h1 className="text-2xl font-bold">Customer dashboard</h1>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold">Customer dashboard</h1>
+        <Link href="/customer/vehicles/new" className="rounded bg-brand-red px-3 py-2 text-sm font-medium text-white">
+          Add vehicle
+        </Link>
+      </div>
+
       {(vehicles ?? []).length === 0 ? (
-        <Card>
+        <Card className="space-y-3">
           <p className="text-sm text-gray-600">No vehicles found for your account.</p>
+          <Link href="/customer/vehicles/new" className="inline-block rounded bg-brand-red px-4 py-2 text-sm font-medium text-white">
+            Add vehicle
+          </Link>
         </Card>
       ) : null}
+
       {(vehicles ?? []).map((vehicle) => (
         <Card key={vehicle.id} className="relative transition hover:border-brand-red/40 hover:shadow-md">
           <Link
@@ -47,6 +57,7 @@ export default async function CustomerDashboardPage() {
               <p className="text-sm text-gray-600">
                 {vehicle.make ? `${vehicle.make} ${vehicle.model ?? ''}`.trim() : 'Make/model unavailable'}
               </p>
+              <p className="text-xs uppercase tracking-wide text-gray-500">Status: {vehicle.status ?? 'pending_verification'}</p>
             </div>
             <div className="text-right text-sm">
               <Link href={`/customer/vehicles/${vehicle.id}`} className="relative z-10 text-brand-red underline">
