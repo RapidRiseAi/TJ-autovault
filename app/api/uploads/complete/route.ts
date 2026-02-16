@@ -1,80 +1,58 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { appConfig } from '@/lib/config/app-config';
 import { createClient } from '@/lib/supabase/server';
 
 const requestSchema = z.object({
   vehicleId: z.string().uuid(),
-  bucket: z.enum(['private-images', 'private-documents']),
+  bucket: z.enum(['vehicle-images', 'vehicle-files']),
   path: z.string().min(1),
   contentType: z.string().min(1),
   size: z.number().int().nonnegative(),
   originalName: z.string().min(1),
-  kind: z.enum(['image', 'document'])
+  docType: z.enum(['vehicle_photo', 'license_disk', 'invoice', 'report_photo', 'other'])
 });
 
 export async function POST(request: NextRequest) {
   const parsed = requestSchema.safeParse(await request.json());
-  if (!parsed.success) {
-    return NextResponse.json({ error: 'Invalid request payload' }, { status: 400 });
-  }
-
+  if (!parsed.success) return NextResponse.json({ error: 'Invalid request payload' }, { status: 400 });
   const payload = parsed.data;
-  const supabase = await createClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
 
+  const supabase = await createClient();
+  const user = (await supabase.auth.getUser()).data.user;
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const allowedDocumentTypes = [...appConfig.uploads.allowedPdfMimeTypes, ...appConfig.uploads.allowedImageMimeTypes];
-  if (payload.kind === 'image' && !appConfig.uploads.allowedImageMimeTypes.some((mimeType) => mimeType === payload.contentType)) {
-    return NextResponse.json({ error: 'Unsupported file type' }, { status: 400 });
-  }
-  if (payload.kind === 'document' && !allowedDocumentTypes.some((mimeType) => mimeType === payload.contentType)) {
-    return NextResponse.json({ error: 'Unsupported file type' }, { status: 400 });
-  }
+  const { data: vehicle } = await supabase.from('vehicles').select('id,workshop_account_id,current_customer_account_id').eq('id', payload.vehicleId).single();
+  if (!vehicle?.current_customer_account_id) return NextResponse.json({ error: 'Vehicle not found' }, { status: 404 });
 
-  const { data: vehicle, error: vehicleError } = await supabase
-    .from('vehicles')
-    .select('id,workshop_account_id,current_customer_account_id')
-    .eq('id', payload.vehicleId)
-    .single();
+  const { data: membership } = await supabase.from('customer_accounts').select('id').eq('auth_user_id', user.id).eq('id', vehicle.current_customer_account_id).maybeSingle();
+  if (!membership) return NextResponse.json({ error: 'Access denied' }, { status: 403 });
 
-  if (vehicleError || !vehicle?.current_customer_account_id) {
-    return NextResponse.json({ error: 'Vehicle not found' }, { status: 404 });
-  }
-
-  const { data: membership } = await supabase
-    .from('customer_users')
-    .select('id')
-    .eq('profile_id', user.id)
-    .eq('customer_account_id', vehicle.current_customer_account_id)
-    .maybeSingle();
-
-  if (!membership) {
-    return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-  }
-
-  if (!payload.path.includes(`/vehicles/${payload.vehicleId}/`)) {
-    return NextResponse.json({ error: 'Invalid storage path' }, { status: 400 });
-  }
-
-  const { error } = await supabase.from('attachments').insert({
+  const { data: doc, error } = await supabase.from('vehicle_documents').insert({
     workshop_account_id: vehicle.workshop_account_id,
-    entity_type: 'vehicle',
-    entity_id: payload.vehicleId,
-    bucket: payload.bucket,
+    customer_account_id: vehicle.current_customer_account_id,
+    vehicle_id: payload.vehicleId,
+    doc_type: payload.docType,
+    storage_bucket: payload.bucket,
     storage_path: payload.path,
     original_name: payload.originalName,
-    size_bytes: payload.size,
     mime_type: payload.contentType,
-    created_by: user.id
-  });
+    size_bytes: payload.size
+  }).select('id').single();
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error || !doc) return NextResponse.json({ error: error?.message ?? 'Could not save upload metadata' }, { status: 400 });
+
+  if (payload.docType === 'vehicle_photo') {
+    await supabase.from('vehicles').update({ vehicle_image_doc_id: doc.id }).eq('id', payload.vehicleId);
   }
+
+  await supabase.rpc('add_vehicle_timeline_event', {
+    p_workshop_account_id: vehicle.workshop_account_id,
+    p_customer_account_id: vehicle.current_customer_account_id,
+    p_vehicle_id: payload.vehicleId,
+    p_event_type: 'doc_uploaded',
+    p_title: `Document uploaded: ${payload.docType}`,
+    p_meta: { doc_id: doc.id }
+  });
 
   return NextResponse.json({ ok: true });
 }
