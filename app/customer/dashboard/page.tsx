@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { redirect } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { customerVehicle, customerVehicleNew } from '@/lib/routes';
 import { createClient } from '@/lib/supabase/server';
@@ -10,7 +10,7 @@ export default async function CustomerDashboardPage() {
     data: { user }
   } = await supabase.auth.getUser();
 
-  if (!user) notFound();
+  if (!user) redirect('/login');
 
   const { data: customerAccount } = await supabase
     .from('customer_accounts')
@@ -18,7 +18,24 @@ export default async function CustomerDashboardPage() {
     .eq('auth_user_id', user.id)
     .single();
 
-  if (!customerAccount) notFound();
+  if (!customerAccount) {
+    return (
+      <main className="space-y-4">
+        <h1 className="text-2xl font-bold">Customer dashboard</h1>
+        <Card className="space-y-3">
+          <p className="text-sm text-gray-600">
+            We could not find a customer account linked to this login yet.
+          </p>
+          <p className="text-sm text-gray-600">
+            Please sign out and back in, or contact support if the issue continues.
+          </p>
+          <Link href="/login" className="inline-block text-brand-red underline">
+            Back to login
+          </Link>
+        </Card>
+      </main>
+    );
+  }
 
   const { data: vehicles } = await supabase
     .from('vehicles')

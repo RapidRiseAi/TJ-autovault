@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { customerDashboard } from '@/lib/routes';
 import { createClient } from '@/lib/supabase/client';
 
 export default function SignupPage() {
@@ -31,12 +30,12 @@ export default function SignupPage() {
       return;
     }
 
-    if (data.session) {
-      router.push(customerDashboard());
+    if (data.user) {
+      router.push('/login?created=1');
       return;
     }
 
-    setMsg('Check your email to confirm, then sign in.');
+    setMsg('Unable to create account. Please try again.');
   }
 
   return (

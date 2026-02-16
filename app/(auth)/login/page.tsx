@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { getDashboardPathForRole, type UserRole } from '@/lib/auth/role-redirect';
@@ -11,10 +11,12 @@ const showOtp = process.env.NEXT_PUBLIC_ENABLE_EMAIL_OTP === 'true';
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
   const [msg, setMsg] = useState('');
+  const created = searchParams.get('created') === '1';
 
   async function signIn() {
     const supabase = createClient();
@@ -56,6 +58,11 @@ export default function LoginPage() {
   return (
     <main className="mx-auto max-w-md space-y-4 p-6">
       <h1 className="text-2xl font-bold">Login</h1>
+      {created ? (
+        <p className="rounded border border-green-200 bg-green-50 p-2 text-sm text-green-800">
+          Account created successfully. Please sign in.
+        </p>
+      ) : null}
       <input
         className="w-full rounded border p-2"
         placeholder="Email"
