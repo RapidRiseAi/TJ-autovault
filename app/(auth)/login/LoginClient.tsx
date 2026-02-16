@@ -42,7 +42,7 @@ export default function LoginClient() {
     if (dashboardPath === '/customer/dashboard') {
       const bootstrapResponse = await fetch('/api/auth/customer/bootstrap', { method: 'POST' });
       if (!bootstrapResponse.ok) {
-        setMsg('Failed to initialize customer account. Please try again.');
+        router.push('/customer/profile-required');
         return;
       }
     }

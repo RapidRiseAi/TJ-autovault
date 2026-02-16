@@ -15,14 +15,10 @@ export default function SignupPage() {
 
   async function signUp() {
     const supabase = createClient();
-    const { data, error } = await supabase.auth.signUp({
+    const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        data: {
-          display_name: displayName
-        }
-      }
+      options: { data: { display_name: displayName } }
     });
 
     if (error) {
@@ -30,58 +26,17 @@ export default function SignupPage() {
       return;
     }
 
-    if (data.session?.user) {
-      const bootstrapResponse = await fetch('/api/auth/customer/bootstrap', {
-        method: 'POST'
-      });
-
-      if (!bootstrapResponse.ok) {
-        setMsg('Account created, but we could not finish setup. Please sign in again.');
-        router.push('/login?created=1');
-        return;
-      }
-
-      router.push('/customer/dashboard');
-      return;
-    }
-
-    if (data.user) {
-      router.push('/login?created=1');
-      return;
-    }
-
-    setMsg('Unable to create account. Please try again.');
+    router.push('/login?created=1');
   }
 
   return (
     <main className="mx-auto max-w-md space-y-4 p-6">
       <h1 className="text-2xl font-bold">Create account</h1>
-      <input
-        className="w-full rounded border p-2"
-        placeholder="Display name"
-        value={displayName}
-        onChange={(e) => setDisplayName(e.target.value)}
-      />
-      <input
-        className="w-full rounded border p-2"
-        placeholder="Email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-      />
-      <input
-        className="w-full rounded border p-2"
-        type="password"
-        placeholder="Password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-      />
+      <input className="w-full rounded border p-2" placeholder="Display name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+      <input className="w-full rounded border p-2" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+      <input className="w-full rounded border p-2" type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
       <Button onClick={signUp}>Sign up</Button>
-      <p className="text-sm text-gray-600">
-        Already have an account?{' '}
-        <Link href="/login" className="text-brand-red underline">
-          Sign in
-        </Link>
-      </p>
+      <p className="text-sm text-gray-600">Already have an account? <Link href="/login" className="text-brand-red underline">Sign in</Link></p>
       {msg && <p className="text-sm text-gray-600">{msg}</p>}
     </main>
   );

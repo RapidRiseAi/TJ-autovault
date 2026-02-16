@@ -1,0 +1,22 @@
+{
+  "Toyota": ["Corolla", "Hilux", "Fortuner", "Yaris", "RAV4", "Land Cruiser", "HiAce", "Other"],
+  "Volkswagen": ["Polo", "Golf", "Tiguan", "Amarok", "Passat", "T-Cross", "Other"],
+  "Ford": ["Ranger", "Fiesta", "Focus", "Everest", "EcoSport", "F-150", "Other"],
+  "BMW": ["1 Series", "3 Series", "5 Series", "X1", "X3", "X5", "Other"],
+  "Mercedes-Benz": ["A-Class", "C-Class", "E-Class", "GLA", "GLC", "Sprinter", "Other"],
+  "Audi": ["A3", "A4", "A6", "Q3", "Q5", "Q7", "Other"],
+  "Nissan": ["NP200", "Navara", "X-Trail", "Qashqai", "Micra", "Almera", "Other"],
+  "Hyundai": ["i10", "i20", "i30", "Tucson", "Santa Fe", "H-1", "Other"],
+  "Kia": ["Picanto", "Rio", "Cerato", "Seltos", "Sportage", "Sorento", "Other"],
+  "Honda": ["Civic", "Ballade", "Jazz", "CR-V", "HR-V", "BR-V", "Other"],
+  "Mazda": ["Mazda2", "Mazda3", "CX-3", "CX-5", "BT-50", "Other"],
+  "Isuzu": ["D-Max", "MU-X", "KB", "Other"],
+  "Renault": ["Kwid", "Clio", "Duster", "Kiger", "Triber", "Other"],
+  "Suzuki": ["Swift", "Baleno", "Ciaz", "Ertiga", "Jimny", "Other"],
+  "Chevrolet": ["Spark", "Aveo", "Cruze", "Trailblazer", "Utility", "Other"],
+  "Mitsubishi": ["Pajero", "Outlander", "ASX", "Triton", "Other"],
+  "Land Rover": ["Defender", "Discovery", "Range Rover Evoque", "Range Rover Sport", "Other"],
+  "Lexus": ["IS", "ES", "NX", "RX", "LX", "Other"],
+  "Volvo": ["S60", "S90", "XC40", "XC60", "XC90", "Other"],
+  "Other": ["Other"]
+}
