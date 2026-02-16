@@ -37,7 +37,17 @@ export default function LoginClient() {
       return;
     }
 
-    router.push(getDashboardPathForRole(profile.role as UserRole));
+    const dashboardPath = getDashboardPathForRole(profile.role as UserRole);
+
+    if (dashboardPath === '/customer/dashboard') {
+      const bootstrapResponse = await fetch('/api/auth/customer/bootstrap', { method: 'POST' });
+      if (!bootstrapResponse.ok) {
+        setMsg('Failed to initialize customer account. Please try again.');
+        return;
+      }
+    }
+
+    router.push(dashboardPath);
   }
 
   async function sendOtp() {

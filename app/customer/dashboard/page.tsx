@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Card } from '@/components/ui/card';
+import { ensureCustomerAccountLinked } from '@/lib/customer/ensureCustomerAccountLinked';
 import { customerVehicle, customerVehicleNew } from '@/lib/routes';
 import { createClient } from '@/lib/supabase/server';
 
@@ -12,11 +13,15 @@ export default async function CustomerDashboardPage() {
 
   if (!user) redirect('/login');
 
-  const { data: customerAccount } = await supabase
+  let { data: customerAccount } = await supabase
     .from('customer_accounts')
     .select('id')
     .eq('auth_user_id', user.id)
     .single();
+
+  if (!customerAccount) {
+    customerAccount = await ensureCustomerAccountLinked();
+  }
 
   if (!customerAccount) {
     return (

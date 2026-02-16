@@ -30,6 +30,21 @@ export default function SignupPage() {
       return;
     }
 
+    if (data.session?.user) {
+      const bootstrapResponse = await fetch('/api/auth/customer/bootstrap', {
+        method: 'POST'
+      });
+
+      if (!bootstrapResponse.ok) {
+        setMsg('Account created, but we could not finish setup. Please sign in again.');
+        router.push('/login?created=1');
+        return;
+      }
+
+      router.push('/customer/dashboard');
+      return;
+    }
+
     if (data.user) {
       router.push('/login?created=1');
       return;
