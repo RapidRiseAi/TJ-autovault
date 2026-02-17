@@ -52,7 +52,7 @@ export default function SignupPage() {
       <div className="grid gap-2">
         {plans.map((item) => (
           <label key={item.key} className={`cursor-pointer rounded border p-3 ${plan === item.key ? 'border-brand-red' : ''}`}>
-            <input type="radio" className="mr-2" name="plan" checked={plan === item.key} onChange={() => setPlan(item.key)} />
+            <input type="radio" className="mr-2" name="plan" value={item.key} checked={plan === item.key} onChange={() => setPlan(item.key)} />
             <span className="font-semibold">{item.title}</span> <span className="text-sm text-gray-600">{item.label} · {item.limit} vehicle{item.limit > 1 ? 's' : ''}</span>
           </label>
         ))}

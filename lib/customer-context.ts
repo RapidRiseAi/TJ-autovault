@@ -92,7 +92,7 @@ export async function getOrCreateCustomerContext(): Promise<CustomerContext | nu
     .insert({
       workshop_account_id: profile.workshop_account_id,
       name: getDefaultCustomerName(profile.display_name, user.email),
-      tier: 'free',
+      tier: 'basic',
       auth_user_id: user.id
     });
 

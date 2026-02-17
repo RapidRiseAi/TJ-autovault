@@ -10,50 +10,140 @@ alter table public.customer_accounts
   add column if not exists subscription_status text not null default 'active';
 
 DO $$
+DECLARE
+  tier_data_type text;
+  tier_udt_schema text;
+  tier_udt_name text;
 BEGIN
-  -- If tier is an enum (USER-DEFINED), convert to text for the new plan system
-  IF EXISTS (
+  IF NOT EXISTS (
     SELECT 1
-    FROM information_schema.columns
-    WHERE table_schema='public'
-      AND table_name='customer_accounts'
-      AND column_name='tier'
-      AND data_type='USER-DEFINED'
+    FROM pg_type t
+    JOIN pg_namespace n ON n.oid = t.typnamespace
+    WHERE n.nspname = 'public'
+      AND t.typname = 'customer_tier'
+      AND t.typtype = 'e'
   ) THEN
-    ALTER TABLE public.customer_accounts
-      ALTER COLUMN tier TYPE text USING tier::text;
+    EXECUTE $$create type public.customer_tier as enum ('basic','pro','business')$$;
+  ELSE
+    IF NOT EXISTS (
+      SELECT 1
+      FROM pg_enum e
+      JOIN pg_type t ON t.oid = e.enumtypid
+      JOIN pg_namespace n ON n.oid = t.typnamespace
+      WHERE n.nspname = 'public'
+        AND t.typname = 'customer_tier'
+        AND e.enumlabel = 'basic'
+    ) THEN
+      EXECUTE $$alter type public.customer_tier add value 'basic'$$;
+    END IF;
+
+    IF NOT EXISTS (
+      SELECT 1
+      FROM pg_enum e
+      JOIN pg_type t ON t.oid = e.enumtypid
+      JOIN pg_namespace n ON n.oid = t.typnamespace
+      WHERE n.nspname = 'public'
+        AND t.typname = 'customer_tier'
+        AND e.enumlabel = 'pro'
+    ) THEN
+      EXECUTE $$alter type public.customer_tier add value 'pro'$$;
+    END IF;
+
+    IF NOT EXISTS (
+      SELECT 1
+      FROM pg_enum e
+      JOIN pg_type t ON t.oid = e.enumtypid
+      JOIN pg_namespace n ON n.oid = t.typnamespace
+      WHERE n.nspname = 'public'
+        AND t.typname = 'customer_tier'
+        AND e.enumlabel = 'business'
+    ) THEN
+      EXECUTE $$alter type public.customer_tier add value 'business'$$;
+    END IF;
   END IF;
 
-  -- Normalize to the new plan tiers and backfill plan defaults
-  UPDATE public.customer_accounts
-  SET tier = CASE lower(coalesce(tier, ''))
-      WHEN 'basic' THEN 'basic'
-      WHEN 'pro' THEN 'pro'
-      WHEN 'business' THEN 'business'
-      WHEN 'free' THEN 'basic'
-      WHEN '' THEN 'basic'
-      ELSE 'basic'
-    END,
-      vehicle_limit = coalesce(
-        vehicle_limit,
-        CASE lower(coalesce(tier, ''))
-          WHEN 'business' THEN 20
-          WHEN 'pro' THEN 10
-          ELSE 1
+  SELECT c.data_type, c.udt_schema, c.udt_name
+  INTO tier_data_type, tier_udt_schema, tier_udt_name
+  FROM information_schema.columns c
+  WHERE c.table_schema = 'public'
+    AND c.table_name = 'customer_accounts'
+    AND c.column_name = 'tier';
+
+  IF tier_data_type = 'USER-DEFINED' AND tier_udt_schema = 'public' AND tier_udt_name = 'customer_tier' THEN
+    UPDATE public.customer_accounts
+    SET tier = (
+      CASE lower(coalesce(tier::text, ''))
+        WHEN 'pro' THEN 'pro'::public.customer_tier
+        WHEN 'business' THEN 'business'::public.customer_tier
+        WHEN 'basic' THEN 'basic'::public.customer_tier
+        WHEN 'free' THEN 'basic'::public.customer_tier
+        WHEN 'trial' THEN 'basic'::public.customer_tier
+        WHEN '' THEN 'basic'::public.customer_tier
+        ELSE 'basic'::public.customer_tier
+      END
+    ),
+        vehicle_limit = coalesce(
+          vehicle_limit,
+          CASE lower(coalesce(tier::text, ''))
+            WHEN 'business' THEN 20
+            WHEN 'pro' THEN 10
+            ELSE 1
+          END
+        ),
+        plan_price_cents = coalesce(
+          plan_price_cents,
+          CASE lower(coalesce(tier::text, ''))
+            WHEN 'business' THEN 120000
+            WHEN 'pro' THEN 70000
+            ELSE 10000
+          END
+        );
+  ELSE
+    UPDATE public.customer_accounts
+    SET tier = CASE lower(coalesce(tier::text, ''))
+        WHEN 'basic' THEN 'basic'
+        WHEN 'pro' THEN 'pro'
+        WHEN 'business' THEN 'business'
+        WHEN 'free' THEN 'basic'
+        WHEN 'trial' THEN 'basic'
+        WHEN '' THEN 'basic'
+        ELSE 'basic'
+      END,
+        vehicle_limit = coalesce(
+          vehicle_limit,
+          CASE lower(coalesce(tier::text, ''))
+            WHEN 'business' THEN 20
+            WHEN 'pro' THEN 10
+            ELSE 1
+          END
+        ),
+        plan_price_cents = coalesce(
+          plan_price_cents,
+          CASE lower(coalesce(tier::text, ''))
+            WHEN 'business' THEN 120000
+            WHEN 'pro' THEN 70000
+            ELSE 10000
+          END
+        );
+
+    ALTER TABLE public.customer_accounts
+      ALTER COLUMN tier TYPE public.customer_tier
+      USING (
+        CASE lower(coalesce(tier::text, ''))
+          WHEN 'pro' THEN 'pro'
+          WHEN 'business' THEN 'business'
+          WHEN 'basic' THEN 'basic'
+          WHEN 'free' THEN 'basic'
+          WHEN 'trial' THEN 'basic'
+          WHEN '' THEN 'basic'
+          ELSE 'basic'
         END
-      ),
-      plan_price_cents = coalesce(
-        plan_price_cents,
-        CASE lower(coalesce(tier, ''))
-          WHEN 'business' THEN 120000
-          WHEN 'pro' THEN 70000
-          ELSE 10000
-        END
-      );
+      )::public.customer_tier;
+  END IF;
 END $$;
 
 alter table public.customer_accounts
-  alter column tier set default 'basic',
+  alter column tier set default 'basic'::public.customer_tier,
   alter column vehicle_limit set default 1,
   alter column plan_price_cents set default 10000,
   alter column tier set not null,
@@ -65,7 +155,7 @@ alter table public.customer_accounts
 
 alter table public.customer_accounts
   add constraint customer_accounts_tier_check
-  check (lower(tier) in ('basic','pro','business'));
+  check (tier::text in ('basic','pro','business'));
 
 -- 2) vehicle timeline events (align existing table with requested shape)
 alter table public.vehicle_timeline_events

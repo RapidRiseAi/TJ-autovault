@@ -79,7 +79,7 @@ export async function ensureCustomerAccountLinked() {
           auth_user_id: user.id,
           workshop_account_id: existingProfile?.workshop_account_id ?? workshopAccountId,
           name: displayName,
-          tier: 'free'
+          tier: 'basic'
         },
         { onConflict: 'auth_user_id' }
       )
@@ -126,7 +126,7 @@ export async function ensureCustomerAccountLinked() {
           auth_user_id: user.id,
           workshop_account_id: existingProfile?.workshop_account_id ?? workshopAccountId,
           name: displayName,
-          tier: 'free'
+          tier: 'basic'
         },
         { onConflict: 'auth_user_id' }
       )
