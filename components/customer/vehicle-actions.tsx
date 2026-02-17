@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
-import { createWorkRequest, decideQuote, updateMileage } from '@/lib/actions/customer-vehicles';
+import { createWorkRequest, decideQuote, decideRecommendation, updateMileage } from '@/lib/actions/customer-vehicles';
 
 export function RequestForm({ vehicleId }: { vehicleId: string }) {
   const [msg, setMsg] = useState('');
@@ -33,4 +33,9 @@ export function MileageForm({ vehicleId }: { vehicleId: string }) {
 export function QuoteDecisionButtons({ quoteId }: { quoteId: string }) {
   const [msg, setMsg] = useState('');
   return <div className="flex gap-2 text-xs"><button onClick={async () => { const r = await decideQuote({ quoteId, decision: 'approved' }); setMsg(r.ok ? 'Approved' : r.error); }} className="rounded border px-2 py-1">Approve</button><button onClick={async () => { const r = await decideQuote({ quoteId, decision: 'declined' }); setMsg(r.ok ? 'Declined' : r.error); }} className="rounded border px-2 py-1">Decline</button>{msg ? <span>{msg}</span> : null}</div>;
+}
+
+export function RecommendationDecisionButtons({ recommendationId }: { recommendationId: string }) {
+  const [msg, setMsg] = useState('');
+  return <div className="flex gap-2 text-xs"><button onClick={async () => { const r = await decideRecommendation({ recommendationId, decision: 'approved' }); setMsg(r.ok ? 'Approved' : r.error); }} className="rounded border px-2 py-1">Approve</button><button onClick={async () => { const r = await decideRecommendation({ recommendationId, decision: 'declined' }); setMsg(r.ok ? 'Declined' : r.error); }} className="rounded border px-2 py-1">Decline</button>{msg ? <span>{msg}</span> : null}</div>;
 }

@@ -28,8 +28,11 @@ export async function POST(request: NextRequest) {
   const { data: vehicle } = await supabase.from('vehicles').select('id,workshop_account_id,current_customer_account_id').eq('id', vehicleId).single();
   if (!vehicle?.current_customer_account_id) return NextResponse.json({ error: 'Vehicle not found' }, { status: 404 });
 
-  const { data: membership } = await supabase.from('customer_accounts').select('id').eq('auth_user_id', user.id).eq('id', vehicle.current_customer_account_id).maybeSingle();
-  if (!membership) return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+  const [{ data: customerMembership }, { data: workshopMembership }] = await Promise.all([
+    supabase.from('customer_accounts').select('id').eq('auth_user_id', user.id).eq('id', vehicle.current_customer_account_id).maybeSingle(),
+    supabase.from('profiles').select('id,role').eq('id', user.id).eq('workshop_account_id', vehicle.workshop_account_id).in('role', ['admin', 'technician']).maybeSingle()
+  ]);
+  if (!customerMembership && !workshopMembership) return NextResponse.json({ error: 'Access denied' }, { status: 403 });
 
   const extension = fileName.split('.').pop()?.toLowerCase() ?? (kind === 'image' ? 'jpg' : 'pdf');
   const sanitizedName = fileName.replace(/[^a-zA-Z0-9._-]/g, '-').slice(0, 80) || `upload.${extension}`;

@@ -162,6 +162,25 @@ export async function decideQuote(input: { quoteId: string; decision: 'approved'
   return { ok: true, message: `Quote ${input.decision}.` };
 }
 
+export async function decideRecommendation(input: { recommendationId: string; decision: 'approved' | 'declined' }): Promise<ActionResult> {
+  const supabase = await createClient();
+  const context = await getCustomerContextOrCreate();
+  if (!context) return { ok: false, error: 'Please sign in.' };
+  const account = context.customer_account;
+
+  const { data, error } = await supabase
+    .from('recommendations')
+    .update({ status: input.decision, status_text: input.decision === 'approved' ? 'acknowledged' : 'open' })
+    .eq('id', input.recommendationId)
+    .eq('customer_account_id', account.id)
+    .select('vehicle_id')
+    .single();
+
+  if (error || !data) return { ok: false, error: error?.message ?? 'Failed to update recommendation.' };
+  revalidatePath(customerVehicle(data.vehicle_id));
+  return { ok: true, message: `Recommendation ${input.decision}.` };
+}
+
 export async function markNotificationRead(notificationId: string): Promise<void> {
   const supabase = await createClient();
   await supabase.from('notifications').update({ is_read: true }).eq('id', notificationId);
