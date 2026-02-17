@@ -1,70 +1,43 @@
-'use client';
-
-import { useRouter } from 'next/navigation';
-import { useRef, useState } from 'react';
+import { importanceBadgeClass } from '@/lib/timeline';
 
 type Attachment = {
   id: string;
   bucket: string | null;
   storage_path: string;
   original_name: string | null;
-  mime_type: string;
-  size_bytes: number | null;
   created_at: string;
+  document_type?: string | null;
+  subject?: string | null;
+  importance?: string | null;
+  uploaded_by?: string | null;
 };
 
-type UploadKind = 'image' | 'document';
+function badgeLabel(value?: string | null) {
+  if (!value) return 'other';
+  return value.replaceAll('_', ' ');
+}
 
-export function UploadsSection({ vehicleId, attachments }: { vehicleId: string; attachments: Attachment[] }) {
-  const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const imageInputRef = useRef<HTMLInputElement>(null);
-  const docInputRef = useRef<HTMLInputElement>(null);
-
-  async function uploadFile(file: File, kind: UploadKind) {
-    setError(null);
-    setIsUploading(true);
-
-    try {
-      const signResponse = await fetch('/api/uploads/sign', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ vehicleId, fileName: file.name, contentType: file.type, kind })
-      });
-      if (!signResponse.ok) throw new Error((await signResponse.json()).error ?? 'Could not sign upload');
-
-      const signedPayload = (await signResponse.json()) as { bucket: string; path: string; token: string; docType: string };
-      const uploadResponse = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/upload/sign/${signedPayload.bucket}/${signedPayload.path}?token=${signedPayload.token}`, {
-        method: 'PUT', headers: { 'Content-Type': file.type, 'x-upsert': 'false' }, body: file
-      });
-      if (!uploadResponse.ok) throw new Error('Upload failed');
-
-      const completeResponse = await fetch('/api/uploads/complete', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ vehicleId, bucket: signedPayload.bucket, path: signedPayload.path, contentType: file.type, size: file.size, originalName: file.name, docType: signedPayload.docType })
-      });
-      if (!completeResponse.ok) throw new Error((await completeResponse.json()).error ?? 'Could not save upload metadata');
-      router.refresh();
-    } catch (uploadError) {
-      setError(uploadError instanceof Error ? uploadError.message : 'Upload failed');
-    } finally {
-      setIsUploading(false);
-    }
-  }
-
+export function UploadsSection({ attachments }: { vehicleId: string; attachments: Attachment[] }) {
   return (
-    <div className="space-y-4">
-      <h2 className="text-lg font-semibold">Documents</h2>
-      <div className="flex flex-wrap gap-2">
-        <button type="button" disabled={isUploading} onClick={() => imageInputRef.current?.click()} className="rounded bg-brand-red px-3 py-2 text-sm text-white disabled:opacity-50">Upload image</button>
-        <button type="button" disabled={isUploading} onClick={() => docInputRef.current?.click()} className="rounded border px-3 py-2 text-sm disabled:opacity-50">Upload document</button>
-      </div>
-      <input ref={imageInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadFile(file, 'image'); event.currentTarget.value = ''; }} />
-      <input ref={docInputRef} type="file" accept="application/pdf,image/jpeg,image/png" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadFile(file, 'document'); event.currentTarget.value = ''; }} />
-      {error ? <p className="text-sm text-red-700">{error}</p> : null}
+    <div className="space-y-3">
+      <h2 className="text-lg font-semibold">Uploads</h2>
       <ul className="space-y-2 text-sm">
-        {attachments.length === 0 ? <li className="text-gray-600">No uploads yet.</li> : null}
-        {attachments.map((attachment) => <li key={attachment.id} className="flex items-center justify-between gap-2 rounded border p-2"><span className="truncate">{attachment.original_name ?? attachment.storage_path.split('/').at(-1)}</span><a href={`/api/uploads/download?bucket=${encodeURIComponent(attachment.bucket ?? '')}&path=${encodeURIComponent(attachment.storage_path)}`} className="text-brand-red underline">Download</a></li>)}
+        {attachments.length === 0 ? <li className="rounded border p-3 text-gray-600">No uploads yet.</li> : null}
+        {attachments.map((attachment) => (
+          <li key={attachment.id} className="rounded border p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="space-y-1">
+                <div className="flex flex-wrap gap-2">
+                  <span className="rounded border bg-gray-50 px-2 py-0.5 text-[10px] uppercase">{badgeLabel(attachment.document_type)}</span>
+                  <span className={`rounded border px-2 py-0.5 text-[10px] uppercase ${importanceBadgeClass(attachment.importance)}`}>{attachment.importance ?? 'info'}</span>
+                </div>
+                <p className="font-medium">{attachment.subject ?? attachment.original_name ?? attachment.storage_path.split('/').at(-1)}</p>
+                <p className="text-xs text-gray-500">{new Date(attachment.created_at).toLocaleString()} · {attachment.uploaded_by ?? 'Unknown'}</p>
+              </div>
+              <a href={`/api/uploads/download?bucket=${encodeURIComponent(attachment.bucket ?? '')}&path=${encodeURIComponent(attachment.storage_path)}`} className="text-brand-red underline">Download</a>
+            </div>
+          </li>
+        ))}
       </ul>
     </div>
   );
