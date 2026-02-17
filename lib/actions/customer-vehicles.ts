@@ -29,7 +29,19 @@ export async function createCustomerVehicle(input: unknown): Promise<ActionResul
   const supabase = await createClient();
 
   try {
-    const { data: vehicleId, error } = await supabase.rpc('create_vehicle_with_ownership_and_timeline', {
+    const account = await ensureCustomerAccountLinked();
+    if (!account) return { ok: false, error: 'Please sign in first.' };
+
+    const [{ count }, { data: customer }] = await Promise.all([
+      supabase.from('vehicles').select('id', { count: 'exact', head: true }).eq('current_customer_account_id', account.id),
+      supabase.from('customer_accounts').select('vehicle_limit').eq('id', account.id).single()
+    ]);
+
+    if ((count ?? 0) >= (customer?.vehicle_limit ?? 1)) {
+      return { ok: false, error: 'Upgrade plan to add more vehicles' };
+    }
+
+    const { data: vehicleId, error } = await supabase.rpc('create_customer_vehicle', {
       p_registration_number: payload.registrationNumber,
       p_make: payload.make,
       p_model: payload.model,
@@ -51,87 +63,102 @@ export async function createCustomerVehicle(input: unknown): Promise<ActionResul
   }
 }
 
-export async function createSupportTicket(input: {
-  vehicleId?: string;
-  category: 'account' | 'vehicle' | 'service' | 'billing' | 'other';
-  message: string;
+export async function createProblemReport(input: {
+  vehicleId: string;
+  category: 'vehicle' | 'noise' | 'engine' | 'brakes' | 'electrical' | 'other';
+  description: string;
 }): Promise<ActionResult> {
   const supabase = await createClient();
+  const account = await ensureCustomerAccountLinked();
+  if (!account) return { ok: false, error: 'Please sign in.' };
 
-  try {
-    const authUser = await supabase.auth.getUser();
-    const userId = authUser.data.user?.id;
-    if (!userId) return { ok: false, error: 'Please sign in to submit a report.' };
-
-    const { data: account, error: accountError } = await supabase
-      .from('customer_accounts')
-      .select('id,workshop_account_id')
-      .eq('auth_user_id', userId)
-      .single();
-
-    if (accountError || !account) {
-      return { ok: false, error: 'Customer account missing.' };
-    }
-
-    const { data: ticketId, error: ticketError } = await supabase.rpc('create_support_ticket_with_timeline', {
-      p_workshop_account_id: account.workshop_account_id,
-      p_customer_account_id: account.id,
-      p_vehicle_id: input.vehicleId ?? null,
-      p_category: input.category,
-      p_message: input.message
-    });
-
-    if (ticketError || !ticketId) {
-      return { ok: false, error: 'Could not submit your report right now. Please try again.' };
-    }
-
-    if (input.vehicleId) {
-      revalidatePath(customerVehicle(input.vehicleId));
-    }
-
-    return { ok: true, message: 'Thanks — your report was submitted successfully.' };
-  } catch {
-    return { ok: false, error: 'Could not submit your report right now. Please try again.' };
-  }
-}
-
-export async function approveOrDeclineRecommendation(input: {
-  recommendationId: string;
-  decision: 'approved' | 'declined';
-  note?: string;
-}): Promise<ActionResult> {
-  const supabase = await createClient();
-  const userId = (await supabase.auth.getUser()).data.user?.id;
-  if (!userId) return { ok: false, error: 'Unauthorized' };
-
-  const { data: customerAccount } = await supabase
-    .from('customer_accounts')
-    .select('id')
-    .eq('auth_user_id', userId)
-    .single();
-
-  if (!customerAccount) return { ok: false, error: 'Customer account missing.' };
-
-  const { data: rec, error } = await supabase
-    .from('service_recommendations')
-    .update({ status: input.decision, customer_note: input.note ?? null })
-    .eq('id', input.recommendationId)
-    .eq('customer_account_id', customerAccount.id)
-    .select('vehicle_id,workshop_account_id')
-    .single();
-
-  if (error || !rec) return { ok: false, error: error?.message ?? 'Could not update recommendation' };
-
-  await supabase.rpc('add_vehicle_timeline_event', {
-    p_workshop_account_id: rec.workshop_account_id,
-    p_customer_account_id: customerAccount.id,
-    p_vehicle_id: rec.vehicle_id,
-    p_event_type: 'recommendation_status_changed',
-    p_title: `Recommendation ${input.decision}`,
-    p_body: input.note ?? null,
-    p_meta: { recommendation_id: input.recommendationId }
+  const { error } = await supabase.from('problem_reports').insert({
+    workshop_account_id: account.workshop_account_id,
+    customer_account_id: account.id,
+    vehicle_id: input.vehicleId,
+    category: input.category,
+    description: input.description
   });
 
-  revalidatePath(customerVehicle(rec.vehicle_id));
-  return { ok: true, message: 'Recommendation updated' };
+  if (error) return { ok: false, error: 'Could not submit your report right now. Please try again.' };
+  revalidatePath(customerVehicle(input.vehicleId));
+  return { ok: true, message: 'Problem reported successfully.' };
+}
+
+export async function createWorkRequest(input: {
+  vehicleId: string;
+  requestType: 'inspection' | 'service';
+  preferredDate?: string;
+  notes?: string;
+}): Promise<ActionResult> {
+  const supabase = await createClient();
+  const account = await ensureCustomerAccountLinked();
+  if (!account) return { ok: false, error: 'Please sign in.' };
+
+  const { error } = await supabase.from('work_requests').insert({
+    workshop_account_id: account.workshop_account_id,
+    vehicle_id: input.vehicleId,
+    customer_account_id: account.id,
+    request_type: input.requestType,
+    preferred_date: input.preferredDate || null,
+    notes: input.notes || null
+  });
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath(customerVehicle(input.vehicleId));
+  revalidatePath('/workshop/dashboard');
+  return { ok: true, message: 'Request submitted.' };
+}
+
+export async function updateMileage(input: { vehicleId: string; odometerKm: number }): Promise<ActionResult> {
+  const supabase = await createClient();
+  const account = await ensureCustomerAccountLinked();
+  if (!account) return { ok: false, error: 'Please sign in.' };
+
+  const { error } = await supabase
+    .from('vehicles')
+    .update({ odometer_km: input.odometerKm })
+    .eq('id', input.vehicleId)
+    .eq('current_customer_account_id', account.id);
+
+  if (error) return { ok: false, error: error.message };
+
+  await supabase.from('vehicle_timeline_events').insert({
+    workshop_account_id: account.workshop_account_id,
+    customer_account_id: account.id,
+    vehicle_id: input.vehicleId,
+    actor_profile_id: (await supabase.auth.getUser()).data.user?.id,
+    actor_role: 'customer',
+    event_type: 'mileage_updated',
+    title: 'Mileage updated',
+    description: `Odometer updated to ${input.odometerKm} km`,
+    metadata: { odometer_km: input.odometerKm }
+  });
+
+  revalidatePath(customerVehicle(input.vehicleId));
+  return { ok: true, message: 'Mileage updated.' };
+}
+
+export async function decideQuote(input: { quoteId: string; decision: 'approved' | 'declined' }): Promise<ActionResult> {
+  const supabase = await createClient();
+  const account = await ensureCustomerAccountLinked();
+  if (!account) return { ok: false, error: 'Please sign in.' };
+
+  const { data, error } = await supabase
+    .from('quotes')
+    .update({ status: input.decision })
+    .eq('id', input.quoteId)
+    .eq('customer_account_id', account.id)
+    .select('vehicle_id')
+    .single();
+
+  if (error || !data) return { ok: false, error: error?.message ?? 'Failed to update quote.' };
+  revalidatePath(customerVehicle(data.vehicle_id));
+  return { ok: true, message: `Quote ${input.decision}.` };
+}
+
+export async function markNotificationRead(notificationId: string): Promise<void> {
+  const supabase = await createClient();
+  await supabase.from('notifications').update({ is_read: true }).eq('id', notificationId);
+  revalidatePath('/notifications');
 }
