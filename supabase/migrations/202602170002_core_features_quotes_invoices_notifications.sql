@@ -9,11 +9,48 @@ alter table public.customer_accounts
   add column if not exists plan_price_cents int,
   add column if not exists subscription_status text not null default 'active';
 
-update public.customer_accounts
-set tier = coalesce(nullif(lower(tier::text), ''), 'basic'),
-    vehicle_limit = coalesce(vehicle_limit, case lower(coalesce(tier::text,'')) when 'business' then 20 when 'pro' then 10 else 1 end),
-    plan_price_cents = coalesce(plan_price_cents, case lower(coalesce(tier::text,'')) when 'business' then 120000 when 'pro' then 70000 else 10000 end)
-where tier is null or vehicle_limit is null or plan_price_cents is null;
+DO $$
+BEGIN
+  -- If tier is an enum (USER-DEFINED), convert to text for the new plan system
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema='public'
+      AND table_name='customer_accounts'
+      AND column_name='tier'
+      AND data_type='USER-DEFINED'
+  ) THEN
+    ALTER TABLE public.customer_accounts
+      ALTER COLUMN tier TYPE text USING tier::text;
+  END IF;
+
+  -- Normalize to the new plan tiers and backfill plan defaults
+  UPDATE public.customer_accounts
+  SET tier = CASE lower(coalesce(tier, ''))
+      WHEN 'basic' THEN 'basic'
+      WHEN 'pro' THEN 'pro'
+      WHEN 'business' THEN 'business'
+      WHEN 'free' THEN 'basic'
+      WHEN '' THEN 'basic'
+      ELSE 'basic'
+    END,
+      vehicle_limit = coalesce(
+        vehicle_limit,
+        CASE lower(coalesce(tier, ''))
+          WHEN 'business' THEN 20
+          WHEN 'pro' THEN 10
+          ELSE 1
+        END
+      ),
+      plan_price_cents = coalesce(
+        plan_price_cents,
+        CASE lower(coalesce(tier, ''))
+          WHEN 'business' THEN 120000
+          WHEN 'pro' THEN 70000
+          ELSE 10000
+        END
+      );
+END $$;
 
 alter table public.customer_accounts
   alter column tier set default 'basic',
