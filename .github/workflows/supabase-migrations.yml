@@ -30,4 +30,5 @@ jobs:
       - name: Apply database migrations
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_DB_MIGRATIONS_DIR: supabase/migrations
         run: supabase db push --db-url "$SUPABASE_DB_URL"
