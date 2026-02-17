@@ -5,6 +5,7 @@ import { getCustomerContextOrCreate } from '@/lib/customer/get-customer-context-
 import { customerDashboard, customerVehicle } from '@/lib/routes';
 import { createClient } from '@/lib/supabase/server';
 import { addVehicleSchema } from '@/lib/validation/vehicle';
+import { z } from 'zod';
 
 type ActionResult = { ok: true; vehicleId?: string; message?: string } | { ok: false; error: string };
 
@@ -185,4 +186,41 @@ export async function markNotificationRead(notificationId: string): Promise<void
   const supabase = await createClient();
   await supabase.from('notifications').update({ is_read: true }).eq('id', notificationId);
   revalidatePath('/notifications');
+}
+
+
+export async function updateCustomerVehicle(input: unknown): Promise<ActionResult> {
+  const parsed = addVehicleSchema.extend({ vehicleId: z.string().uuid() }).safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid vehicle data' };
+  }
+
+  const payload = parsed.data;
+  const supabase = await createClient();
+  const context = await getCustomerContextOrCreate();
+  if (!context) return { ok: false, error: 'Please sign in first.' };
+
+  const { data, error } = await supabase
+    .from('vehicles')
+    .update({
+      registration_number: payload.registrationNumber,
+      make: payload.make,
+      model: payload.model,
+      year: payload.year,
+      vin: payload.vin || null,
+      odometer_km: payload.currentMileage,
+      notes: payload.notes || null
+    })
+    .eq('id', payload.vehicleId)
+    .eq('current_customer_account_id', context.customer_account.id)
+    .select('id')
+    .single();
+
+  if (error || !data) {
+    return { ok: false, error: error?.message ?? 'Could not update vehicle' };
+  }
+
+  revalidatePath(customerVehicle(payload.vehicleId));
+  revalidatePath(customerDashboard());
+  return { ok: true, vehicleId: payload.vehicleId };
 }

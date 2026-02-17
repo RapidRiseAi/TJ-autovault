@@ -9,17 +9,34 @@ const requestSchema = z.object({
   contentType: z.string().min(1),
   size: z.number().int().nonnegative(),
   originalName: z.string().min(1),
-  docType: z.enum(['vehicle_photo', 'before_images', 'after_images', 'inspection', 'quote', 'invoice', 'parts_list', 'warranty', 'report', 'other']),
+  docType: z.enum(['vehicle_photo', 'before_images', 'after_images', 'before_photos', 'after_photos', 'inspection', 'inspection_report', 'quote', 'invoice', 'parts_list', 'warranty', 'report', 'other']),
   subject: z.string().trim().optional(),
   body: z.string().trim().optional(),
-  importance: z.enum(['info', 'warning', 'urgent']).default('info'),
-  amountCents: z.number().int().nonnegative().optional()
+  importance: z.enum(['info', 'warning', 'urgent']).optional(),
+  urgency: z.enum(['info', 'low', 'medium', 'high', 'critical']).default('info'),
+  amountCents: z.number().int().nonnegative().optional(),
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
 });
+
+function canonicalDocType(docType: z.infer<typeof requestSchema>['docType']) {
+  if (docType === 'before_photos') return 'before_images';
+  if (docType === 'after_photos') return 'after_images';
+  if (docType === 'inspection_report') return 'inspection';
+  return docType;
+}
+
+function urgencyToImportance(urgency: z.infer<typeof requestSchema>['urgency']) {
+  if (urgency === 'high' || urgency === 'critical') return 'urgent';
+  if (urgency === 'low' || urgency === 'medium') return 'warning';
+  return 'info';
+}
 
 export async function POST(request: NextRequest) {
   const parsed = requestSchema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ error: 'Invalid request payload' }, { status: 400 });
   const payload = parsed.data;
+  const normalizedDocType = canonicalDocType(payload.docType);
+  const normalizedImportance = payload.importance ?? urgencyToImportance(payload.urgency);
 
   const supabase = await createClient();
   const user = (await supabase.auth.getUser()).data.user;
@@ -36,7 +53,7 @@ export async function POST(request: NextRequest) {
   if (!customerMembership && !workshopMembership) return NextResponse.json({ error: 'Access denied' }, { status: 403 });
 
   const actorRole = workshopMembership ? 'admin' : 'customer';
-  if (actorRole === 'customer' && (payload.docType === 'quote' || payload.docType === 'invoice')) {
+  if (actorRole === 'customer' && (normalizedDocType === 'quote' || normalizedDocType === 'invoice')) {
     return NextResponse.json({ error: 'Customers cannot upload quote/invoice documents' }, { status: 403 });
   }
 
@@ -44,8 +61,8 @@ export async function POST(request: NextRequest) {
     workshop_account_id: vehicle.workshop_account_id,
     customer_account_id: vehicle.current_customer_account_id,
     vehicle_id: payload.vehicleId,
-    doc_type: payload.docType,
-    document_type: payload.docType === 'vehicle_photo' ? 'other' : payload.docType,
+    doc_type: normalizedDocType,
+    document_type: normalizedDocType === 'vehicle_photo' ? 'other' : normalizedDocType,
     storage_bucket: payload.bucket,
     storage_path: payload.path,
     original_name: payload.originalName,
@@ -53,32 +70,32 @@ export async function POST(request: NextRequest) {
     size_bytes: payload.size,
     subject: payload.subject || null,
     body: payload.body || null,
-    importance: payload.importance
+    importance: normalizedImportance
   };
 
   const { data: doc, error } = await supabase.from('vehicle_documents').insert(docInsert).select('id').single();
   if (error || !doc) return NextResponse.json({ error: error?.message ?? 'Could not save upload metadata' }, { status: 400 });
 
-  if (payload.docType === 'vehicle_photo') {
+  if (normalizedDocType === 'vehicle_photo') {
     await supabase.from('vehicles').update({ primary_image_path: payload.path, vehicle_image_doc_id: doc.id }).eq('id', payload.vehicleId);
     await supabase.from('vehicle_timeline_events').insert({
       workshop_account_id: vehicle.workshop_account_id,
       customer_account_id: vehicle.current_customer_account_id,
       vehicle_id: payload.vehicleId,
       actor_profile_id: profile?.id ?? user.id,
-      actor_role: 'customer',
+      actor_role: actorRole,
       event_type: 'doc_uploaded',
       title: 'Vehicle photo updated',
       description: payload.body || null,
-      importance: payload.importance,
-      metadata: { doc_id: doc.id, type: 'vehicle_photo' }
+      importance: normalizedImportance,
+      metadata: { doc_id: doc.id, type: 'vehicle_photo', urgency: payload.urgency }
     });
     return NextResponse.json({ ok: true, documentId: doc.id });
   }
 
   let linkedEntityId: string | null = null;
 
-  if (payload.docType === 'quote') {
+  if (normalizedDocType === 'quote') {
     if (!payload.amountCents || !payload.subject) return NextResponse.json({ error: 'Quote amount and subject are required' }, { status: 400 });
     const { data: quote, error: quoteError } = await supabase.from('quotes').insert({
       workshop_account_id: vehicle.workshop_account_id,
@@ -93,7 +110,7 @@ export async function POST(request: NextRequest) {
     if (quoteError || !quote) return NextResponse.json({ error: quoteError?.message ?? 'Could not create quote' }, { status: 400 });
     linkedEntityId = quote.id;
     await supabase.from('vehicle_documents').update({ quote_id: quote.id }).eq('id', doc.id);
-  } else if (payload.docType === 'invoice') {
+  } else if (normalizedDocType === 'invoice') {
     if (!payload.amountCents || !payload.subject) return NextResponse.json({ error: 'Invoice amount and subject are required' }, { status: 400 });
     const { data: invoice, error: invoiceError } = await supabase.from('invoices').insert({
       workshop_account_id: vehicle.workshop_account_id,
@@ -102,6 +119,8 @@ export async function POST(request: NextRequest) {
       total_cents: payload.amountCents,
       status: 'sent',
       payment_status: 'unpaid',
+      due_date: payload.dueDate || null,
+      notes: payload.body || null,
       document_id: doc.id
     }).select('id').single();
     if (invoiceError || !invoice) return NextResponse.json({ error: invoiceError?.message ?? 'Could not create invoice' }, { status: 400 });
@@ -109,8 +128,8 @@ export async function POST(request: NextRequest) {
     await supabase.from('vehicle_documents').update({ invoice_id: invoice.id }).eq('id', doc.id);
   }
 
-  const eventType = payload.docType === 'quote' ? 'quote_created' : payload.docType === 'invoice' ? 'invoice_created' : 'doc_uploaded';
-  const title = payload.subject || `Uploaded ${payload.docType.replace('_', ' ')}`;
+  const eventType = normalizedDocType === 'quote' ? 'quote_created' : normalizedDocType === 'invoice' ? 'invoice_created' : 'doc_uploaded';
+  const title = payload.subject || `Uploaded ${normalizedDocType.replace('_', ' ')}`;
 
   await supabase.from('vehicle_timeline_events').insert({
     workshop_account_id: vehicle.workshop_account_id,
@@ -121,19 +140,19 @@ export async function POST(request: NextRequest) {
     event_type: eventType,
     title,
     description: payload.body || null,
-    importance: payload.importance,
-    metadata: { doc_id: doc.id, type: payload.docType, linked_entity_id: linkedEntityId }
+    importance: normalizedImportance,
+    metadata: { doc_id: doc.id, type: normalizedDocType, linked_entity_id: linkedEntityId, urgency: payload.urgency }
   });
 
-  const shouldNotifyCustomer = actorRole === 'admin' && (['quote', 'invoice', 'inspection', 'report'].includes(payload.docType) || payload.importance !== 'info');
-  const shouldNotifyWorkshop = actorRole === 'customer' && (payload.docType === 'report');
+  const shouldNotifyCustomer = actorRole === 'admin' && (['quote', 'invoice', 'inspection', 'report'].includes(normalizedDocType) || normalizedImportance !== 'info');
+  const shouldNotifyWorkshop = actorRole === 'customer' && (normalizedDocType === 'report');
 
   if (shouldNotifyCustomer) {
     await supabase.from('notifications').insert({
       workshop_account_id: vehicle.workshop_account_id,
       to_customer_account_id: vehicle.current_customer_account_id,
-      kind: payload.docType === 'invoice' ? 'invoice' : payload.docType === 'quote' ? 'quote' : 'report',
-      title: payload.subject || `New ${payload.docType.replace('_', ' ')}`,
+      kind: normalizedDocType === 'invoice' ? 'invoice' : normalizedDocType === 'quote' ? 'quote' : 'report',
+      title: payload.subject || `New ${normalizedDocType.replace('_', ' ')}`,
       body: payload.body || 'A document was uploaded for your vehicle.',
       href: `/customer/vehicles/${payload.vehicleId}`
     });

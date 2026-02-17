@@ -4,15 +4,16 @@ type TimelineEvent = {
   actor_role?: string | null;
   actor_profile_id?: string | null;
   workshop_account_id?: string | null;
+  customer_account_id?: string | null;
 };
 
 export async function buildTimelineActorLabel(supabase: SupabaseClient, event: TimelineEvent) {
-  if (!event.actor_profile_id) return 'System';
+  if (!event.actor_profile_id && event.actor_role !== 'customer') return 'System';
 
   const { data: actor } = await supabase
     .from('profiles')
     .select('display_name,role')
-    .eq('id', event.actor_profile_id)
+    .eq('id', event.actor_profile_id ?? '')
     .maybeSingle();
 
   const role = actor?.role ?? event.actor_role;
@@ -22,10 +23,19 @@ export async function buildTimelineActorLabel(supabase: SupabaseClient, event: T
       .select('name')
       .eq('id', event.workshop_account_id)
       .maybeSingle();
-    return workshop?.name || 'Workshop';
+    return workshop?.name || 'TJ Service & Repairs';
   }
 
-  if (role === 'customer') return actor?.display_name || 'Customer';
+  if (role === 'customer') {
+    if (actor?.display_name) return actor.display_name;
+    const { data: customer } = await supabase
+      .from('customer_accounts')
+      .select('name')
+      .eq('id', event.customer_account_id)
+      .maybeSingle();
+    return customer?.name || 'Customer';
+  }
+
   return actor?.display_name || 'Unknown actor';
 }
 
