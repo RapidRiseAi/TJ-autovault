@@ -5,7 +5,7 @@ import { useRef, useState } from 'react';
 
 type Attachment = {
   id: string;
-  bucket: 'vehicle-images' | 'vehicle-files' | null;
+  bucket: string | null;
   storage_path: string;
   original_name: string | null;
   mime_type: string;
@@ -33,7 +33,7 @@ export function UploadsSection({ vehicleId, attachments }: { vehicleId: string; 
       });
       if (!signResponse.ok) throw new Error((await signResponse.json()).error ?? 'Could not sign upload');
 
-      const signedPayload = (await signResponse.json()) as { bucket: 'vehicle-images' | 'vehicle-files'; path: string; token: string; docType: string };
+      const signedPayload = (await signResponse.json()) as { bucket: string; path: string; token: string; docType: string };
       const uploadResponse = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/upload/sign/${signedPayload.bucket}/${signedPayload.path}?token=${signedPayload.token}`, {
         method: 'PUT', headers: { 'Content-Type': file.type, 'x-upsert': 'false' }, body: file
       });
