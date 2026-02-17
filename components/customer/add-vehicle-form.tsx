@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createCustomerVehicle } from '@/lib/actions/customer-vehicles';
 import { VEHICLE_MAKES, VEHICLE_MODELS_BY_MAKE } from '@/lib/vehicle-makes-models';
@@ -55,6 +55,8 @@ export function AddVehicleForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [vehiclePhoto, setVehiclePhoto] = useState<File | null>(null);
+  const photoRef = useRef<HTMLInputElement>(null);
 
   const normalizedMake = useMemo(
     () => VEHICLE_MAKES.find((entry) => entry.toLowerCase() === make.trim().toLowerCase()) ?? make.trim(),
@@ -139,6 +141,26 @@ export function AddVehicleForm() {
       return;
     }
 
+
+    if (vehiclePhoto) {
+      const signResponse = await fetch('/api/uploads/sign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vehicleId: result.vehicleId, fileName: vehiclePhoto.name, contentType: vehiclePhoto.type, kind: 'image', documentType: 'vehicle_photo' })
+      });
+      if (signResponse.ok) {
+        const signedPayload = (await signResponse.json()) as { bucket: string; path: string; token: string; docType: string };
+        await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/upload/sign/${signedPayload.bucket}/${signedPayload.path}?token=${signedPayload.token}`, {
+          method: 'PUT', headers: { 'Content-Type': vehiclePhoto.type, 'x-upsert': 'true' }, body: vehiclePhoto
+        });
+        await fetch('/api/uploads/complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ vehicleId: result.vehicleId, bucket: signedPayload.bucket, path: signedPayload.path, contentType: vehiclePhoto.type, size: vehiclePhoto.size, originalName: vehiclePhoto.name, docType: signedPayload.docType, subject: 'Vehicle photo updated', importance: 'info' })
+        });
+      }
+    }
+
     router.push(`/customer/vehicles/${result.vehicleId}`);
   }
 
@@ -190,6 +212,14 @@ export function AddVehicleForm() {
       </div>
 
       <textarea name="notes" className="w-full rounded border p-2" rows={3} placeholder="Notes" />
+      <div>
+        <label className="mb-1 block text-sm font-medium">Vehicle photo (optional)</label>
+        <div className="flex items-center gap-3">
+          <button type="button" onClick={() => photoRef.current?.click()} className="rounded border px-3 py-2 text-sm">Choose image</button>
+          <span className="text-xs text-gray-600">{vehiclePhoto?.name ?? 'No file selected'}</span>
+        </div>
+        <input ref={photoRef} type="file" accept="image/*" className="hidden" onChange={(event) => setVehiclePhoto(event.target.files?.[0] ?? null)} />
+      </div>
       <button type="submit" disabled={isSubmitting} className="rounded bg-brand-red px-4 py-2 text-white disabled:opacity-50">{isSubmitting ? 'Adding vehicle...' : 'Add vehicle'}</button>
       {error ? <p className="text-sm text-red-700">{error}</p> : null}
     </form>

@@ -16,7 +16,7 @@ export async function buildTimelineActorLabel(supabase: SupabaseClient, event: T
     .maybeSingle();
 
   const role = actor?.role ?? event.actor_role;
-  if (role === 'admin') {
+  if (role === 'admin' || role === 'technician') {
     const { data: workshop } = await supabase
       .from('workshop_accounts')
       .select('name')
@@ -26,7 +26,7 @@ export async function buildTimelineActorLabel(supabase: SupabaseClient, event: T
   }
 
   if (role === 'customer') return actor?.display_name || 'Customer';
-  return 'System';
+  return actor?.display_name || 'Unknown actor';
 }
 
 export function importanceBadgeClass(importance?: string | null) {
