@@ -2,11 +2,16 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 
+export const dynamic = 'force-dynamic';
+
 export default async function NotificationsPage({ searchParams }: { searchParams: Promise<{ filter?: string; open?: string; next?: string }> }) {
   const params = await searchParams;
   const supabase = await createClient();
   const user = (await supabase.auth.getUser()).data.user;
   if (!user) redirect('/login');
+
+  const { data: profile } = await supabase.from('profiles').select('role,workshop_account_id').eq('id', user.id).maybeSingle();
+  const isWorkshop = profile?.role === 'admin' || profile?.role === 'technician';
 
   if (params.open) {
     await supabase.from('notifications').update({ is_read: true }).eq('id', params.open);
@@ -14,6 +19,9 @@ export default async function NotificationsPage({ searchParams }: { searchParams
   }
 
   let query = supabase.from('notifications').select('id,title,body,href,is_read,created_at').order('created_at', { ascending: false });
+  if (isWorkshop && profile?.workshop_account_id) {
+    query = query.eq('workshop_account_id', profile.workshop_account_id);
+  }
   if (params.filter === 'unread') query = query.eq('is_read', false);
   const { data } = await query;
 

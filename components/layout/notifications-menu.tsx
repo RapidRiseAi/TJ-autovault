@@ -6,10 +6,21 @@ export async function NotificationsMenu() {
   const user = (await supabase.auth.getUser()).data.user;
   if (!user) return null;
 
-  const [{ data: notifications }, { count }] = await Promise.all([
-    supabase.from('notifications').select('id,title,href,is_read,created_at').order('created_at', { ascending: false }).limit(10),
-    supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('is_read', false)
-  ]);
+  const { data: profile } = await supabase.from('profiles').select('role,workshop_account_id').eq('id', user.id).maybeSingle();
+  const isWorkshop = profile?.role === 'admin' || profile?.role === 'technician';
+
+  const baseQuery = supabase.from('notifications').select('id,title,href,is_read,created_at').order('created_at', { ascending: false });
+  const unreadQuery = supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('is_read', false);
+
+  const scopedNotificationsQuery = isWorkshop && profile.workshop_account_id
+    ? baseQuery.eq('workshop_account_id', profile.workshop_account_id).limit(10)
+    : baseQuery.limit(10);
+
+  const scopedUnreadQuery = isWorkshop && profile.workshop_account_id
+    ? unreadQuery.eq('workshop_account_id', profile.workshop_account_id)
+    : unreadQuery;
+
+  const [{ data: notifications }, { count }] = await Promise.all([scopedNotificationsQuery, scopedUnreadQuery]);
 
   return (
     <details className="relative">
