@@ -1,10 +1,11 @@
-import { Suspense } from 'react';
 import LoginClient from './LoginClient';
 
-export default function LoginPage() {
-  return (
-    <Suspense fallback={<div className="p-6 text-sm opacity-70">Loading...</div>}>
-      <LoginClient />
-    </Suspense>
-  );
+export default async function LoginPage({
+  searchParams
+}: {
+  searchParams: Promise<{ created?: string }>;
+}) {
+  const { created } = await searchParams;
+
+  return <LoginClient created={created === '1'} />;
 }
