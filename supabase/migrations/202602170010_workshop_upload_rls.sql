@@ -1,3 +1,4 @@
+-- NOTE: Version bumped to 202602170010 due to schema_migrations version collision in CI.
 -- Fix workshop/admin upload RLS for workshop vehicle document uploads.
 -- Upload path from app/api/uploads/sign: workshop/{workshop_account_id}/customer/{customer_account_id}/vehicle/{vehicle_id}/{document_type}/{file}
 
