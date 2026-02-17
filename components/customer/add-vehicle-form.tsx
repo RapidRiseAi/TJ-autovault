@@ -156,7 +156,7 @@ export function AddVehicleForm() {
         await fetch('/api/uploads/complete', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ vehicleId: result.vehicleId, bucket: signedPayload.bucket, path: signedPayload.path, contentType: vehiclePhoto.type, size: vehiclePhoto.size, originalName: vehiclePhoto.name, docType: signedPayload.docType, subject: 'Vehicle photo updated', importance: 'info' })
+          body: JSON.stringify({ vehicleId: result.vehicleId, bucket: signedPayload.bucket, path: signedPayload.path, contentType: vehiclePhoto.type, size: vehiclePhoto.size, originalName: vehiclePhoto.name, docType: signedPayload.docType, subject: 'Vehicle photo updated', urgency: 'info' })
         });
       }
     }

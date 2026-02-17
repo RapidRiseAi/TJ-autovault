@@ -8,14 +8,22 @@ const requestSchema = z.object({
   fileName: z.string().min(1),
   contentType: z.string().min(1),
   kind: z.enum(['image', 'document']).default('document'),
-  documentType: z.enum(['before_images', 'after_images', 'inspection', 'quote', 'invoice', 'parts_list', 'warranty', 'report', 'other', 'vehicle_photo']).default('other')
+  documentType: z.enum(['before_images', 'after_images', 'before_photos', 'after_photos', 'inspection', 'inspection_report', 'quote', 'invoice', 'parts_list', 'warranty', 'report', 'other', 'vehicle_photo']).default('other')
 });
+
+function canonicalDocType(documentType: string) {
+  if (documentType === 'before_photos') return 'before_images';
+  if (documentType === 'after_photos') return 'after_images';
+  if (documentType === 'inspection_report') return 'inspection';
+  return documentType;
+}
 
 export async function POST(request: NextRequest) {
   const parsed = requestSchema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ error: 'Invalid request payload' }, { status: 400 });
 
   const { vehicleId, fileName, contentType, kind, documentType } = parsed.data;
+  const normalizedDocumentType = canonicalDocType(documentType);
   const allowedDocumentTypes = [...appConfig.uploads.allowedPdfMimeTypes, ...appConfig.uploads.allowedImageMimeTypes];
 
   if (kind === 'image' && !appConfig.uploads.allowedImageMimeTypes.some((type) => type === contentType)) {
@@ -41,14 +49,14 @@ export async function POST(request: NextRequest) {
   const extension = fileName.split('.').pop()?.toLowerCase() ?? (kind === 'image' ? 'jpg' : 'pdf');
   const sanitizedName = fileName.replace(/[^a-zA-Z0-9._-]/g, '-').slice(0, 100) || `upload.${extension}`;
 
-  const isVehiclePhoto = documentType === 'vehicle_photo';
+  const isVehiclePhoto = normalizedDocumentType === 'vehicle_photo';
   const bucket = isVehiclePhoto ? 'vehicle-images' : 'vehicle-files';
   const storagePath = isVehiclePhoto
     ? `vehicles/${vehicleId}/primary/${Date.now()}-${crypto.randomUUID()}-${sanitizedName}`
-    : `workshop/${vehicle.workshop_account_id}/customer/${vehicle.current_customer_account_id}/vehicle/${vehicleId}/${documentType}/${crypto.randomUUID()}-${sanitizedName}`;
+    : `workshop/${vehicle.workshop_account_id}/customer/${vehicle.current_customer_account_id}/vehicle/${vehicleId}/${normalizedDocumentType}/${crypto.randomUUID()}-${sanitizedName}`;
 
   const { data, error } = await supabase.storage.from(bucket).createSignedUploadUrl(storagePath);
   if (error || !data) return NextResponse.json({ error: error?.message ?? 'Could not create upload URL' }, { status: 400 });
 
-  return NextResponse.json({ bucket, path: storagePath, token: data.token, docType: isVehiclePhoto ? 'vehicle_photo' : documentType });
+  return NextResponse.json({ bucket, path: storagePath, token: data.token, docType: isVehiclePhoto ? 'vehicle_photo' : normalizedDocumentType });
 }
