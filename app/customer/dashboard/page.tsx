@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Card } from '@/components/ui/card';
-import { ensureCustomerAccountLinked } from '@/lib/customer/ensureCustomerAccountLinked';
+import { getCustomerContextOrCreate } from '@/lib/customer/get-customer-context-or-create';
 import { customerVehicle, customerVehicleNew } from '@/lib/routes';
 import { createClient } from '@/lib/supabase/server';
 
@@ -10,8 +10,10 @@ export default async function CustomerDashboardPage() {
   const user = (await supabase.auth.getUser()).data.user;
   if (!user) redirect('/login');
 
-  const customerAccount = await ensureCustomerAccountLinked();
-  if (!customerAccount) redirect('/customer/profile-required');
+  const customerContext = await getCustomerContextOrCreate();
+  if (!customerContext) redirect('/customer/profile-required');
+
+  const customerAccount = customerContext.customer_account;
 
   const [{ data: account }, { data: vehicles }, { count: unpaidInvoices }, { count: pendingQuotes }, { count: openRecommendations }] = await Promise.all([
     supabase.from('customer_accounts').select('tier,vehicle_limit,plan_price_cents').eq('id', customerAccount.id).single(),

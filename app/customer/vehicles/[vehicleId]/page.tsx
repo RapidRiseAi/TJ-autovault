@@ -1,37 +1,53 @@
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
 import { ReportIssueForm } from '@/components/customer/report-issue-form';
 import { RequestForm, MileageForm, QuoteDecisionButtons } from '@/components/customer/vehicle-actions';
 import { UploadsSection } from '@/components/customer/uploads-section';
 import { Card } from '@/components/ui/card';
 import { customerDashboard } from '@/lib/routes';
 import { createClient } from '@/lib/supabase/server';
+import { getCustomerContextOrCreate } from '@/lib/customer/get-customer-context-or-create';
+
+function VehicleAccessErrorPanel() {
+  return (
+    <main className="space-y-4">
+      <Card className="space-y-2">
+        <h1 className="text-xl font-semibold">Vehicle unavailable</h1>
+        <p className="text-sm text-gray-700">Vehicle not found or you don&apos;t have access.</p>
+        <Link href={customerDashboard()} className="text-sm text-brand-red underline">Back to dashboard</Link>
+      </Card>
+    </main>
+  );
+}
 
 export default async function VehicleDetailPage({ params }: { params: Promise<{ vehicleId: string }> }) {
   const { vehicleId } = await params;
   const supabase = await createClient();
-  const user = (await supabase.auth.getUser()).data.user;
-  if (!user) notFound();
+  const context = await getCustomerContextOrCreate();
 
-  const { data: customerAccount } = await supabase.from('customer_accounts').select('id').eq('auth_user_id', user.id).single();
-  if (!customerAccount) notFound();
+  if (!context) {
+    return <VehicleAccessErrorPanel />;
+  }
+
+  const customerAccountId = context.customer_account.id;
 
   const { data: vehicle } = await supabase
     .from('vehicles')
     .select('id,registration_number,make,model,year,vin,odometer_km,status,current_customer_account_id')
     .eq('id', vehicleId)
-    .eq('current_customer_account_id', customerAccount.id)
-    .single();
+    .eq('current_customer_account_id', customerAccountId)
+    .maybeSingle();
 
-  if (!vehicle) notFound();
+  if (!vehicle) {
+    return <VehicleAccessErrorPanel />;
+  }
 
   const [{ data: timeline }, { data: quotes }, { data: invoices }, { data: requests }, { data: recommendations }, { data: documents }] = await Promise.all([
-    supabase.from('vehicle_timeline_events').select('*').eq('vehicle_id', vehicleId).eq('customer_account_id', customerAccount.id).order('created_at', { ascending: false }).limit(50),
-    supabase.from('quotes').select('id,status,total_cents,created_at').eq('vehicle_id', vehicleId).eq('customer_account_id', customerAccount.id).order('created_at', { ascending: false }),
-    supabase.from('invoices').select('id,status,payment_status,total_cents,due_date,created_at').eq('vehicle_id', vehicleId).eq('customer_account_id', customerAccount.id).order('created_at', { ascending: false }),
-    supabase.from('work_requests').select('id,request_type,status,preferred_date,created_at').eq('vehicle_id', vehicleId).eq('customer_account_id', customerAccount.id).order('created_at', { ascending: false }),
-    supabase.from('recommendations').select('id,title,description,severity,status_text,created_at').eq('vehicle_id', vehicleId).eq('customer_account_id', customerAccount.id).order('created_at', { ascending: false }),
-    supabase.from('vehicle_media').select('*').eq('vehicle_id', vehicleId).eq('customer_account_id', customerAccount.id).order('created_at', { ascending: false })
+    supabase.from('vehicle_timeline_events').select('*').eq('vehicle_id', vehicleId).eq('customer_account_id', customerAccountId).order('created_at', { ascending: false }).limit(50),
+    supabase.from('quotes').select('id,status,total_cents,created_at').eq('vehicle_id', vehicleId).eq('customer_account_id', customerAccountId).order('created_at', { ascending: false }),
+    supabase.from('invoices').select('id,status,payment_status,total_cents,due_date,created_at').eq('vehicle_id', vehicleId).eq('customer_account_id', customerAccountId).order('created_at', { ascending: false }),
+    supabase.from('work_requests').select('id,request_type,status,preferred_date,created_at').eq('vehicle_id', vehicleId).eq('customer_account_id', customerAccountId).order('created_at', { ascending: false }),
+    supabase.from('recommendations').select('id,title,description,severity,status_text,created_at').eq('vehicle_id', vehicleId).eq('customer_account_id', customerAccountId).order('created_at', { ascending: false }),
+    supabase.from('vehicle_media').select('*').eq('vehicle_id', vehicleId).eq('customer_account_id', customerAccountId).order('created_at', { ascending: false })
   ]);
 
   const attachments = (documents ?? []).map((d) => ({ id: d.id, bucket: d.storage_bucket, storage_path: d.storage_path, original_name: d.file_name, mime_type: d.content_type, size_bytes: d.size_bytes, created_at: d.created_at }));

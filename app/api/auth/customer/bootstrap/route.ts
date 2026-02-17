@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { ensureCustomerAccountLinked } from '@/lib/customer/ensureCustomerAccountLinked';
+import { getCustomerContextOrCreate } from '@/lib/customer/get-customer-context-or-create';
 
 export async function POST() {
-  const customerAccount = await ensureCustomerAccountLinked();
+  const context = await getCustomerContextOrCreate();
 
-  if (!customerAccount) {
+  if (!context) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  return NextResponse.json({ customerAccountId: customerAccount.id });
+  return NextResponse.json({ customerAccountId: context.customer_account.id });
 }

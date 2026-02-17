@@ -1,40 +1,45 @@
 'use server';
 
+import { redirect } from 'next/navigation';
+import { getCustomerContextOrCreate } from '@/lib/customer/get-customer-context-or-create';
 import { createClient } from '@/lib/supabase/server';
-import { ensureCustomerAccountLinked } from '@/lib/customer/ensureCustomerAccountLinked';
 
-const PLANS = {
-  basic: { vehicleLimit: 1, priceCents: 10000 },
-  pro: { vehicleLimit: 10, priceCents: 70000 },
-  business: { vehicleLimit: 20, priceCents: 120000 }
-} as const;
+export async function signupCustomerAction(formData: FormData) {
+  const email = formData.get('email')?.toString().trim() ?? '';
+  const password = formData.get('password')?.toString() ?? '';
+  const displayName = formData.get('displayName')?.toString().trim() ?? '';
+  const plan = formData.get('plan')?.toString() ?? 'basic';
 
-export async function finalizeSignupPlan(plan: string, displayName: string) {
+  const tier = plan === 'pro' || plan === 'business' ? plan : 'basic';
+
+  if (!email || !password) {
+    redirect('/signup?error=Email%20and%20password%20are%20required');
+  }
+
   const supabase = await createClient();
-  const user = (await supabase.auth.getUser()).data.user;
-  if (!user) return { ok: false, error: 'Not signed in after signup.' };
 
-  const account = await ensureCustomerAccountLinked();
-  if (!account) return { ok: false, error: 'Could not provision customer account.' };
-
-  const tierAllowed = new Set(['basic', 'pro', 'business']);
-  let tierNorm = (plan ?? 'basic').toLowerCase();
-  if (!tierAllowed.has(tierNorm)) tierNorm = 'basic';
-
-  const planMeta = PLANS[tierNorm as keyof typeof PLANS];
-  await supabase.from('profiles').update({ display_name: displayName || user.email?.split('@')[0] || 'Customer', role: 'customer' }).eq('id', user.id);
-  const { error } = await supabase
-    .from('customer_accounts')
-    .update({ tier: tierNorm, vehicle_limit: planMeta.vehicleLimit, plan_price_cents: planMeta.priceCents, subscription_status: 'active' })
-    .eq('id', account.id);
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { data: { display_name: displayName, selected_plan: tier } }
+  });
 
   if (error) {
-    console.error('Failed to finalize signup plan', {
-      userId: user.id,
-      tierNorm,
-      error
-    });
-    return { ok: false, error: 'Database error saving new user. Please try again.' };
+    redirect(`/signup?error=${encodeURIComponent(error.message)}`);
   }
-  return { ok: true };
+
+  if (!data.user) {
+    redirect('/signup?error=Signup%20failed.%20Please%20try%20again.');
+  }
+
+  const context = await getCustomerContextOrCreate({
+    displayName,
+    tier
+  });
+
+  if (!context) {
+    redirect('/signup?error=Unable%20to%20create%20your%20customer%20account.');
+  }
+
+  redirect('/login?created=1');
 }

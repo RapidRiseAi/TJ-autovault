@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { ensureCustomerAccountLinked } from '@/lib/customer/ensureCustomerAccountLinked';
+import { getCustomerContextOrCreate } from '@/lib/customer/get-customer-context-or-create';
 import { customerDashboard, customerVehicle } from '@/lib/routes';
 import { createClient } from '@/lib/supabase/server';
 import { addVehicleSchema } from '@/lib/validation/vehicle';
@@ -10,8 +10,8 @@ type ActionResult = { ok: true; vehicleId?: string; message?: string } | { ok: f
 
 export async function createCustomerAccountIfMissing(): Promise<ActionResult> {
   try {
-    const account = await ensureCustomerAccountLinked();
-    if (!account) return { ok: false, error: 'Please sign in first.' };
+    const context = await getCustomerContextOrCreate();
+    if (!context) return { ok: false, error: 'Please sign in first.' };
     revalidatePath(customerDashboard());
     return { ok: true, message: 'Profile linked.' };
   } catch (error) {
@@ -29,8 +29,9 @@ export async function createCustomerVehicle(input: unknown): Promise<ActionResul
   const supabase = await createClient();
 
   try {
-    const account = await ensureCustomerAccountLinked();
-    if (!account) return { ok: false, error: 'Please sign in first.' };
+    const context = await getCustomerContextOrCreate();
+    if (!context) return { ok: false, error: 'Please sign in first.' };
+    const account = context.customer_account;
 
     const [{ count }, { data: customer }] = await Promise.all([
       supabase.from('vehicles').select('id', { count: 'exact', head: true }).eq('current_customer_account_id', account.id),
@@ -69,8 +70,9 @@ export async function createProblemReport(input: {
   description: string;
 }): Promise<ActionResult> {
   const supabase = await createClient();
-  const account = await ensureCustomerAccountLinked();
-  if (!account) return { ok: false, error: 'Please sign in.' };
+  const context = await getCustomerContextOrCreate();
+  if (!context) return { ok: false, error: 'Please sign in.' };
+  const account = context.customer_account;
 
   const { error } = await supabase.from('problem_reports').insert({
     workshop_account_id: account.workshop_account_id,
@@ -92,8 +94,9 @@ export async function createWorkRequest(input: {
   notes?: string;
 }): Promise<ActionResult> {
   const supabase = await createClient();
-  const account = await ensureCustomerAccountLinked();
-  if (!account) return { ok: false, error: 'Please sign in.' };
+  const context = await getCustomerContextOrCreate();
+  if (!context) return { ok: false, error: 'Please sign in.' };
+  const account = context.customer_account;
 
   const { error } = await supabase.from('work_requests').insert({
     workshop_account_id: account.workshop_account_id,
@@ -112,8 +115,9 @@ export async function createWorkRequest(input: {
 
 export async function updateMileage(input: { vehicleId: string; odometerKm: number }): Promise<ActionResult> {
   const supabase = await createClient();
-  const account = await ensureCustomerAccountLinked();
-  if (!account) return { ok: false, error: 'Please sign in.' };
+  const context = await getCustomerContextOrCreate();
+  if (!context) return { ok: false, error: 'Please sign in.' };
+  const account = context.customer_account;
 
   const { error } = await supabase
     .from('vehicles')
@@ -141,8 +145,9 @@ export async function updateMileage(input: { vehicleId: string; odometerKm: numb
 
 export async function decideQuote(input: { quoteId: string; decision: 'approved' | 'declined' }): Promise<ActionResult> {
   const supabase = await createClient();
-  const account = await ensureCustomerAccountLinked();
-  if (!account) return { ok: false, error: 'Please sign in.' };
+  const context = await getCustomerContextOrCreate();
+  if (!context) return { ok: false, error: 'Please sign in.' };
+  const account = context.customer_account;
 
   const { data, error } = await supabase
     .from('quotes')

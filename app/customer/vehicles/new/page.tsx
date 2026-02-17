@@ -1,15 +1,12 @@
-import { notFound } from 'next/navigation';
+import { redirect } from 'next/navigation';
 import { AddVehicleForm } from '@/components/customer/add-vehicle-form';
 import { Card } from '@/components/ui/card';
-import { createClient } from '@/lib/supabase/server';
+import { getCustomerContextOrCreate } from '@/lib/customer/get-customer-context-or-create';
 
 export default async function NewCustomerVehiclePage() {
-  const supabase = await createClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  const context = await getCustomerContextOrCreate();
 
-  if (!user) notFound();
+  if (!context) redirect('/login');
 
   return (
     <main className="space-y-4">
