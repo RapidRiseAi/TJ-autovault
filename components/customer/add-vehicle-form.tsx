@@ -8,21 +8,63 @@ import { VEHICLE_MAKES, VEHICLE_MODELS_BY_MAKE } from '@/lib/vehicle-makes-model
 const VIN_REGEX = /^[A-HJ-NPR-Z0-9]{17}$/;
 const REGISTRATION_REGEX = /^[A-Z0-9\- ]{4,12}$/;
 
+function SearchableDropdown({
+  id,
+  label,
+  value,
+  options,
+  placeholder,
+  onChange,
+  disabled
+}: {
+  id: string;
+  label: string;
+  value: string;
+  options: string[];
+  placeholder: string;
+  onChange: (next: string) => void;
+  disabled?: boolean;
+}) {
+  const listId = `${id}-options`;
+
+  return (
+    <div>
+      <label htmlFor={id} className="mb-1 block text-sm font-medium">{label}</label>
+      <input
+        id={id}
+        list={listId}
+        value={value}
+        placeholder={placeholder}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+        className="w-full rounded border p-2 disabled:cursor-not-allowed disabled:bg-gray-100"
+      />
+      <datalist id={listId}>
+        {options.map((entry) => (
+          <option key={entry} value={entry} />
+        ))}
+      </datalist>
+    </div>
+  );
+}
+
 export function AddVehicleForm() {
   const router = useRouter();
   const [make, setMake] = useState('');
   const [model, setModel] = useState('');
-  const [makeFilter, setMakeFilter] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  const filteredMakes = useMemo(
-    () => VEHICLE_MAKES.filter((entry) => entry.toLowerCase().includes(makeFilter.toLowerCase())),
-    [makeFilter]
+  const normalizedMake = useMemo(
+    () => VEHICLE_MAKES.find((entry) => entry.toLowerCase() === make.trim().toLowerCase()) ?? make.trim(),
+    [make]
   );
 
-  const models = useMemo(() => (make ? VEHICLE_MODELS_BY_MAKE[make] ?? ['Other'] : []), [make]);
+  const modelOptions = useMemo(() => {
+    if (!normalizedMake || normalizedMake === 'Other') return ['Other'];
+    return VEHICLE_MODELS_BY_MAKE[normalizedMake] ?? ['Other'];
+  }, [normalizedMake]);
 
   function validate(formData: FormData) {
     const errors: Record<string, string> = {};
@@ -54,14 +96,14 @@ export function AddVehicleForm() {
       }
     }
 
-    if (!make) errors.make = 'Please select a make.';
-    if (make && make !== 'Other' && !model) errors.model = 'Please select a model.';
+    if (!normalizedMake) errors.make = 'Please select a make.';
+    if (normalizedMake && normalizedMake !== 'Other' && !model.trim()) errors.model = 'Please select a model.';
 
-    if (make === 'Other' && !(formData.get('manualMake')?.toString() ?? '').trim()) {
+    if (normalizedMake === 'Other' && !(formData.get('manualMake')?.toString() ?? '').trim()) {
       errors.manualMake = 'Please enter a custom make.';
     }
 
-    if ((model === 'Other' || make === 'Other') && !(formData.get('manualModel')?.toString() ?? '').trim()) {
+    if ((model.trim() === 'Other' || normalizedMake === 'Other') && !(formData.get('manualModel')?.toString() ?? '').trim()) {
       errors.manualModel = 'Please enter a custom model.';
     }
 
@@ -79,10 +121,12 @@ export function AddVehicleForm() {
     setIsSubmitting(true);
     setError(null);
 
+    const normalizedModel = modelOptions.find((entry) => entry.toLowerCase() === model.trim().toLowerCase()) ?? model.trim();
+
     const result = await createCustomerVehicle({
       registrationNumber: formData.get('registrationNumber')?.toString() ?? '',
-      make: make === 'Other' ? formData.get('manualMake')?.toString() ?? '' : make,
-      model: model === 'Other' || make === 'Other' ? formData.get('manualModel')?.toString() ?? '' : model,
+      make: normalizedMake === 'Other' ? formData.get('manualMake')?.toString() ?? '' : normalizedMake,
+      model: normalizedModel === 'Other' || normalizedMake === 'Other' ? formData.get('manualModel')?.toString() ?? '' : normalizedModel,
       year: formData.get('year') ? Number(formData.get('year')) : null,
       vin: formData.get('vin')?.toString() ?? '',
       currentMileage: formData.get('currentMileage') ? Number(formData.get('currentMileage')) : null,
@@ -108,25 +152,33 @@ export function AddVehicleForm() {
 
       <div className="grid gap-3 md:grid-cols-2">
         <div>
-          <label className="mb-1 block text-sm font-medium">Search make</label>
-          <input className="mb-2 w-full rounded border p-2" placeholder="Type to filter makes" value={makeFilter} onChange={(e) => setMakeFilter(e.target.value)} />
-          <label className="mb-1 block text-sm font-medium">Make</label>
-          <select className="w-full rounded border p-2" value={make} onChange={(e) => { setMake(e.target.value); setModel(''); }}>
-            <option value="">Select make</option>
-            {filteredMakes.map((entry) => <option key={entry} value={entry}>{entry}</option>)}
-          </select>
+          <SearchableDropdown
+            id="vehicle-make"
+            label="Make"
+            value={make}
+            options={VEHICLE_MAKES}
+            placeholder="Search and select make"
+            onChange={(next) => {
+              setMake(next);
+              setModel('');
+            }}
+          />
           {fieldErrors.make ? <p className="text-sm text-red-700">{fieldErrors.make}</p> : null}
-          {make === 'Other' ? <input name="manualMake" className="mt-2 w-full rounded border p-2" placeholder="Enter make" required /> : null}
+          {normalizedMake === 'Other' ? <input name="manualMake" className="mt-2 w-full rounded border p-2" placeholder="Enter make" required /> : null}
           {fieldErrors.manualMake ? <p className="text-sm text-red-700">{fieldErrors.manualMake}</p> : null}
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium">Model</label>
-          <select className="w-full rounded border p-2" value={model} disabled={!make} onChange={(e) => setModel(e.target.value)}>
-            <option value="">{make ? 'Select model' : 'Select make first'}</option>
-            {models.map((entry) => <option key={entry} value={entry}>{entry}</option>)}
-          </select>
+          <SearchableDropdown
+            id="vehicle-model"
+            label="Model"
+            value={model}
+            options={modelOptions}
+            placeholder={normalizedMake ? 'Search and select model' : 'Select make first'}
+            disabled={!normalizedMake}
+            onChange={setModel}
+          />
           {fieldErrors.model ? <p className="text-sm text-red-700">{fieldErrors.model}</p> : null}
-          {model === 'Other' || make === 'Other' ? <input name="manualModel" className="mt-2 w-full rounded border p-2" placeholder="Enter model" required /> : null}
+          {model.trim() === 'Other' || normalizedMake === 'Other' ? <input name="manualModel" className="mt-2 w-full rounded border p-2" placeholder="Enter model" required /> : null}
           {fieldErrors.manualModel ? <p className="text-sm text-red-700">{fieldErrors.manualModel}</p> : null}
         </div>
       </div>
