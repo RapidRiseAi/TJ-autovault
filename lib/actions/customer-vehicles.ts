@@ -57,42 +57,42 @@ export async function createSupportTicket(input: {
   message: string;
 }): Promise<ActionResult> {
   const supabase = await createClient();
-  const { data: account } = await supabase
-    .from('customer_accounts')
-    .select('id,workshop_account_id')
-    .eq('auth_user_id', (await supabase.auth.getUser()).data.user?.id ?? '')
-    .single();
 
-  if (!account) return { ok: false, error: 'Customer account missing.' };
+  try {
+    const authUser = await supabase.auth.getUser();
+    const userId = authUser.data.user?.id;
+    if (!userId) return { ok: false, error: 'Please sign in to submit a report.' };
 
-  const { error, data } = await supabase
-    .from('support_tickets')
-    .insert({
-      workshop_account_id: account.workshop_account_id,
-      customer_account_id: account.id,
-      vehicle_id: input.vehicleId ?? null,
-      category: input.category,
-      message: input.message
-    })
-    .select('id')
-    .single();
+    const { data: account, error: accountError } = await supabase
+      .from('customer_accounts')
+      .select('id,workshop_account_id')
+      .eq('auth_user_id', userId)
+      .single();
 
-  if (error || !data) return { ok: false, error: error?.message ?? 'Could not create ticket' };
+    if (accountError || !account) {
+      return { ok: false, error: 'Customer account missing.' };
+    }
 
-  if (input.vehicleId) {
-    await supabase.rpc('add_vehicle_timeline_event', {
+    const { data: ticketId, error: ticketError } = await supabase.rpc('create_support_ticket_with_timeline', {
       p_workshop_account_id: account.workshop_account_id,
       p_customer_account_id: account.id,
-      p_vehicle_id: input.vehicleId,
-      p_event_type: 'ticket_created',
-      p_title: 'Support ticket created',
-      p_body: input.message,
-      p_meta: { ticket_id: data.id }
+      p_vehicle_id: input.vehicleId ?? null,
+      p_category: input.category,
+      p_message: input.message
     });
-    revalidatePath(customerVehicle(input.vehicleId));
-  }
 
-  return { ok: true, message: 'Ticket created' };
+    if (ticketError || !ticketId) {
+      return { ok: false, error: 'Could not submit your report right now. Please try again.' };
+    }
+
+    if (input.vehicleId) {
+      revalidatePath(customerVehicle(input.vehicleId));
+    }
+
+    return { ok: true, message: 'Thanks — your report was submitted successfully.' };
+  } catch {
+    return { ok: false, error: 'Could not submit your report right now. Please try again.' };
+  }
 }
 
 export async function approveOrDeclineRecommendation(input: {
