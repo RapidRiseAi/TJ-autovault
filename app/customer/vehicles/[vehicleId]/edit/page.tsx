@@ -3,6 +3,7 @@ import { Card } from '@/components/ui/card';
 import { EditVehicleForm } from '@/components/customer/edit-vehicle-form';
 import { createClient } from '@/lib/supabase/server';
 import { getCustomerContextOrCreate } from '@/lib/customer/get-customer-context-or-create';
+import { PageHeader } from '@/components/layout/page-header';
 
 export default async function CustomerVehicleEditPage({ params }: { params: Promise<{ vehicleId: string }> }) {
   const { vehicleId } = await params;
@@ -21,7 +22,7 @@ export default async function CustomerVehicleEditPage({ params }: { params: Prom
 
   return (
     <main className="space-y-4">
-      <h1 className="text-2xl font-bold">Edit vehicle</h1>
+      <PageHeader title="Edit vehicle" subtitle={`Update ${vehicle.registration_number}.`} />
       <Card>
         <EditVehicleForm vehicle={vehicle} />
       </Card>

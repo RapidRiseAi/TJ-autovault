@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { Button } from '@/components/ui/button';
 
 export function SignOutButton() {
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -16,13 +17,8 @@ export function SignOutButton() {
   }
 
   return (
-    <button
-      type="button"
-      onClick={onSignOut}
-      disabled={isSigningOut}
-      className="rounded border border-white/30 px-3 py-1 text-xs font-medium hover:bg-white/10 disabled:opacity-50"
-    >
+    <Button type="button" onClick={onSignOut} disabled={isSigningOut} variant="ghost" size="sm" className="rounded-full border border-black/15">
       {isSigningOut ? 'Signing out...' : 'Sign out'}
-    </button>
+    </Button>
   );
 }
