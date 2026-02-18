@@ -27,15 +27,3 @@ body {
   padding: 6px 10px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
 }
-
-@keyframes route-progress {
-  0% {
-    transform: translateX(-65%);
-  }
-  50% {
-    transform: translateX(-8%);
-  }
-  100% {
-    transform: translateX(28%);
-  }
-}

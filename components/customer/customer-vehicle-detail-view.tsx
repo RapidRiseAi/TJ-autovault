@@ -17,7 +17,6 @@ import { Modal } from '@/components/ui/modal';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { SegmentRing, type RingSegment } from '@/components/ui/segment-ring';
-import { RingChart } from '@/components/ui/ring-chart';
 
 type Vehicle = {
   id: string;
@@ -32,12 +31,7 @@ type Vehicle = {
   primary_image_path: string | null;
 };
 
-type Quote = {
-  id: string;
-  status: string | null;
-  total_cents: number;
-  created_at: string | null;
-};
+type Quote = { id: string; status: string | null; total_cents: number };
 type Invoice = {
   id: string;
   status: string | null;
@@ -155,6 +149,10 @@ export function CustomerVehicleDetailView({
   const pendingQuotes = safeQuotes.filter(
     (quote) => quote.status === 'sent' || quote.status === 'pending'
   );
+  const approvedQuotes = safeQuotes.filter((quote) => quote.status === 'approved');
+  const declinedOrCancelledQuotes = safeQuotes.filter((quote) =>
+    ['declined', 'cancelled'].includes((quote.status ?? '').toLowerCase())
+  );
   const pendingQuotesTotalCents = pendingQuotes.reduce(
     (sum, quote) => sum + (quote.total_cents ?? 0),
     0
@@ -243,18 +241,11 @@ export function CustomerVehicleDetailView({
     { overdueOrOutstanding: 0, unpaid: 0, paid: 0 }
   );
 
-  const quoteSegmentPalette = ['#dc2626', '#111111', '#a1a1aa'];
-  const pendingQuoteValueTotal = pendingQuotes.reduce(
-    (sum, quote) => sum + (quote.total_cents ?? 0),
-    0
-  );
-  const pendingQuoteSegments =
-    pendingQuotes.length > 0
-      ? pendingQuotes.map((quote, index) => ({
-          value: pendingQuoteValueTotal > 0 ? (quote.total_cents ?? 0) : 1,
-          color: quoteSegmentPalette[index % quoteSegmentPalette.length]
-        }))
-      : [{ value: 1, color: '#d4d4d8' }];
+  const quoteSegments: RingSegment[] = [
+    { value: pendingQuotes.length, tone: 'negative' },
+    { value: approvedQuotes.length, tone: 'positive' },
+    { value: declinedOrCancelledQuotes.length, tone: 'neutral' }
+  ];
 
   const requestSegments: RingSegment[] = [
     { value: requestBuckets.urgent, tone: 'negative' },
@@ -403,12 +394,11 @@ export function CustomerVehicleDetailView({
                 pending value
               </p>
             </div>
-            <RingChart
-              size={112}
-              strokeWidth={4}
-              segments={pendingQuoteSegments}
+            <SegmentRing
+              size={110}
+              segments={quoteSegments}
               centerLabel={`${pendingQuotes.length}`}
-              subLabel="PENDING"
+              subLabel="Pending"
             />
           </div>
           <Button
@@ -458,9 +448,7 @@ export function CustomerVehicleDetailView({
             />
           </div>
           <Button asChild size="sm" variant="secondary">
-            <Link href={`/customer/invoices?vehicleId=${vehicle.id}`}>
-              View invoices
-            </Link>
+            <Link href={`/customer/invoices?vehicleId=${vehicle.id}`}>View invoices</Link>
           </Button>
         </Card>
 
@@ -593,48 +581,30 @@ export function CustomerVehicleDetailView({
           {safeQuotes.length === 0 ? (
             <p className="text-sm text-gray-600">No quotes available.</p>
           ) : null}
-          {safeQuotes.map((quote) => {
-            const normalizedStatus = (quote.status ?? 'sent').toLowerCase();
-            const statusClass =
-              normalizedStatus === 'approved'
-                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                : normalizedStatus === 'declined'
-                  ? 'border-red-200 bg-red-50 text-red-700'
-                  : 'border-black/15 bg-gray-50 text-gray-700';
-
-            return (
-              <div
-                key={quote.id}
-                className="rounded-2xl border border-black/10 p-4"
-              >
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <span
-                    className={`rounded-full border px-2 py-1 text-xs font-semibold uppercase tracking-[0.08em] ${statusClass}`}
-                  >
-                    {quote.status ?? 'sent'}
-                  </span>
-                  <p className="text-lg font-semibold text-black">
-                    {money(quote.total_cents ?? 0)}
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button asChild size="sm" variant="secondary">
-                    <Link href={timelineHref}>View</Link>
-                  </Button>
-                  <Button asChild size="sm" variant="secondary">
-                    <Link href={documentsHref}>Download</Link>
-                  </Button>
-                  <QuoteDecisionButtons
-                    quoteId={quote.id}
-                    status={quote.status}
-                    amountLabel={money(quote.total_cents ?? 0)}
-                    createdAt={quote.created_at}
-                    quoteRef={`#${quote.id.slice(0, 8).toUpperCase()}`}
-                  />
-                </div>
+          {safeQuotes.map((quote) => (
+            <div
+              key={quote.id}
+              className="rounded-2xl border border-black/10 p-4"
+            >
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <span className="rounded-full border border-black/15 px-2 py-1 text-xs font-medium uppercase text-gray-600">
+                  {quote.status ?? 'unknown'}
+                </span>
+                <p className="text-lg font-semibold text-black">
+                  {money(quote.total_cents ?? 0)}
+                </p>
               </div>
-            );
-          })}
+              <div className="flex flex-wrap items-center gap-2">
+                <Button asChild size="sm" variant="secondary">
+                  <Link href={timelineHref}>View</Link>
+                </Button>
+                <Button asChild size="sm" variant="secondary">
+                  <Link href={documentsHref}>Download</Link>
+                </Button>
+                <QuoteDecisionButtons quoteId={quote.id} />
+              </div>
+            </div>
+          ))}
         </div>
       </Modal>
 
