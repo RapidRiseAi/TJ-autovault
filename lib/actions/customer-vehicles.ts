@@ -200,21 +200,40 @@ export async function updateCustomerVehicle(input: unknown): Promise<ActionResul
   const context = await getCustomerContextOrCreate();
   if (!context) return { ok: false, error: 'Please sign in first.' };
 
-  const { data, error } = await supabase
+  const updatePayload = {
+    registration_number: payload.registrationNumber,
+    make: payload.make,
+    model: payload.model,
+    year: payload.year,
+    vin: payload.vin || null,
+    odometer_km: payload.currentMileage,
+    notes: payload.notes || null
+  };
+
+  let { data, error } = await supabase
     .from('vehicles')
-    .update({
-      registration_number: payload.registrationNumber,
-      make: payload.make,
-      model: payload.model,
-      year: payload.year,
-      vin: payload.vin || null,
-      odometer_km: payload.currentMileage,
-      notes: payload.notes || null
-    })
+    .update(updatePayload)
     .eq('id', payload.vehicleId)
     .eq('current_customer_account_id', context.customer_account.id)
     .select('id')
     .single();
+
+  if (error?.code === 'PGRST204' && error.message.includes("'notes' column")) {
+    ({ data, error } = await supabase
+      .from('vehicles')
+      .update({
+        registration_number: payload.registrationNumber,
+        make: payload.make,
+        model: payload.model,
+        year: payload.year,
+        vin: payload.vin || null,
+        odometer_km: payload.currentMileage
+      })
+      .eq('id', payload.vehicleId)
+      .eq('current_customer_account_id', context.customer_account.id)
+      .select('id')
+      .single());
+  }
 
   if (error || !data) {
     return { ok: false, error: error?.message ?? 'Could not update vehicle' };
