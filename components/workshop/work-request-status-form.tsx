@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { updateWorkRequestStatus, WORK_REQUEST_STATUSES } from '@/lib/actions/workshop';
+import { updateWorkRequestStatus } from '@/lib/actions/workshop';
+import { WORK_REQUEST_STATUSES } from '@/lib/work-request-statuses';
 
 export function WorkRequestStatusForm({ workRequestId, initialStatus }: { workRequestId: string; initialStatus: string }) {
   const [status, setStatus] = useState(initialStatus);

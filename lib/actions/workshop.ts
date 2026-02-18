@@ -2,21 +2,9 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { WORK_REQUEST_STATUSES, type WorkRequestStatus } from '@/lib/work-request-statuses';
 
 type Result = { ok: true; message?: string } | { ok: false; error: string };
-
-export const WORK_REQUEST_STATUSES = [
-  'requested',
-  'waiting_for_deposit',
-  'waiting_for_parts',
-  'scheduled',
-  'in_progress',
-  'completed',
-  'delivered',
-  'cancelled'
-] as const;
-
-type WorkRequestStatus = (typeof WORK_REQUEST_STATUSES)[number];
 
 async function getWorkshopContext() {
   const supabase = await createClient();
