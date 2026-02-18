@@ -36,7 +36,6 @@ export default async function WorkshopCustomerPage({ params }: { params: Promise
 
   const isVehiclesLoading = vehicles === null;
   const hasVehicles = Array.isArray(vehicles) && vehicles.length > 0;
-  const primaryVehicle = hasVehicles ? vehicles[0] : null;
 
   return (
     <main className="space-y-4">
@@ -73,11 +72,6 @@ export default async function WorkshopCustomerPage({ params }: { params: Promise
         ) : null}
         {hasVehicles ? (
           <div className="space-y-2">
-            {primaryVehicle ? (
-              <Link className="inline-block rounded border border-gray-200 px-3 py-2 text-sm underline" href={`/workshop/vehicles/${primaryVehicle.id}`}>
-                View vehicle
-              </Link>
-            ) : null}
             {vehicles.map((vehicle) => (
               <div key={vehicle.id} className="rounded border p-2 text-sm">
                 <p>{vehicle.registration_number}</p>
