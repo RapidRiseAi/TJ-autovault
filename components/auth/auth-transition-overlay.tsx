@@ -1,11 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 
 export function AuthTransitionOverlay() {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -29,7 +28,7 @@ export function AuthTransitionOverlay() {
 
   useEffect(() => {
     setMessage(null);
-  }, [pathname, searchParams]);
+  }, [pathname]);
 
   if (!message) return null;
 
