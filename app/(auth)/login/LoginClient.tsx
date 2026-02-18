@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import {
   getDashboardPathForRole,
@@ -10,7 +10,7 @@ import {
 } from '@/lib/auth/role-redirect';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { AuthMarketingPanel } from '@/components/auth/auth-marketing-panel';
+import { AuthShell } from '@/components/auth/auth-shell';
 
 const showOtp = process.env.NEXT_PUBLIC_ENABLE_EMAIL_OTP === 'true';
 
@@ -25,29 +25,35 @@ export default function LoginClient({
   const [otp, setOtp] = useState('');
   const [msg, setMsg] = useState('');
   const [isSigningIn, setIsSigningIn] = useState(false);
-  const [showSlowOverlay, setShowSlowOverlay] = useState(false);
   const [isOtpPending, setIsOtpPending] = useState(false);
 
-  useEffect(() => {
-    if (!isSigningIn) {
-      setShowSlowOverlay(false);
-      return;
-    }
-    const timer = window.setTimeout(() => setShowSlowOverlay(true), 300);
-    return () => window.clearTimeout(timer);
-  }, [isSigningIn]);
+  function startAuthTransition(message: string) {
+    window.dispatchEvent(
+      new CustomEvent('auth-transition:start', {
+        detail: { message }
+      })
+    );
+  }
+
+  function endAuthTransition() {
+    window.dispatchEvent(new Event('auth-transition:end'));
+  }
 
   async function signIn() {
     setMsg('');
     setIsSigningIn(true);
+    startAuthTransition('Signing you in...');
+
     const supabase = createClient();
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password
     });
+
     if (error) {
       setMsg(error.message);
       setIsSigningIn(false);
+      endAuthTransition();
       return;
     }
 
@@ -56,9 +62,11 @@ export default function LoginClient({
       .select('role')
       .eq('id', data.user.id)
       .single();
+
     if (profileError) {
       setMsg(profileError.message);
       setIsSigningIn(false);
+      endAuthTransition();
       return;
     }
 
@@ -102,87 +110,93 @@ export default function LoginClient({
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-zinc-100 via-white to-white px-4 py-6 sm:px-6 sm:py-10">
-      <div className="mx-auto grid w-full max-w-6xl gap-4 lg:grid-cols-[1.1fr_1fr]">
-        <div className="order-2 lg:order-1">
-          <AuthMarketingPanel compact />
-        </div>
-        <div className="order-1 lg:order-2">
-          <Card className="mx-auto w-full max-w-xl space-y-4 rounded-2xl p-6 sm:p-8">
-            <h1 className="text-2xl font-semibold">Welcome back</h1>
-            <p className="text-sm text-gray-600">
-              Sign in to manage quotes, invoices and service updates.
-            </p>
-            {created ? (
-              <p className="rounded-xl border border-emerald-200 bg-emerald-50 p-2 text-sm text-emerald-800">
-                Account created. Please sign in.
-              </p>
-            ) : null}
-            <input
-              className="w-full rounded-xl border border-black/15 p-3"
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <input
-              className="w-full rounded-xl border border-black/15 p-3"
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-            <Button onClick={signIn} className="w-full" disabled={isSigningIn}>
-              {isSigningIn ? 'Signing in...' : 'Sign in'}
-            </Button>
-            <p className="text-sm text-gray-600">
-              New here?{' '}
-              <Link href="/signup" className="font-semibold text-brand-red">
-                Create account
-              </Link>
-            </p>
+    <AuthShell>
+      <Card className="w-full space-y-4 rounded-2xl border border-black/10 p-6 shadow-[0_24px_60px_rgba(15,23,42,0.1)] sm:p-8">
+        <h1 className="text-3xl font-semibold text-gray-900">Welcome back</h1>
+        <p className="text-sm text-gray-600">
+          Sign in to manage quotes, invoices and service updates.
+        </p>
+        {created ? (
+          <p className="rounded-xl border border-emerald-200 bg-emerald-50 p-2 text-sm text-emerald-800">
+            Account created. Please sign in.
+          </p>
+        ) : null}
 
-            {showOtp ? (
-              <details className="rounded-xl border border-black/10 p-3">
-                <summary className="cursor-pointer text-sm font-medium">
-                  Email verification (OTP)
-                </summary>
-                <div className="mt-2 space-y-2">
-                  <Button
-                    variant="secondary"
-                    onClick={sendOtp}
-                    disabled={isOtpPending}
-                  >
-                    {isOtpPending ? 'Sending...' : 'Send OTP'}
-                  </Button>
-                  <input
-                    className="w-full rounded-lg border p-2"
-                    placeholder="OTP code"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value)}
-                  />
-                  <Button
-                    variant="secondary"
-                    onClick={verifyOtp}
-                    disabled={isOtpPending}
-                  >
-                    {isOtpPending ? 'Verifying...' : 'Verify OTP'}
-                  </Button>
-                </div>
-              </details>
-            ) : null}
-
-            {msg ? <p className="text-sm text-gray-600">{msg}</p> : null}
-          </Card>
+        <div className="space-y-3">
+          <label htmlFor="login-email" className="text-sm font-medium text-gray-700">
+            Email
+          </label>
+          <input
+            id="login-email"
+            className="w-full rounded-xl border border-black/15 p-3 text-base transition focus:border-brand-red focus:outline-none focus:ring-2 focus:ring-brand-red/20"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
         </div>
-      </div>
 
-      {showSlowOverlay ? (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-white/70 backdrop-blur-sm">
-          <div className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-lg">
-            Taking you to your dashboard...
-          </div>
+        <div className="space-y-3">
+          <label htmlFor="login-password" className="text-sm font-medium text-gray-700">
+            Password
+          </label>
+          <input
+            id="login-password"
+            className="w-full rounded-xl border border-black/15 p-3 text-base transition focus:border-brand-red focus:outline-none focus:ring-2 focus:ring-brand-red/20"
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
         </div>
-      ) : null}
-    </main>
+
+        <Button
+          onClick={signIn}
+          className="h-11 w-full active:scale-[0.98]"
+          disabled={isSigningIn}
+        >
+          {isSigningIn ? 'Signing you in...' : 'Sign in'}
+        </Button>
+
+        <div className="flex items-center justify-between text-sm text-gray-600">
+          <Link href="#" className="underline-offset-4 hover:underline">
+            Forgot password
+          </Link>
+          <Link href="/signup" className="font-semibold text-brand-red underline-offset-4 hover:underline">
+            Create account
+          </Link>
+        </div>
+
+        {showOtp ? (
+          <details className="rounded-xl border border-black/10 p-3">
+            <summary className="cursor-pointer text-sm font-medium">
+              Email verification (OTP)
+            </summary>
+            <div className="mt-2 space-y-2">
+              <Button variant="secondary" onClick={sendOtp} disabled={isOtpPending}>
+                {isOtpPending ? 'Sending...' : 'Send OTP'}
+              </Button>
+              <input
+                className="w-full rounded-lg border p-2"
+                placeholder="OTP code"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value)}
+              />
+              <Button variant="secondary" onClick={verifyOtp} disabled={isOtpPending}>
+                {isOtpPending ? 'Verifying...' : 'Verify OTP'}
+              </Button>
+            </div>
+          </details>
+        ) : null}
+
+        <div className="min-h-5 text-sm text-red-700" aria-live="polite">
+          {msg}
+        </div>
+
+        <p className="text-xs text-gray-500">
+          By continuing you agree to <Link href="#" className="underline-offset-4 hover:underline">Terms</Link> and{' '}
+          <Link href="#" className="underline-offset-4 hover:underline">Privacy</Link>
+        </p>
+      </Card>
+    </AuthShell>
   );
 }
