@@ -17,7 +17,7 @@ export default async function CustomerDashboardPage() {
 
   const [{ data: account }, { data: vehicles }, { count: unpaidInvoices }, { count: pendingQuotes }, { count: openRecommendations }] = await Promise.all([
     supabase.from('customer_accounts').select('tier,vehicle_limit,plan_price_cents').eq('id', customerAccount.id).single(),
-    supabase.from('vehicles').select('id,registration_number,make,model,year,status,odometer_km').eq('current_customer_account_id', customerAccount.id).order('created_at', { ascending: false }),
+    supabase.from('vehicles').select('id,registration_number,make,model,year,status,odometer_km,primary_image_path').eq('current_customer_account_id', customerAccount.id).order('created_at', { ascending: false }),
     supabase.from('invoices').select('id', { count: 'exact', head: true }).eq('customer_account_id', customerAccount.id).neq('payment_status', 'paid'),
     supabase.from('quotes').select('id', { count: 'exact', head: true }).eq('customer_account_id', customerAccount.id).eq('status', 'sent'),
     supabase.from('recommendations').select('id', { count: 'exact', head: true }).eq('customer_account_id', customerAccount.id).eq('status_text', 'open')
@@ -42,7 +42,13 @@ export default async function CustomerDashboardPage() {
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {(vehicles ?? []).map((vehicle) => (
           <Card key={vehicle.id} className="space-y-2">
-            <div className="h-32 rounded bg-gray-100" />
+            {vehicle.primary_image_path ? (
+              <img
+                src={`/api/uploads/download?bucket=vehicle-images&path=${encodeURIComponent(vehicle.primary_image_path)}`}
+                alt={`${vehicle.registration_number} vehicle`}
+                className="h-32 w-full rounded object-cover"
+              />
+            ) : <div className="h-32 rounded bg-gray-100" />}
             <h2 className="text-xl font-semibold">{vehicle.registration_number}</h2>
             <p className="text-sm text-gray-600">{vehicle.make} {vehicle.model} {vehicle.year ? `(${vehicle.year})` : ''}</p>
             <p className="text-xs uppercase">Status: <span className="font-semibold">{vehicle.status ?? 'pending'}</span></p>
