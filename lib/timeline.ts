@@ -10,14 +10,18 @@ type TimelineEvent = {
 export async function buildTimelineActorLabel(supabase: SupabaseClient, event: TimelineEvent) {
   if (!event.actor_profile_id && event.actor_role !== 'customer') return 'System';
 
-  const { data: actor } = await supabase
-    .from('profiles')
-    .select('display_name,role')
-    .eq('id', event.actor_profile_id ?? '')
-    .maybeSingle();
+  const { data: actor } = event.actor_profile_id
+    ? await supabase
+        .from('profiles')
+        .select('display_name,role')
+        .eq('id', event.actor_profile_id)
+        .maybeSingle()
+    : { data: null };
 
   const role = actor?.role ?? event.actor_role;
   if (role === 'admin' || role === 'technician') {
+    if (!event.workshop_account_id) return 'TJ Service & Repairs';
+
     const { data: workshop } = await supabase
       .from('workshop_accounts')
       .select('name')
@@ -28,6 +32,9 @@ export async function buildTimelineActorLabel(supabase: SupabaseClient, event: T
 
   if (role === 'customer') {
     if (actor?.display_name) return actor.display_name;
+
+    if (!event.customer_account_id) return 'Customer';
+
     const { data: customer } = await supabase
       .from('customer_accounts')
       .select('name')
