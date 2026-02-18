@@ -31,17 +31,22 @@ export function SegmentRing({
   className?: string;
   size?: number;
 }) {
-  const strokeWidth = 14;
-  const radius = (size - strokeWidth) / 2;
+  const ringStrokeWidth = 9;
+  const radius = (size - ringStrokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
-  const segmentGap = 4;
+  const segmentGap = 5;
 
   const clampedTotal = Math.max(total, 0);
   const clampedValue = Math.max(Math.min(value, clampedTotal || value), 0);
   const percent =
     clampedTotal <= 0 ? 0 : Math.min(clampedValue / clampedTotal, 1);
 
-  const visibleSegments = mode === 'count' ? segments.slice(0, 12) : [];
+  const visibleSegments =
+    mode !== 'count'
+      ? []
+      : segments.length <= 12
+        ? segments
+        : [...segments.slice(0, 11), segments[11]];
   const segmentCount = visibleSegments.length;
   const baseSegmentLength =
     segmentCount > 0 ? circumference / segmentCount : circumference;
@@ -69,7 +74,7 @@ export function SegmentRing({
                 r={radius}
                 fill="none"
                 stroke={GRAY}
-                strokeWidth={strokeWidth}
+                strokeWidth={ringStrokeWidth}
               />
               <circle
                 cx={size / 2}
@@ -77,33 +82,45 @@ export function SegmentRing({
                 r={radius}
                 fill="none"
                 stroke={RED}
-                strokeWidth={strokeWidth}
+                strokeWidth={ringStrokeWidth}
                 strokeLinecap="round"
                 strokeDasharray={`${circumference * percent} ${circumference}`}
               />
             </>
           ) : (
-            visibleSegments.map((segment, index) => (
+            <>
               <circle
-                key={`${segment}-${index}`}
                 cx={size / 2}
                 cy={size / 2}
                 r={radius}
                 fill="none"
-                stroke={toneColor(segment)}
-                strokeWidth={strokeWidth}
-                strokeLinecap="round"
-                strokeDasharray={`${drawLength} ${circumference}`}
-                strokeDashoffset={-(index * baseSegmentLength)}
+                stroke={GRAY}
+                strokeWidth={ringStrokeWidth}
               />
-            ))
+              {visibleSegments.map((segment, index) => (
+                <circle
+                  key={`${segment}-${index}`}
+                  cx={size / 2}
+                  cy={size / 2}
+                  r={radius}
+                  fill="none"
+                  stroke={toneColor(segment)}
+                  strokeWidth={ringStrokeWidth}
+                  strokeLinecap="round"
+                  strokeDasharray={`${drawLength} ${circumference}`}
+                  strokeDashoffset={-(index * baseSegmentLength)}
+                />
+              ))}
+            </>
           )}
         </g>
       </svg>
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-4 text-center">
-        <p className="text-xl font-semibold text-black">{centerLabel}</p>
+        <p className="text-2xl font-semibold leading-none text-black">
+          {centerLabel}
+        </p>
         {subLabel ? (
-          <p className="text-[11px] uppercase tracking-wide text-gray-500">
+          <p className="mt-1 text-[11px] uppercase tracking-[0.16em] text-gray-500">
             {subLabel}
           </p>
         ) : null}

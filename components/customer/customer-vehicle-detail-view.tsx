@@ -208,23 +208,35 @@ export function CustomerVehicleDetailView({
     return buckets;
   }, [openRecommendations]);
 
-  const requestSegments = [
-    ...Array.from({ length: requestBuckets.urgent }, () => 'urgent' as const),
-    ...Array.from({ length: requestBuckets.normal }, () => 'normal' as const),
-    ...Array.from({ length: requestBuckets.low }, () => 'low' as const)
+  const segmentedCycle: Array<'urgent' | 'normal' | 'low'> = [
+    'urgent',
+    'normal',
+    'low'
   ];
 
-  const recommendationSegments = [
-    ...Array.from(
-      { length: recommendationBuckets.urgent },
-      () => 'urgent' as const
-    ),
-    ...Array.from(
-      { length: recommendationBuckets.normal },
-      () => 'normal' as const
-    ),
-    ...Array.from({ length: recommendationBuckets.low }, () => 'low' as const)
-  ];
+  const requestSegments = Array.from(
+    { length: openRequests.length > 12 ? 11 : openRequests.length },
+    (_, index) => segmentedCycle[index % segmentedCycle.length]
+  );
+
+  if (openRequests.length > 12) {
+    requestSegments.push(
+      segmentedCycle[openRequests.length % segmentedCycle.length]
+    );
+  }
+
+  const recommendationSegments = Array.from(
+    {
+      length: openRecommendations.length > 12 ? 11 : openRecommendations.length
+    },
+    (_, index) => segmentedCycle[index % segmentedCycle.length]
+  );
+
+  if (openRecommendations.length > 12) {
+    recommendationSegments.push(
+      segmentedCycle[openRecommendations.length % segmentedCycle.length]
+    );
+  }
 
   return (
     <div className="space-y-4 pb-3">
@@ -436,9 +448,7 @@ export function CustomerVehicleDetailView({
               mode="count"
               size={110}
               segments={requestSegments}
-              centerLabel={
-                openRequests.length > 12 ? '12+' : `${openRequests.length}`
-              }
+              centerLabel={`${openRequests.length}`}
               subLabel="Open"
             />
           </div>
@@ -475,11 +485,7 @@ export function CustomerVehicleDetailView({
               mode="count"
               size={110}
               segments={recommendationSegments}
-              centerLabel={
-                openRecommendations.length > 12
-                  ? '12+'
-                  : `${openRecommendations.length}`
-              }
+              centerLabel={`${openRecommendations.length}`}
               subLabel="Open"
             />
           </div>
