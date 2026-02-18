@@ -6,9 +6,9 @@ import {
   updateInvoicePaymentStatus,
   updateServiceJobStatus,
   updateVehicleServiceReminders,
-  updateWorkRequestStatus,
-  WORK_REQUEST_STATUSES
+  updateWorkRequestStatus
 } from '@/lib/actions/workshop';
+import { WORK_REQUEST_STATUSES } from '@/lib/work-request-statuses';
 
 type ActionResponse = { ok: boolean; error?: string; message?: string };
 
