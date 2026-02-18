@@ -2,6 +2,40 @@ import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
+type DeleteApiError = {
+  error: string;
+  hint?: string;
+  code?: string;
+};
+
+function formatDeleteError(error: unknown): DeleteApiError {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string'
+        ? error.message
+        : 'Delete failed';
+  const normalized = message.toLowerCase();
+
+  if (normalized.includes('immutable table')) {
+    return {
+      error: 'Vehicle delete is blocked by an immutable timeline trigger.',
+      hint: 'Apply the latest vehicle-delete migration, then retry permanent delete.',
+      code: 'IMMUTABLE_TRIGGER_BLOCK'
+    };
+  }
+
+  if (normalized.includes('violates foreign key constraint')) {
+    return {
+      error: 'Vehicle delete is blocked by dependent records.',
+      hint: 'Ensure all vehicle-linked records are removed or configured with ON DELETE CASCADE.',
+      code: 'FK_BLOCK'
+    };
+  }
+
+  return { error: message, code: 'DELETE_FAILED' };
+}
+
 async function getWorkshopAdminContext() {
   const supabase = await createClient();
   const user = (await supabase.auth.getUser()).data.user;
@@ -93,8 +127,11 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ request
     await deleteWhere('quotes', 'vehicle_id', vehicleId);
     await deleteWhere('invoices', 'vehicle_id', vehicleId);
     await deleteWhere('recommendations', 'vehicle_id', vehicleId);
+    await deleteWhere('service_recommendations', 'vehicle_id', vehicleId);
+    await deleteWhere('support_tickets', 'vehicle_id', vehicleId);
     await deleteWhere('service_jobs', 'vehicle_id', vehicleId);
     await deleteWhere('problem_reports', 'vehicle_id', vehicleId);
+    await deleteWhere('timeline_events', 'vehicle_id', vehicleId);
     await deleteWhere('vehicle_timeline_events', 'vehicle_id', vehicleId);
     await deleteWhere('customer_reports', 'vehicle_id', vehicleId);
     await deleteWhere('vehicle_documents', 'vehicle_id', vehicleId);
@@ -104,15 +141,16 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ request
     await deleteWhere('consent_records', 'vehicle_id', vehicleId);
     await deleteWhere('vehicle_ownership_history', 'vehicle_id', vehicleId);
   } catch (deleteError) {
+    const payload = formatDeleteError(deleteError);
     return NextResponse.json(
-      { error: deleteError instanceof Error ? deleteError.message : 'Delete failed while removing dependent records' },
+      payload,
       { status: 500 }
     );
   }
 
   const { error: deleteVehicleError } = await admin.from('vehicles').delete().eq('id', vehicleId);
   if (deleteVehicleError) {
-    return NextResponse.json({ error: deleteVehicleError.message }, { status: 500 });
+    return NextResponse.json(formatDeleteError(deleteVehicleError), { status: 500 });
   }
 
   await admin

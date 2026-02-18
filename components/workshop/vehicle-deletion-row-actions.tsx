@@ -17,8 +17,9 @@ export function VehicleDeletionRowActions({ requestId }: { requestId: string }) 
 
     const response = await fetch(`/api/workshop/vehicle-deletions/${requestId}`, { method: 'DELETE' });
     if (!response.ok) {
-      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-      setError(payload?.error ?? 'Delete failed');
+      const payload = (await response.json().catch(() => null)) as { error?: string; hint?: string; code?: string } | null;
+      const message = payload?.hint ? `${payload.error ?? 'Delete failed'} ${payload.hint}` : (payload?.error ?? 'Delete failed');
+      setError(message);
       setIsDeleting(false);
       return;
     }
