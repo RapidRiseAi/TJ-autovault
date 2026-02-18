@@ -42,7 +42,11 @@ export function VehicleDeletionRowActions({ requestId }: { requestId: string }) 
       >
         {isDeleting ? 'Deleting...' : 'Permanent delete'}
       </button>
-      {error ? <span className="text-xs text-red-700">{error}</span> : null}
+      {error ? (
+        <div role="alert" className="w-full rounded border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-700">
+          {error}
+        </div>
+      ) : null}
     </div>
   );
 }
