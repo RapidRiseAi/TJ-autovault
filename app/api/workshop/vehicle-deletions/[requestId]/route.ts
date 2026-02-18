@@ -67,29 +67,57 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ request
   const quoteIds = (quotes ?? []).map((row) => row.id);
   const invoiceIds = (invoices ?? []).map((row) => row.id);
 
-  for (const [bucket, paths] of storageByBucket) {
-    if (!paths.length) continue;
-    await admin.storage.from(bucket).remove(paths);
+  async function deleteWhere(table: string, column: string, value: string) {
+    const { error } = await admin.from(table).delete().eq(column, value);
+    if (error) {
+      throw new Error(`Failed deleting ${table}: ${error.message}`);
+    }
   }
 
-  if (quoteIds.length) await admin.from('quote_items').delete().in('quote_id', quoteIds);
-  if (invoiceIds.length) await admin.from('invoice_items').delete().in('invoice_id', invoiceIds);
-  await admin.from('work_requests').delete().eq('vehicle_id', vehicleId);
-  await admin.from('quotes').delete().eq('vehicle_id', vehicleId);
-  await admin.from('invoices').delete().eq('vehicle_id', vehicleId);
-  await admin.from('recommendations').delete().eq('vehicle_id', vehicleId);
-  await admin.from('service_jobs').delete().eq('vehicle_id', vehicleId);
-  await admin.from('problem_reports').delete().eq('vehicle_id', vehicleId);
-  await admin.from('vehicle_timeline_events').delete().eq('vehicle_id', vehicleId);
-  await admin.from('vehicle_documents').delete().eq('vehicle_id', vehicleId);
-  await admin.from('vehicle_media').delete().eq('vehicle_id', vehicleId);
-  await admin.from('attachments').delete().eq('entity_type', 'vehicle').eq('entity_id', vehicleId);
-  await admin.from('consent_records').delete().eq('vehicle_id', vehicleId);
-  await admin.from('vehicle_ownership_history').delete().eq('vehicle_id', vehicleId);
+  async function deleteIn(table: string, column: string, values: string[]) {
+    const { error } = await admin.from(table).delete().in(column, values);
+    if (error) {
+      throw new Error(`Failed deleting ${table}: ${error.message}`);
+    }
+  }
+
+  try {
+    for (const [bucket, paths] of storageByBucket) {
+      if (!paths.length) continue;
+      await admin.storage.from(bucket).remove(paths);
+    }
+
+    if (quoteIds.length) await deleteIn('quote_items', 'quote_id', quoteIds);
+    if (invoiceIds.length) await deleteIn('invoice_items', 'invoice_id', invoiceIds);
+    await deleteWhere('work_requests', 'vehicle_id', vehicleId);
+    await deleteWhere('quotes', 'vehicle_id', vehicleId);
+    await deleteWhere('invoices', 'vehicle_id', vehicleId);
+    await deleteWhere('recommendations', 'vehicle_id', vehicleId);
+    await deleteWhere('service_jobs', 'vehicle_id', vehicleId);
+    await deleteWhere('service_recommendations', 'vehicle_id', vehicleId);
+    await deleteWhere('support_tickets', 'vehicle_id', vehicleId);
+    await deleteWhere('problem_reports', 'vehicle_id', vehicleId);
+    await deleteWhere('vehicle_timeline_events', 'vehicle_id', vehicleId);
+    await deleteWhere('customer_reports', 'vehicle_id', vehicleId);
+    await deleteWhere('vehicle_documents', 'vehicle_id', vehicleId);
+    await deleteWhere('vehicle_media', 'vehicle_id', vehicleId);
+    const { error: attachmentsDeleteError } = await admin.from('attachments').delete().eq('entity_type', 'vehicle').eq('entity_id', vehicleId);
+    if (attachmentsDeleteError) throw new Error(`Failed deleting attachments: ${attachmentsDeleteError.message}`);
+    await deleteWhere('consent_records', 'vehicle_id', vehicleId);
+    await deleteWhere('vehicle_ownership_history', 'vehicle_id', vehicleId);
+  } catch (deleteError) {
+    return NextResponse.json(
+      { error: deleteError instanceof Error ? deleteError.message : 'Delete failed while removing dependent records' },
+      { status: 500 }
+    );
+  }
 
   const { error: deleteVehicleError } = await admin.from('vehicles').delete().eq('id', vehicleId);
   if (deleteVehicleError) {
-    return NextResponse.json({ error: deleteVehicleError.message }, { status: 500 });
+    const message = deleteVehicleError.message.includes('Immutable table: updates/deletes are not allowed')
+      ? 'Permanent delete blocked by immutable timeline trigger. Run latest Supabase migrations.'
+      : deleteVehicleError.message;
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 
   await admin
