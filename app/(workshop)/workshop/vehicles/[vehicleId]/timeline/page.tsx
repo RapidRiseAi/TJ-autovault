@@ -4,7 +4,8 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { buildTimelineActorLabel } from '@/lib/timeline';
 import { createClient } from '@/lib/supabase/server';
-import { buildActivityStream, HorizontalTimeline } from '@/components/customer/vehicle-activity';
+import { HorizontalTimeline } from '@/components/customer/vehicle-activity';
+import { buildActivityStream } from '@/lib/activity-stream';
 
 export default async function WorkshopVehicleTimelinePage({ params }: { params: Promise<{ vehicleId: string }> }) {
   const { vehicleId } = await params;

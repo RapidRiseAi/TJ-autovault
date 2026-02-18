@@ -7,7 +7,8 @@ import { buildTimelineActorLabel } from '@/lib/timeline';
 import { UploadsSection } from '@/components/customer/uploads-section';
 import { VehicleWorkflowActions } from '@/components/workshop/vehicle-workflow-actions';
 import { UploadsActionsForm } from '@/components/workshop/uploads-actions-form';
-import { RecentActivitySnippet, buildActivityStream } from '@/components/customer/vehicle-activity';
+import { RecentActivitySnippet } from '@/components/customer/vehicle-activity';
+import { buildActivityStream } from '@/lib/activity-stream';
 
 function centsToCurrency(totalCents: number | null) {
   if (typeof totalCents !== 'number') return 'R0.00';
