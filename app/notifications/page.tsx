@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { customerDashboard } from '@/lib/routes';
 import { createClient } from '@/lib/supabase/server';
 import { NotificationsLive } from '@/components/layout/notifications-live';
 
@@ -29,7 +31,12 @@ export default async function NotificationsPage({ searchParams }: { searchParams
 
   return (
     <main className="mx-auto max-w-4xl space-y-4 p-6">
-      <h1 className="text-2xl font-bold">Notifications</h1>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-2xl font-bold">Notifications</h1>
+        <Button asChild variant="outline">
+          <Link href={customerDashboard()}>Back to Dashboard</Link>
+        </Button>
+      </div>
       <div className="flex gap-3 text-sm"><Link className="underline" href="/notifications">Live feed</Link></div>
       <NotificationsLive fullPage />
     </main>
