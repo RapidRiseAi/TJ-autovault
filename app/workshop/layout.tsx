@@ -6,6 +6,7 @@ const WORKSHOP_NAV = [
   { href: '/workshop/dashboard', label: 'Dashboard' },
   { href: '/workshop/customers', label: 'Customers' },
   { href: '/workshop/work-requests', label: 'Work requests' },
+  { href: '/workshop/vehicle-deletions', label: 'Vehicle deletions' },
   { href: '/notifications', label: 'Notifications' },
   { href: '/workshop/profile', label: 'Profile' }
 ];

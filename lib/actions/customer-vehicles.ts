@@ -247,3 +247,22 @@ export async function updateCustomerVehicle(input: unknown): Promise<ActionResul
   revalidatePath(customerDashboard());
   return { ok: true, vehicleId: payload.vehicleId };
 }
+
+export async function requestVehicleDeletion(input: { vehicleId: string; reason?: string }): Promise<ActionResult> {
+  const supabase = await createClient();
+  const context = await getCustomerContextOrCreate();
+  if (!context) return { ok: false, error: 'Please sign in first.' };
+
+  const { data, error } = await supabase.rpc('request_vehicle_deletion', {
+    p_vehicle_id: input.vehicleId,
+    p_reason: input.reason ?? null
+  });
+
+  if (error || !data) {
+    return { ok: false, error: error?.message ?? 'Could not request vehicle deletion' };
+  }
+
+  revalidatePath(customerDashboard());
+  revalidatePath(customerVehicle(input.vehicleId));
+  return { ok: true, message: 'Vehicle removal requested.' };
+}
