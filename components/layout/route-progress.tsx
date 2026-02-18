@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 
 export function RouteProgress() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -41,7 +42,7 @@ export function RouteProgress() {
 
   useEffect(() => {
     setLoading(false);
-  }, [pathname]);
+  }, [pathname, searchParams]);
 
   return (
     <div className="pointer-events-none fixed inset-x-0 top-0 z-[130] h-[2px] overflow-hidden">
