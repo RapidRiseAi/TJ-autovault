@@ -17,13 +17,14 @@ export default async function CustomerDashboardPage() {
 
   const customerAccount = customerContext.customer_account;
 
-  const [{ data: account }, { data: vehicles }, { count: unpaidInvoices }, { count: pendingQuotes }, { count: openRecommendations }, { data: notifications }] = await Promise.all([
+  const [{ data: account }, { data: vehicles }, { count: unpaidInvoices }, { count: pendingQuotes }, { count: openRecommendations }, { data: notifications }, { count: unreadCount }] = await Promise.all([
     supabase.from('customer_accounts').select('tier,vehicle_limit,plan_price_cents').eq('id', customerAccount.id).single(),
     supabase.from('vehicles').select('id,registration_number,make,model,year,status,odometer_km,primary_image_path').eq('current_customer_account_id', customerAccount.id).order('created_at', { ascending: false }),
     supabase.from('invoices').select('id', { count: 'exact', head: true }).eq('customer_account_id', customerAccount.id).neq('payment_status', 'paid'),
     supabase.from('quotes').select('id', { count: 'exact', head: true }).eq('customer_account_id', customerAccount.id).eq('status', 'sent'),
     supabase.from('recommendations').select('id', { count: 'exact', head: true }).eq('customer_account_id', customerAccount.id).eq('status_text', 'open'),
-    supabase.from('notifications').select('id,title,created_at,is_read').eq('to_customer_account_id', customerAccount.id).order('created_at', { ascending: false }).limit(5)
+    supabase.from('notifications').select('id,title,created_at,is_read').eq('to_customer_account_id', customerAccount.id).eq('is_read', false).order('created_at', { ascending: false }).limit(5),
+    supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('to_customer_account_id', customerAccount.id).eq('is_read', false)
   ]);
 
   const stats = [
@@ -75,19 +76,20 @@ export default async function CustomerDashboardPage() {
           ))}
         </section>
 
-        <Card className="h-fit">
-          <h3 className="text-lg font-semibold">Notifications preview</h3>
-          <div className="mt-3 space-y-2">
-            {(notifications ?? []).length === 0 ? <p className="rounded border border-dashed p-3 text-sm text-gray-600">No notifications yet.</p> : null}
-            {(notifications ?? []).map((notification) => (
-              <div key={notification.id} className="rounded-lg border p-3">
-                <p className={`text-sm ${notification.is_read ? 'text-gray-600' : 'font-semibold text-brand-black'}`}>{notification.title}</p>
-                <p className="text-xs text-gray-500">{notification.created_at ? new Date(notification.created_at).toLocaleString() : 'Unknown date'}</p>
-              </div>
-            ))}
-          </div>
-          <Button asChild variant="secondary" size="sm" className="mt-3 w-full"><Link href="/customer/notifications">View all notifications</Link></Button>
-        </Card>
+        {(unreadCount ?? 0) > 0 ? (
+          <Card className="h-fit">
+            <h3 className="text-lg font-semibold">Unread notifications</h3>
+            <div className="mt-3 space-y-2">
+              {(notifications ?? []).map((notification) => (
+                <div key={notification.id} className="rounded-lg border p-3">
+                  <p className={`text-sm ${notification.is_read ? 'text-gray-600' : 'font-semibold text-brand-black'}`}>{notification.title}</p>
+                  <p className="text-xs text-gray-500">{notification.created_at ? new Date(notification.created_at).toLocaleString() : 'Unknown date'}</p>
+                </div>
+              ))}
+            </div>
+            <Button asChild variant="secondary" size="sm" className="mt-3 w-full"><Link href="/customer/notifications">View all notifications</Link></Button>
+          </Card>
+        ) : null}
       </div>
     </main>
   );
