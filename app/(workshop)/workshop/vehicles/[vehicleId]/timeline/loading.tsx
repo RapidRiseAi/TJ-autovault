@@ -1,7 +1,7 @@
 import { Card } from '@/components/ui/card';
 import { TimelineSkeleton } from '@/components/customer/vehicle-activity';
 
-export default function CustomerVehicleTimelineLoading() {
+export default function WorkshopVehicleTimelineLoading() {
   return (
     <main className="space-y-4">
       <Card>

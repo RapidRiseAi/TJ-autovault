@@ -1,11 +1,13 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/server';
-import { buildTimelineActorLabel, importanceBadgeClass } from '@/lib/timeline';
+import { buildTimelineActorLabel } from '@/lib/timeline';
 import { UploadsSection } from '@/components/customer/uploads-section';
 import { VehicleWorkflowActions } from '@/components/workshop/vehicle-workflow-actions';
 import { UploadsActionsForm } from '@/components/workshop/uploads-actions-form';
+import { RecentActivitySnippet, buildActivityStream } from '@/components/customer/vehicle-activity';
 
 function centsToCurrency(totalCents: number | null) {
   if (typeof totalCents !== 'number') return 'R0.00';
@@ -158,18 +160,32 @@ export default async function WorkshopVehiclePage({ params }: { params: Promise<
     subject: d.subject,
     importance: d.importance
   }));
+  const activity = buildActivityStream(timelineRows, safeDocs);
 
   return (
     <main className="space-y-4">
       <Card>
         <div className="flex items-center gap-4">
           {vehicle.primary_image_path ? <img src={`/api/uploads/download?bucket=vehicle-images&path=${encodeURIComponent(vehicle.primary_image_path)}`} alt="Vehicle" className="h-20 w-20 rounded object-cover" /> : null}
-          <div>
+          <div className="space-y-2">
             <h1 className="text-2xl font-bold">{vehicle.registration_number}</h1>
             <p>{vehicle.make} {vehicle.model}</p>
             <p className="text-xs">Status: {vehicle.status} · Odometer {vehicle.odometer_km ?? 'N/A'} km · Next service {vehicle.next_service_km ?? 'N/A'} km / {vehicle.next_service_date ?? 'N/A'}</p>
+            <div className="flex flex-wrap gap-2">
+              <Button asChild size="sm" variant="outline">
+                <Link href={`/workshop/vehicles/${vehicle.id}/documents`}>View all documents</Link>
+              </Button>
+              <Button asChild size="sm" variant="outline">
+                <Link href={`/workshop/vehicles/${vehicle.id}/timeline`}>View full timeline</Link>
+              </Button>
+            </div>
           </div>
         </div>
+      </Card>
+
+      <Card>
+        <h2 className="mb-3 text-lg font-semibold">Recent activity</h2>
+        <RecentActivitySnippet activities={activity} maxItems={4} timelineHref={`/workshop/vehicles/${vehicle.id}/timeline`} />
       </Card>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -178,21 +194,9 @@ export default async function WorkshopVehiclePage({ params }: { params: Promise<
             <h2 className="font-semibold">Overview</h2>
             <p className="text-sm">Open jobs: {safeJobs.filter((job) => job.status !== 'completed' && job.status !== 'cancelled').length}</p>
             <p className="mt-1 text-sm">Open requests: {safeWorkRequests.filter((request) => !['completed', 'delivered', 'cancelled'].includes(request.status)).length}</p>
-            <Link href="/workshop/work-requests" className="text-xs text-brand-red underline">Open work request board</Link>
-          </Card>
-
-          <Card>
-            <h2 className="font-semibold">Timeline</h2>
-            {(timelineRows ?? []).map((event) => (
-              <div key={event.id} className="my-2 border-l-2 pl-2">
-                <div className="flex gap-2">
-                  <p>{event.title}</p>
-                  <span className={`rounded border px-2 text-[10px] ${importanceBadgeClass(event.importance)}`}>{event.importance ?? 'info'}</span>
-                  {event.metadata?.urgency ? <span className="rounded border border-purple-200 bg-purple-50 px-2 text-[10px] uppercase text-purple-700">{event.metadata.urgency}</span> : null}
-                </div>
-                <p className="text-xs text-gray-500">{event.actorLabel} · {new Date(event.created_at).toLocaleString()}</p>
-              </div>
-            ))}
+            <Button asChild size="sm" variant="outline" className="mt-3">
+              <Link href="/workshop/work-requests">Open work request board</Link>
+            </Button>
           </Card>
 
           <Card>
