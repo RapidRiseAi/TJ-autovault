@@ -46,11 +46,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL(getDashboardPathForRole(role), request.url));
   }
 
-  if (isWorkshopRoute && role !== 'admin' && role !== 'technician') {
+  if (isWorkshopRoute && role !== 'admin') {
     return NextResponse.redirect(new URL(getDashboardPathForRole(role), request.url));
   }
 
-  if (isCustomerRoute && role !== 'customer' && role !== 'admin') {
+  if (isCustomerRoute && role !== 'customer') {
     return NextResponse.redirect(new URL(getDashboardPathForRole(role), request.url));
   }
 
