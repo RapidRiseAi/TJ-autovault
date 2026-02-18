@@ -1,7 +1,7 @@
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { signupCustomerAction } from '@/lib/actions/auth';
+import { FormSubmitButton } from '@/components/auth/form-submit-button';
 
 const plans = [
   { key: 'basic', title: 'Basic', label: 'R100 / month', limit: 1 },
@@ -35,7 +35,7 @@ export default async function SignupPage({ searchParams }: { searchParams: Promi
             ))}
           </div>
 
-          <Button type="submit" className="w-full">Sign up</Button>
+          <FormSubmitButton idleLabel="Sign up" pendingLabel="Creating account..." />
         </form>
         <p className="text-sm text-gray-600">Already have an account? <Link href="/login" className="font-semibold text-brand-red">Sign in</Link></p>
       </Card>
