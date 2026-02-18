@@ -1,7 +1,7 @@
 import { Card } from '@/components/ui/card';
 import { DocumentsSkeleton } from '@/components/customer/vehicle-documents-groups';
 
-export default function CustomerVehicleDocumentsLoading() {
+export default function WorkshopVehicleDocumentsLoading() {
   return (
     <main className="space-y-4">
       <Card>

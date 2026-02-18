@@ -106,19 +106,6 @@ export async function POST(request: NextRequest) {
 
   if (normalizedDocType === 'vehicle_photo') {
     await supabase.from('vehicles').update({ primary_image_path: payload.path, vehicle_image_doc_id: doc.id }).eq('id', payload.vehicleId);
-    await supabase.from('vehicle_timeline_events').insert({
-      workshop_account_id: vehicle.workshop_account_id,
-      customer_account_id: vehicle.current_customer_account_id,
-      vehicle_id: payload.vehicleId,
-      actor_profile_id: profile?.id ?? user.id,
-      actor_role: actorRole,
-      event_type: 'doc_uploaded',
-      title: 'Vehicle photo updated',
-      description: payload.body || null,
-      importance: normalizedImportance,
-      metadata: { doc_id: doc.id, type: 'vehicle_photo', urgency: payload.urgency }
-    });
-    return NextResponse.json({ ok: true, documentId: doc.id });
   }
 
   let linkedEntityId: string | null = null;
@@ -165,9 +152,6 @@ export async function POST(request: NextRequest) {
     await supabase.from('vehicle_documents').update({ invoice_id: invoice.id }).eq('id', doc.id);
   }
 
-  const eventType = normalizedDocType === 'quote' ? 'quote_created' : normalizedDocType === 'invoice' ? 'invoice_created' : 'doc_uploaded';
-  const title = payload.subject || `Uploaded ${normalizedDocType.replace('_', ' ')}`;
-
   const notificationData = {
     vehicle_id: payload.vehicleId,
     vehicle_registration: vehicle.registration_number,
@@ -178,19 +162,6 @@ export async function POST(request: NextRequest) {
     document_type: normalizedDocType,
     linked_entity_id: linkedEntityId
   };
-
-  await supabase.from('vehicle_timeline_events').insert({
-    workshop_account_id: vehicle.workshop_account_id,
-    customer_account_id: vehicle.current_customer_account_id,
-    vehicle_id: payload.vehicleId,
-    actor_profile_id: profile?.id ?? user.id,
-    actor_role: actorRole,
-    event_type: eventType,
-    title,
-    description: payload.body || null,
-    importance: normalizedImportance,
-    metadata: { doc_id: doc.id, type: normalizedDocType, linked_entity_id: linkedEntityId, urgency: payload.urgency }
-  });
 
   const shouldNotifyCustomer = actorRole === 'admin' && (['quote', 'invoice', 'inspection', 'report'].includes(normalizedDocType) || normalizedImportance !== 'info');
   const shouldNotifyWorkshop = actorRole === 'customer' && normalizedDocType === 'report';

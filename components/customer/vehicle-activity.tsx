@@ -41,6 +41,7 @@ function labelDocumentType(type?: string | null) {
 }
 
 export function buildActivityStream(timelineRows: TimelineEventItem[], docs: DocumentItem[]): ActivityItem[] {
+  const docIds = new Set(docs.map((doc) => doc.id));
   const timelineItems: ActivityItem[] = timelineRows.map((event) => ({
     id: event.id,
     kind: 'timeline',
@@ -65,7 +66,15 @@ export function buildActivityStream(timelineRows: TimelineEventItem[], docs: Doc
       : undefined
   }));
 
-  return [...timelineItems, ...docItems].sort((a, b) => {
+  const filteredTimelineItems = timelineItems.filter((item) => {
+    if (item.kind !== 'timeline') return true;
+    const event = timelineRows.find((row) => row.id === item.id);
+    if (!event || event.event_type !== 'doc_uploaded') return true;
+    const metadataDocId = typeof event.metadata?.doc_id === 'string' ? event.metadata.doc_id : null;
+    return !metadataDocId || !docIds.has(metadataDocId);
+  });
+
+  return [...filteredTimelineItems, ...docItems].sort((a, b) => {
     const left = a.createdAt ? new Date(a.createdAt).getTime() : 0;
     const right = b.createdAt ? new Date(b.createdAt).getTime() : 0;
     return right - left;
