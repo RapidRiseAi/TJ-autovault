@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { signupCustomerAction } from '@/lib/actions/auth';
 
 const plans = [
@@ -8,42 +9,36 @@ const plans = [
   { key: 'business', title: 'Business', label: 'R1200 / month', limit: 20 }
 ] as const;
 
-export default async function SignupPage({
-  searchParams
-}: {
-  searchParams: Promise<{ error?: string }>;
-}) {
+export default async function SignupPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const { error } = await searchParams;
 
   return (
-    <main className="mx-auto max-w-md space-y-4 p-6">
-      <h1 className="text-2xl font-bold">Create account</h1>
-      {error ? <p className="rounded border border-red-200 bg-red-50 p-2 text-sm text-red-700">{error}</p> : null}
-      <form action={signupCustomerAction} className="space-y-4">
-        <input name="displayName" className="w-full rounded border p-2" placeholder="Display name" />
-        <input name="email" type="email" required className="w-full rounded border p-2" placeholder="Email" />
-        <input name="password" type="password" required className="w-full rounded border p-2" placeholder="Password" minLength={6} />
+    <main className="flex min-h-screen items-center justify-center bg-gradient-to-b from-gray-100 to-white px-4 py-8">
+      <Card className="w-full max-w-2xl space-y-4">
+        <h1 className="text-2xl font-semibold">Create account</h1>
+        {error ? <p className="rounded border border-red-200 bg-red-50 p-2 text-sm text-red-700">{error}</p> : null}
+        <form action={signupCustomerAction} className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-2">
+            <input name="displayName" className="w-full rounded-lg border p-3" placeholder="Display name" />
+            <input name="email" type="email" required className="w-full rounded-lg border p-3" placeholder="Email" />
+          </div>
+          <input name="password" type="password" required className="w-full rounded-lg border p-3" placeholder="Password" minLength={6} />
 
-        <div className="grid gap-2">
-          {plans.map((item, idx) => (
-            <label key={item.key} className="cursor-pointer rounded border p-3">
-              <input type="radio" className="mr-2" name="plan" value={item.key} defaultChecked={idx === 0} />
-              <span className="font-semibold">{item.title}</span>{' '}
-              <span className="text-sm text-gray-600">
-                {item.label} · {item.limit} vehicle{item.limit > 1 ? 's' : ''}
-              </span>
-            </label>
-          ))}
-        </div>
+          <div className="grid gap-3 md:grid-cols-3">
+            {plans.map((item, idx) => (
+              <label key={item.key} className="cursor-pointer rounded-xl border p-3 transition-colors has-[:checked]:border-brand-red has-[:checked]:bg-red-50">
+                <input type="radio" className="sr-only" name="plan" value={item.key} defaultChecked={idx === 0} />
+                <p className="font-semibold">{item.title}</p>
+                <p className="text-sm text-gray-600">{item.label}</p>
+                <p className="text-xs text-gray-500">{item.limit} vehicle{item.limit > 1 ? 's' : ''}</p>
+              </label>
+            ))}
+          </div>
 
-        <Button type="submit">Sign up</Button>
-      </form>
-      <p className="text-sm text-gray-600">
-        Already have an account?{' '}
-        <Link href="/login" className="text-brand-red underline">
-          Sign in
-        </Link>
-      </p>
+          <Button type="submit" className="w-full">Sign up</Button>
+        </form>
+        <p className="text-sm text-gray-600">Already have an account? <Link href="/login" className="font-semibold text-brand-red">Sign in</Link></p>
+      </Card>
     </main>
   );
 }

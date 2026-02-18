@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getCustomerContextOrCreate } from '@/lib/customer/get-customer-context-or-create';
 import { customerVehicle } from '@/lib/routes';
 import { groupVehicleDocuments, VehicleDocumentsGroups } from '@/components/customer/vehicle-documents-groups';
+import { PageHeader } from '@/components/layout/page-header';
 
 export default async function VehicleDocumentsPage({ params }: { params: Promise<{ vehicleId: string }> }) {
   const { vehicleId } = await params;
@@ -53,17 +54,7 @@ export default async function VehicleDocumentsPage({ params }: { params: Promise
 
   return (
     <main className="space-y-4">
-      <Card>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold">Documents</h1>
-            <p className="text-sm text-gray-600">{vehicle.registration_number} · Organized by type</p>
-          </div>
-          <Button asChild variant="outline" size="sm">
-            <Link href={customerVehicle(vehicleId)}>Back to vehicle</Link>
-          </Button>
-        </div>
-      </Card>
+      <PageHeader title="Documents" subtitle={`${vehicle.registration_number} · Organized by type`} actions={<Button asChild variant="secondary" size="sm"><Link href={customerVehicle(vehicleId)}>Back to vehicle</Link></Button>} />
 
       <VehicleDocumentsGroups groups={groups} />
     </main>

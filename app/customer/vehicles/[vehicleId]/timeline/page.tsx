@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getCustomerContextOrCreate } from '@/lib/customer/get-customer-context-or-create';
 import { customerVehicle } from '@/lib/routes';
 import { buildActivityStream, HorizontalTimeline } from '@/components/customer/vehicle-activity';
+import { PageHeader } from '@/components/layout/page-header';
 
 export default async function VehicleTimelinePage({ params }: { params: Promise<{ vehicleId: string }> }) {
   const { vehicleId } = await params;
@@ -69,17 +70,7 @@ export default async function VehicleTimelinePage({ params }: { params: Promise<
 
   return (
     <main className="space-y-4">
-      <Card>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold">Full timeline</h1>
-            <p className="text-sm text-gray-600">{vehicle.registration_number} · Unified activity stream</p>
-          </div>
-          <Button asChild variant="outline" size="sm">
-            <Link href={customerVehicle(vehicleId)}>Back to vehicle</Link>
-          </Button>
-        </div>
-      </Card>
+      <PageHeader title="Full timeline" subtitle={`${vehicle.registration_number} · Unified activity stream`} actions={<Button asChild variant="secondary" size="sm"><Link href={customerVehicle(vehicleId)}>Back to vehicle</Link></Button>} />
 
       <Card>
         <h2 className="mb-3 text-lg font-semibold">Activity</h2>
