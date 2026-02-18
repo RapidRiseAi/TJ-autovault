@@ -131,16 +131,24 @@ export default async function WorkshopVehiclePage({ params }: { params: Promise<
     );
   }
 
-  const jobs = jobsResult.data ?? [];
-  const recs = recsResult.data ?? [];
-  const timeline = timelineResult.data ?? [];
-  const quotes = quotesResult.data ?? [];
-  const invoices = invoicesResult.data ?? [];
-  const docs = docsResult.data ?? [];
-  const workRequests = workRequestsResult.data ?? [];
+  const { data: jobs = [] } = jobsResult;
+  const { data: recs = [] } = recsResult;
+  const { data: timeline = [] } = timelineResult;
+  const { data: quotes = [] } = quotesResult;
+  const { data: invoices = [] } = invoicesResult;
+  const { data: docs = [] } = docsResult;
+  const { data: workRequests = [] } = workRequestsResult;
 
-  const timelineRows = await Promise.all((timeline ?? []).map(async (event) => ({ ...event, actorLabel: await buildTimelineActorLabel(supabase as never, event) })));
-  const attachments = docs.map((d) => ({
+  const safeJobs = Array.isArray(jobs) ? jobs : [];
+  const safeRecs = Array.isArray(recs) ? recs : [];
+  const safeTimeline = Array.isArray(timeline) ? timeline : [];
+  const safeQuotes = Array.isArray(quotes) ? quotes : [];
+  const safeInvoices = Array.isArray(invoices) ? invoices : [];
+  const safeDocs = Array.isArray(docs) ? docs : [];
+  const safeWorkRequests = Array.isArray(workRequests) ? workRequests : [];
+
+  const timelineRows = await Promise.all(safeTimeline.map(async (event) => ({ ...event, actorLabel: await buildTimelineActorLabel(supabase as never, event) })));
+  const attachments = safeDocs.map((d) => ({
     id: d.id,
     bucket: d.storage_bucket,
     storage_path: d.storage_path,
@@ -168,8 +176,8 @@ export default async function WorkshopVehiclePage({ params }: { params: Promise<
         <div className="space-y-4 lg:col-span-2">
           <Card>
             <h2 className="font-semibold">Overview</h2>
-            <p className="text-sm">Open jobs: {jobs.filter((job) => job.status !== 'completed' && job.status !== 'cancelled').length}</p>
-            <p className="mt-1 text-sm">Open requests: {workRequests.filter((request) => !['completed', 'delivered', 'cancelled'].includes(request.status)).length}</p>
+            <p className="text-sm">Open jobs: {safeJobs.filter((job) => job.status !== 'completed' && job.status !== 'cancelled').length}</p>
+            <p className="mt-1 text-sm">Open requests: {safeWorkRequests.filter((request) => !['completed', 'delivered', 'cancelled'].includes(request.status)).length}</p>
             <Link href="/workshop/work-requests" className="text-xs text-brand-red underline">Open work request board</Link>
           </Card>
 
@@ -194,15 +202,15 @@ export default async function WorkshopVehiclePage({ params }: { params: Promise<
           <div className="grid gap-4 md:grid-cols-2">
             <Card>
               <h2 className="font-semibold">Recommendations</h2>
-              {recs.map((recommendation) => <p key={recommendation.id} className="text-sm">{recommendation.title} · {recommendation.status} · {recommendation.severity}</p>)}
+              {safeRecs.map((recommendation) => <p key={recommendation.id} className="text-sm">{recommendation.title} · {recommendation.status} · {recommendation.severity}</p>)}
             </Card>
             <Card>
               <h2 className="font-semibold">Mileage / payment / jobs</h2>
               <VehicleWorkflowActions
                 vehicleId={vehicle.id}
-                invoices={invoices.map((invoice) => ({ id: invoice.id }))}
-                jobs={jobs.map((job) => ({ id: job.id }))}
-                workRequests={workRequests.map((request) => ({ id: request.id, status: request.status }))}
+                invoices={safeInvoices.map((invoice) => ({ id: invoice.id }))}
+                jobs={safeJobs.map((job) => ({ id: job.id }))}
+                workRequests={safeWorkRequests.map((request) => ({ id: request.id, status: request.status }))}
                 compact
               />
             </Card>
@@ -210,8 +218,8 @@ export default async function WorkshopVehiclePage({ params }: { params: Promise<
 
           <Card>
             <h2 className="font-semibold">Quotes & invoices</h2>
-            {quotes.map((quote) => <p key={quote.id} className="text-sm">Quote {quote.status} · {centsToCurrency(quote.total_cents)}</p>)}
-            {invoices.map((invoice) => <p key={invoice.id} className="text-sm">Invoice {invoice.status}/{invoice.payment_status} · {centsToCurrency(invoice.total_cents)}</p>)}
+            {safeQuotes.map((quote) => <p key={quote.id} className="text-sm">Quote {quote.status} · {centsToCurrency(quote.total_cents)}</p>)}
+            {safeInvoices.map((invoice) => <p key={invoice.id} className="text-sm">Invoice {invoice.status}/{invoice.payment_status} · {centsToCurrency(invoice.total_cents)}</p>)}
           </Card>
         </div>
 

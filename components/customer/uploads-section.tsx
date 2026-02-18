@@ -18,12 +18,14 @@ function badgeLabel(value?: string | null) {
 }
 
 export function UploadsSection({ attachments }: { vehicleId: string; attachments: Attachment[] }) {
+  const safeAttachments = Array.isArray(attachments) ? attachments : [];
+
   return (
     <div className="space-y-3">
       <h2 className="text-lg font-semibold">Uploads</h2>
       <ul className="space-y-2 text-sm">
-        {attachments.length === 0 ? <li className="rounded border p-3 text-gray-600">No uploads yet.</li> : null}
-        {attachments.map((attachment) => (
+        {safeAttachments.length === 0 ? <li className="rounded border p-3 text-gray-600">No uploads yet.</li> : null}
+        {safeAttachments.map((attachment) => (
           <li key={attachment.id} className="rounded border p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="space-y-1">
