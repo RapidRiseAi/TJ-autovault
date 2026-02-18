@@ -144,7 +144,7 @@ export async function updateMileage(input: { vehicleId: string; odometerKm: numb
   return { ok: true, message: 'Mileage updated.' };
 }
 
-export async function decideQuote(input: { quoteId: string; decision: 'approved' | 'declined' }): Promise<ActionResult> {
+export async function decideQuote(input: { quoteId: string; decision: 'approved' | 'declined'; reason?: string }): Promise<ActionResult> {
   const supabase = await createClient();
   const context = await getCustomerContextOrCreate();
   if (!context) return { ok: false, error: 'Please sign in.' };
@@ -152,11 +152,15 @@ export async function decideQuote(input: { quoteId: string; decision: 'approved'
 
   const { data, error } = await supabase
     .from('quotes')
-    .update({ status: input.decision })
+    .update({
+      status: input.decision,
+      customer_decision_reason: input.decision === 'declined' ? input.reason ?? null : null,
+      customer_decision_at: new Date().toISOString()
+    })
     .eq('id', input.quoteId)
     .eq('customer_account_id', account.id)
     .select('vehicle_id')
-    .single();
+    .maybeSingle();
 
   if (error || !data) return { ok: false, error: error?.message ?? 'Failed to update quote.' };
   revalidatePath(customerVehicle(data.vehicle_id));

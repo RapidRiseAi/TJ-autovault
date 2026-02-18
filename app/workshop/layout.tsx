@@ -5,6 +5,7 @@ import { TopNav } from '@/components/layout/top-nav';
 const WORKSHOP_NAV = [
   { href: '/workshop/dashboard', label: 'Dashboard' },
   { href: '/workshop/customers', label: 'Customers' },
+  { href: '/workshop/work-requests', label: 'Work requests' },
   { href: '/notifications', label: 'Notifications' },
   { href: '/workshop/profile', label: 'Profile' }
 ];
