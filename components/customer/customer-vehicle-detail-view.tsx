@@ -16,7 +16,7 @@ import { HeroHeader } from '@/components/layout/hero-header';
 import { Modal } from '@/components/ui/modal';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { SegmentRing } from '@/components/ui/segment-ring';
+import { SegmentRing, type RingSegment } from '@/components/ui/segment-ring';
 
 type Vehicle = {
   id: string;
@@ -82,7 +82,12 @@ function statusBadgeClass(status: string | null) {
   return 'bg-white/20 text-white border-white/30';
 }
 
-const money = (cents: number) => `R${(cents / 100).toFixed(2)}`;
+const money = (cents: number) =>
+  new Intl.NumberFormat('en-ZA', {
+    style: 'currency',
+    currency: 'ZAR',
+    minimumFractionDigits: 2
+  }).format((cents ?? 0) / 100);
 
 function bucketFromAge(createdAt?: string | null): 'urgent' | 'normal' | 'low' {
   if (!createdAt) return 'normal';
@@ -128,7 +133,6 @@ export function CustomerVehicleDetailView({
     | 'mileage'
     | 'upload'
     | 'quotes'
-    | 'invoices'
     | 'recommendations'
     | null
   >(null);
@@ -145,6 +149,10 @@ export function CustomerVehicleDetailView({
   const pendingQuotes = safeQuotes.filter(
     (quote) => quote.status === 'sent' || quote.status === 'pending'
   );
+  const approvedQuotes = safeQuotes.filter((quote) => quote.status === 'approved');
+  const declinedOrCancelledQuotes = safeQuotes.filter((quote) =>
+    ['declined', 'cancelled'].includes((quote.status ?? '').toLowerCase())
+  );
   const pendingQuotesTotalCents = pendingQuotes.reduce(
     (sum, quote) => sum + (quote.total_cents ?? 0),
     0
@@ -157,7 +165,14 @@ export function CustomerVehicleDetailView({
   const outstandingInvoices = safeInvoices.filter(
     (invoice) => invoice.payment_status !== 'paid'
   );
+  const paidInvoices = safeInvoices.filter(
+    (invoice) => invoice.payment_status === 'paid'
+  );
   const outstandingInvoiceTotalCents = outstandingInvoices.reduce(
+    (sum, invoice) => sum + (invoice.total_cents ?? 0),
+    0
+  );
+  const paidInvoiceTotalCents = paidInvoices.reduce(
     (sum, invoice) => sum + (invoice.total_cents ?? 0),
     0
   );
@@ -208,35 +223,47 @@ export function CustomerVehicleDetailView({
     return buckets;
   }, [openRecommendations]);
 
-  const segmentedCycle: Array<'urgent' | 'normal' | 'low'> = [
-    'urgent',
-    'normal',
-    'low'
+  const now = new Date();
+  const invoiceBuckets = safeInvoices.reduce(
+    (buckets, invoice) => {
+      if (invoice.payment_status === 'paid') {
+        buckets.paid += 1;
+        return buckets;
+      }
+      const dueDate = invoice.due_date ? new Date(invoice.due_date) : null;
+      if (dueDate && dueDate.getTime() < now.getTime()) {
+        buckets.overdueOrOutstanding += 1;
+      } else {
+        buckets.unpaid += 1;
+      }
+      return buckets;
+    },
+    { overdueOrOutstanding: 0, unpaid: 0, paid: 0 }
+  );
+
+  const quoteSegments: RingSegment[] = [
+    { value: pendingQuotes.length, tone: 'negative' },
+    { value: approvedQuotes.length, tone: 'positive' },
+    { value: declinedOrCancelledQuotes.length, tone: 'neutral' }
   ];
 
-  const requestSegments = Array.from(
-    { length: openRequests.length > 12 ? 11 : openRequests.length },
-    (_, index) => segmentedCycle[index % segmentedCycle.length]
-  );
+  const requestSegments: RingSegment[] = [
+    { value: requestBuckets.urgent, tone: 'negative' },
+    { value: requestBuckets.normal, tone: 'neutral' },
+    { value: requestBuckets.low, tone: 'positive' }
+  ];
 
-  if (openRequests.length > 12) {
-    requestSegments.push(
-      segmentedCycle[openRequests.length % segmentedCycle.length]
-    );
-  }
+  const recommendationSegments: RingSegment[] = [
+    { value: recommendationBuckets.urgent, tone: 'negative' },
+    { value: recommendationBuckets.normal, tone: 'neutral' },
+    { value: recommendationBuckets.low, tone: 'positive' }
+  ];
 
-  const recommendationSegments = Array.from(
-    {
-      length: openRecommendations.length > 12 ? 11 : openRecommendations.length
-    },
-    (_, index) => segmentedCycle[index % segmentedCycle.length]
-  );
-
-  if (openRecommendations.length > 12) {
-    recommendationSegments.push(
-      segmentedCycle[openRecommendations.length % segmentedCycle.length]
-    );
-  }
+  const invoiceSegments: RingSegment[] = [
+    { value: invoiceBuckets.overdueOrOutstanding, tone: 'negative' },
+    { value: invoiceBuckets.unpaid, tone: 'neutral' },
+    { value: invoiceBuckets.paid, tone: 'positive' }
+  ];
 
   return (
     <div className="space-y-4 pb-3">
@@ -269,6 +296,9 @@ export function CustomerVehicleDetailView({
             </span>
             <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
               Uploads {safeAttachments.length}
+            </span>
+            <span className="rounded-full border border-emerald-300/50 bg-emerald-500/15 px-3 py-1 text-emerald-100">
+              Total spent {money(paidInvoiceTotalCents)}
             </span>
           </>
         }
@@ -365,15 +395,9 @@ export function CustomerVehicleDetailView({
               </p>
             </div>
             <SegmentRing
-              mode="count"
               size={110}
-              segments={Array.from(
-                { length: pendingQuotes.length },
-                () => 'urgent'
-              )}
-              centerLabel={
-                pendingQuotes.length > 12 ? '12+' : `${pendingQuotes.length}`
-              }
+              segments={quoteSegments}
+              centerLabel={`${pendingQuotes.length}`}
               subLabel="Pending"
             />
           </div>
@@ -408,22 +432,23 @@ export function CustomerVehicleDetailView({
                 </span>{' '}
                 of total invoiced
               </p>
+              <p>
+                <span className="font-semibold text-emerald-700">
+                  {money(paidInvoiceTotalCents)}
+                </span>{' '}
+                total spent
+              </p>
             </div>
             <SegmentRing
-              mode="value"
               size={110}
-              value={outstandingInvoiceTotalCents}
-              total={totalInvoicedCents || 1}
+              total={safeInvoices.length || 1}
+              segments={invoiceSegments}
               centerLabel={`${Math.round(outstandingPercent * 100)}%`}
               subLabel="Outstanding"
             />
           </div>
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => setOpenModal('invoices')}
-          >
-            View invoices
+          <Button asChild size="sm" variant="secondary">
+            <Link href={`/customer/invoices?vehicleId=${vehicle.id}`}>View invoices</Link>
           </Button>
         </Card>
 
@@ -445,8 +470,8 @@ export function CustomerVehicleDetailView({
               </p>
             </div>
             <SegmentRing
-              mode="count"
               size={110}
+              total={openRequests.length || 1}
               segments={requestSegments}
               centerLabel={`${openRequests.length}`}
               subLabel="Open"
@@ -482,8 +507,8 @@ export function CustomerVehicleDetailView({
               </p>
             </div>
             <SegmentRing
-              mode="count"
               size={110}
+              total={openRecommendations.length || 1}
               segments={recommendationSegments}
               centerLabel={`${openRecommendations.length}`}
               subLabel="Open"
@@ -577,53 +602,6 @@ export function CustomerVehicleDetailView({
                   <Link href={documentsHref}>Download</Link>
                 </Button>
                 <QuoteDecisionButtons quoteId={quote.id} />
-              </div>
-            </div>
-          ))}
-        </div>
-      </Modal>
-
-      <Modal
-        open={openModal === 'invoices'}
-        onClose={() => setOpenModal(null)}
-        title="Invoices"
-      >
-        <div className="space-y-3">
-          {safeInvoices.length === 0 ? (
-            <p className="text-sm text-gray-600">No invoices available.</p>
-          ) : null}
-          {safeInvoices.map((invoice) => (
-            <div
-              key={invoice.id}
-              className="rounded-2xl border border-black/10 p-4"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-black">
-                    Invoice {invoice.id.slice(0, 8)}
-                  </p>
-                  <p className="mt-1 text-xs text-gray-500">
-                    Due {invoice.due_date ?? 'n/a'}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <span
-                    className={`rounded-full px-2 py-1 text-xs font-medium ${invoice.payment_status === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}
-                  >
-                    {invoice.payment_status ?? 'unknown'}
-                  </span>
-                  <p className="mt-2 text-lg font-semibold text-black">
-                    {money(invoice.total_cents ?? 0)}
-                  </p>
-                </div>
-              </div>
-              <div className="mt-3 flex items-center gap-2">
-                <Button asChild size="sm" variant="secondary">
-                  <Link href={timelineHref}>View</Link>
-                </Button>
-                <Button asChild size="sm" variant="secondary">
-                  <Link href={documentsHref}>Download</Link>
-                </Button>
               </div>
             </div>
           ))}

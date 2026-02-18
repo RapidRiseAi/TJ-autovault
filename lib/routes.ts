@@ -21,3 +21,7 @@ export function customerVehicleNew() {
 export function workshopDashboard() {
   return '/workshop/dashboard';
 }
+
+export function customerInvoices() {
+  return '/customer/invoices';
+}
