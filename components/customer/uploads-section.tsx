@@ -1,3 +1,5 @@
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
 import { importanceBadgeClass } from '@/lib/timeline';
 
 type Attachment = {
@@ -30,6 +32,7 @@ export function UploadsSection({ attachments }: { vehicleId: string; attachments
           const label = attachment.subject ?? attachment.original_name ?? fallbackName;
           const createdLabel = attachment.created_at ? new Date(attachment.created_at).toLocaleString() : 'Unknown date';
           const canDownload = Boolean(attachment.storage_path);
+          const downloadHref = `/api/uploads/download?bucket=${encodeURIComponent(attachment.bucket ?? '')}&path=${encodeURIComponent(attachment.storage_path ?? '')}`;
 
           return (
             <li key={attachment.id} className="rounded border p-3">
@@ -43,7 +46,9 @@ export function UploadsSection({ attachments }: { vehicleId: string; attachments
                   <p className="text-xs text-gray-500">{createdLabel} · {attachment.uploaded_by ?? 'Unknown'}</p>
                 </div>
                 {canDownload ? (
-                  <a href={`/api/uploads/download?bucket=${encodeURIComponent(attachment.bucket ?? '')}&path=${encodeURIComponent(attachment.storage_path ?? '')}`} className="text-brand-red underline">Download</a>
+                  <Button asChild size="sm" variant="outline">
+                    <Link href={downloadHref}>Download</Link>
+                  </Button>
                 ) : (
                   <span className="text-xs text-gray-500">File unavailable</span>
                 )}
