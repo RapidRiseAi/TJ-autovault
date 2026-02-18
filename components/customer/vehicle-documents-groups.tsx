@@ -1,4 +1,7 @@
+'use client';
+
 import Link from 'next/link';
+import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { importanceBadgeClass } from '@/lib/timeline';
@@ -69,18 +72,10 @@ function DocumentList({ documents }: { documents: VehicleDocument[] }) {
               <div className="flex gap-2">
                 {downloadHref ? (
                   <>
-                    <Button asChild size="sm" variant="outline">
-                      <Link href={downloadHref}>Preview</Link>
-                    </Button>
-                    <Button asChild size="sm" variant="outline">
-                      <Link href={downloadHref} download>
-                        Download
-                      </Link>
-                    </Button>
+                    <Button asChild size="sm" variant="outline"><Link href={downloadHref}>Preview</Link></Button>
+                    <Button asChild size="sm" variant="outline"><Link href={downloadHref} download>Download</Link></Button>
                   </>
-                ) : (
-                  <span className="text-xs text-gray-500">Unavailable</span>
-                )}
+                ) : <span className="text-xs text-gray-500">Unavailable</span>}
               </div>
             </div>
           </li>
@@ -91,36 +86,36 @@ function DocumentList({ documents }: { documents: VehicleDocument[] }) {
 }
 
 export function VehicleDocumentsGroups({ groups }: { groups: DocumentGroups }) {
-  const sections = [
-    { title: 'Quotes', items: groups.quotes },
-    { title: 'Invoices', items: groups.invoices },
-    { title: 'Inspection reports', items: groups.inspectionReports },
-    { title: 'Photos', items: groups.photos },
-    { title: 'Other', items: groups.other }
-  ];
+  const sections = useMemo(() => [
+    { key: 'quotes', title: 'Quotes', items: groups.quotes },
+    { key: 'invoices', title: 'Invoices', items: groups.invoices },
+    { key: 'reports', title: 'Reports', items: groups.inspectionReports },
+    { key: 'photos', title: 'Photos', items: groups.photos },
+    { key: 'other', title: 'Other', items: groups.other }
+  ], [groups]);
+
+  const [activeTab, setActiveTab] = useState(sections[0]?.key ?? 'quotes');
+  const activeSection = sections.find((section) => section.key === activeTab) ?? sections[0];
 
   return (
-    <div className="space-y-3">
-      {sections.map((section) => (
-        <Card key={section.title}>
-          <details open>
-            <summary className="cursor-pointer list-none text-lg font-semibold">{section.title} ({section.items.length})</summary>
-            <div className="mt-3">
-              <DocumentList documents={section.items} />
-            </div>
-          </details>
-        </Card>
-      ))}
-    </div>
+    <Card>
+      <div className="mb-4 flex flex-wrap gap-2 border-b pb-3">
+        {sections.map((section) => (
+          <button
+            key={section.key}
+            type="button"
+            onClick={() => setActiveTab(section.key)}
+            className={`rounded-t-xl border px-4 py-2 text-sm font-medium ${activeTab === section.key ? 'border-black bg-black text-white' : 'border-black/10 bg-gray-50 text-gray-700 hover:bg-gray-100'}`}
+          >
+            {section.title} ({section.items.length})
+          </button>
+        ))}
+      </div>
+      <DocumentList documents={activeSection?.items ?? []} />
+    </Card>
   );
 }
 
 export function DocumentsSkeleton() {
-  return (
-    <div className="space-y-3">
-      {Array.from({ length: 5 }).map((_, index) => (
-        <div key={index} className="h-28 animate-pulse rounded border bg-gray-100" />
-      ))}
-    </div>
-  );
+  return <div className="space-y-3">{Array.from({ length: 5 }).map((_, index) => <div key={index} className="h-28 animate-pulse rounded border bg-gray-100" />)}</div>;
 }

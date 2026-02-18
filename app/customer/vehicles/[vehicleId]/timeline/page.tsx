@@ -5,7 +5,7 @@ import { buildTimelineActorLabel } from '@/lib/timeline';
 import { createClient } from '@/lib/supabase/server';
 import { getCustomerContextOrCreate } from '@/lib/customer/get-customer-context-or-create';
 import { customerVehicle } from '@/lib/routes';
-import { buildActivityStream, HorizontalTimeline } from '@/components/customer/vehicle-activity';
+import { buildActivityStream, WorldTimeline } from '@/components/customer/vehicle-activity';
 import { PageHeader } from '@/components/layout/page-header';
 
 export default async function VehicleTimelinePage({ params }: { params: Promise<{ vehicleId: string }> }) {
@@ -74,7 +74,7 @@ export default async function VehicleTimelinePage({ params }: { params: Promise<
 
       <Card>
         <h2 className="mb-3 text-lg font-semibold">Activity</h2>
-        <HorizontalTimeline activities={activity} />
+        <WorldTimeline activities={activity} />
       </Card>
     </main>
   );

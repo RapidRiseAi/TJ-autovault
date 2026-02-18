@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { customerDashboard, customerVehicleDocuments, customerVehicleTimeline } from '@/lib/routes';
 import { createClient } from '@/lib/supabase/server';
 import { getCustomerContextOrCreate } from '@/lib/customer/get-customer-context-or-create';
-import { buildTimelineActorLabel } from '@/lib/timeline';
 import { PageHeader } from '@/components/layout/page-header';
 
 function VehicleAccessErrorPanel() {
@@ -38,14 +37,7 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
 
   if (!vehicle) return <VehicleAccessErrorPanel />;
 
-  const [{ data: timeline }, { data: quotes }, { data: invoices }, { data: requests }, { data: recommendations }, { data: docs }] = await Promise.all([
-    supabase
-      .from('vehicle_timeline_events')
-      .select('*')
-      .eq('vehicle_id', vehicleId)
-      .eq('customer_account_id', customerAccountId)
-      .order('created_at', { ascending: false })
-      .limit(50),
+  const [{ data: quotes }, { data: invoices }, { data: requests }, { data: recommendations }, { data: docs }] = await Promise.all([
     supabase
       .from('quotes')
       .select('id,status,total_cents')
@@ -78,7 +70,6 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
       .order('created_at', { ascending: false })
   ]);
 
-  const timelineRows = await Promise.all((timeline ?? []).map(async (event) => ({ ...event, actorLabel: await buildTimelineActorLabel(supabase as never, event) })));
   const attachments = (docs ?? []).map((d) => ({
     id: d.id,
     bucket: d.storage_bucket,
@@ -95,7 +86,7 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
       <PageHeader title={`Vehicle · ${vehicle.registration_number}`} subtitle="Service activity, actions, and records in one place." />
       <CustomerVehicleDetailView
         vehicle={vehicle}
-        timeline={timelineRows.map((row) => ({ id: row.id, title: row.title, description: row.description, createdAt: row.created_at }))}
+        timeline={[]}
         quotes={quotes ?? []}
         invoices={invoices ?? []}
         requests={requests ?? []}

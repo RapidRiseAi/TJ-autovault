@@ -23,7 +23,8 @@ export async function AppTopNav() {
   const unreadQuery = supabase
     .from('notifications')
     .select('id', { count: 'exact', head: true })
-    .eq('is_read', false);
+    .eq('is_read', false)
+    .is('deleted_at', null);
 
   const scopedUnread = customerAccount?.id
     ? unreadQuery.eq('to_customer_account_id', customerAccount.id)
@@ -38,7 +39,7 @@ export async function AppTopNav() {
           TJ service & repairs
         </Link>
 
-        <nav className="hidden items-center justify-center gap-2 md:flex">
+        <nav className="absolute left-1/2 hidden -translate-x-1/2 items-center justify-center gap-2 md:flex">
           {customerLinks.map((item) => (
             <Link key={item.href} href={item.href} className="rounded-full px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-black hover:text-white">
               {item.label}
@@ -49,7 +50,7 @@ export async function AppTopNav() {
         <div className="flex items-center gap-2">
           <Link href="/customer/notifications" className="inline-flex items-center gap-1 rounded-full border border-black/15 px-3 py-1.5 text-xs font-semibold text-brand-black hover:bg-gray-100 sm:text-sm">
             <Bell className="h-4 w-4" />
-            <span>{count ?? 0}</span>
+            {count && count > 0 ? <span>{count}</span> : null}
           </Link>
           <SignOutButton />
         </div>

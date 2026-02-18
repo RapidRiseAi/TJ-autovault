@@ -30,17 +30,21 @@ export function CustomerUploadActions({ vehicleId }: { vehicleId: string }) {
   const reportRef = useRef<HTMLInputElement>(null);
   const photoRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   async function onChoose(file: File | null, type: 'report' | 'vehicle_photo') {
     if (!file) return;
     setError(null);
     try {
+      setIsUploading(true);
       await upload(vehicleId, file, type, type === 'vehicle_photo' ? 'Vehicle photo updated' : 'Customer report');
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Upload failed');
+    } finally {
+      setIsUploading(false);
     }
   }
 
-  return <div className="space-y-2 text-sm"><h3 className="font-semibold">Uploads</h3><div className="flex flex-wrap gap-2"><button type="button" onClick={() => reportRef.current?.click()} className="rounded border px-3 py-2">Upload report</button><button type="button" onClick={() => photoRef.current?.click()} className="rounded border px-3 py-2">Update vehicle photo</button></div><input ref={reportRef} type="file" className="hidden" accept="application/pdf,image/*" onChange={(e)=>{void onChoose(e.target.files?.[0]??null,'report'); e.currentTarget.value='';}}/><input ref={photoRef} type="file" className="hidden" accept="image/*" onChange={(e)=>{void onChoose(e.target.files?.[0]??null,'vehicle_photo'); e.currentTarget.value='';}}/>{error?<p className="text-red-700">{error}</p>:null}</div>;
+  return <div className="space-y-2 text-sm"><h3 className="font-semibold">Uploads</h3><div className="flex flex-wrap gap-2"><button type="button" disabled={isUploading} onClick={() => reportRef.current?.click()} className="rounded border px-3 py-2 disabled:opacity-50">{isUploading ? 'Uploading...' : 'Upload report'}</button><button type="button" disabled={isUploading} onClick={() => photoRef.current?.click()} className="rounded border px-3 py-2 disabled:opacity-50">{isUploading ? 'Uploading...' : 'Update vehicle photo'}</button></div><input ref={reportRef} type="file" className="hidden" accept="application/pdf,image/*" onChange={(e)=>{void onChoose(e.target.files?.[0]??null,'report'); e.currentTarget.value='';}}/><input ref={photoRef} type="file" className="hidden" accept="image/*" onChange={(e)=>{void onChoose(e.target.files?.[0]??null,'vehicle_photo'); e.currentTarget.value='';}}/>{error?<p className="text-red-700">{error}</p>:null}</div>;
 }

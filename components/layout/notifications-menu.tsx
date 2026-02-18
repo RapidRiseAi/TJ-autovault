@@ -13,8 +13,8 @@ export async function NotificationsMenu() {
 
   const isWorkshop = profile?.role === 'admin' || profile?.role === 'technician';
 
-  let scopedNotificationsQuery = supabase.from('notifications').select('id,title,href,is_read,created_at,kind,data').order('created_at', { ascending: false }).limit(10);
-  let scopedUnreadQuery = supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('is_read', false);
+  let scopedNotificationsQuery = supabase.from('notifications').select('id,title,href,is_read,created_at,kind,data').is('deleted_at', null).order('created_at', { ascending: false }).limit(10);
+  let scopedUnreadQuery = supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('is_read', false).is('deleted_at', null);
 
   if (isWorkshop) {
     scopedNotificationsQuery = scopedNotificationsQuery.eq('to_profile_id', user.id);
