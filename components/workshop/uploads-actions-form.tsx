@@ -12,6 +12,7 @@ const DOCUMENT_TYPES = [
   { value: 'invoice', label: 'Invoice', defaultSubject: 'Invoice' },
   { value: 'parts_list', label: 'Parts list', defaultSubject: 'Parts list' },
   { value: 'warranty', label: 'Warranty', defaultSubject: 'Warranty' },
+  { value: 'warning', label: 'Warning', defaultSubject: 'Action required' },
   { value: 'other', label: 'Other', defaultSubject: 'Other document' }
 ] as const;
 
@@ -32,10 +33,11 @@ export function UploadsActionsForm({ vehicleId }: { vehicleId: string }) {
 
   const isQuoteOrInvoice = documentType === 'quote' || documentType === 'invoice';
   const isInvoice = documentType === 'invoice';
+  const isWarning = documentType === 'warning';
 
   const disableSubmit = useMemo(
-    () => isSubmitting || !file || !subject.trim() || (isQuoteOrInvoice && !amount),
-    [amount, file, isQuoteOrInvoice, isSubmitting, subject]
+    () => isSubmitting || !file || !subject.trim() || (isQuoteOrInvoice && !amount) || (isWarning && !body.trim()),
+    [amount, body, file, isQuoteOrInvoice, isSubmitting, isWarning, subject]
   );
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -74,7 +76,7 @@ export function UploadsActionsForm({ vehicleId }: { vehicleId: string }) {
           docType: signedPayload.docType,
           subject: subject.trim(),
           body: body.trim() || undefined,
-          urgency,
+          urgency: isWarning ? 'high' : urgency,
           amountCents: isQuoteOrInvoice ? Math.round(Number(amount) * 100) : undefined,
           dueDate: isInvoice && dueDate ? dueDate : undefined
         })
@@ -124,6 +126,8 @@ export function UploadsActionsForm({ vehicleId }: { vehicleId: string }) {
         </select>
       </label>
 
+      {isWarning ? <p className="rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">Warning uploads notify the customer immediately and require subject plus body details.</p> : null}
+
       <label className="block text-sm font-medium">Subject
         <input value={subject} onChange={(event) => setSubject(event.target.value)} required className="mt-1 w-full rounded border p-2" placeholder="Document subject" />
       </label>
@@ -136,7 +140,7 @@ export function UploadsActionsForm({ vehicleId }: { vehicleId: string }) {
         <input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} className="mt-1 w-full rounded border p-2" />
       </label> : null}
 
-      <label className="block text-sm font-medium">Body / notes (optional)
+      <label className="block text-sm font-medium">Body / notes {isWarning ? '(required)' : '(optional)'}
         <textarea value={body} onChange={(event) => setBody(event.target.value)} className="mt-1 w-full rounded border p-2" rows={3} />
       </label>
 

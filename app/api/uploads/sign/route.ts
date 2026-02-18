@@ -8,7 +8,7 @@ const requestSchema = z.object({
   fileName: z.string().min(1),
   contentType: z.string().min(1),
   kind: z.enum(['image', 'document']).default('document'),
-  documentType: z.enum(['before_images', 'after_images', 'before_photos', 'after_photos', 'inspection', 'inspection_report', 'quote', 'invoice', 'parts_list', 'warranty', 'report', 'other', 'vehicle_photo']).default('other')
+  documentType: z.enum(['before_images', 'after_images', 'before_photos', 'after_photos', 'inspection', 'inspection_report', 'quote', 'invoice', 'parts_list', 'warranty', 'warning', 'report', 'other', 'vehicle_photo']).default('other')
 });
 
 function canonicalDocType(documentType: string) {
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
   const user = (await supabase.auth.getUser()).data.user;
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { data: vehicle } = await supabase.from('vehicles').select('id,workshop_account_id,current_customer_account_id').eq('id', vehicleId).single();
+  const { data: vehicle } = await supabase.from('vehicles').select('id,workshop_account_id,current_customer_account_id').eq('id', vehicleId).maybeSingle();
   if (!vehicle?.current_customer_account_id) return NextResponse.json({ error: 'Vehicle not found' }, { status: 404 });
 
   const [{ data: customerMembership }, { data: workshopMembership }] = await Promise.all([

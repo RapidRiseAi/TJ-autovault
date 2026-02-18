@@ -12,9 +12,26 @@ export default async function NotificationsPage({ searchParams }: { searchParams
   if (!user) redirect('/login');
 
   if (params.open) {
-    await supabase.from('notifications').update({ is_read: true }).eq('id', params.open).eq('to_profile_id', user.id);
+    const [{ data: profile }, { data: customerAccount }] = await Promise.all([
+      supabase.from('profiles').select('id').eq('id', user.id).maybeSingle(),
+      supabase.from('customer_accounts').select('id').eq('auth_user_id', user.id).maybeSingle()
+    ]);
+
+    if (profile?.id) {
+      await supabase.from('notifications').update({ is_read: true }).eq('id', params.open).eq('to_profile_id', profile.id);
+    }
+    if (customerAccount?.id) {
+      await supabase.from('notifications').update({ is_read: true }).eq('id', params.open).eq('to_customer_account_id', customerAccount.id);
+    }
+
     redirect(params.next || '/notifications');
   }
 
-  return <main className="mx-auto max-w-4xl space-y-4 p-6"><h1 className="text-2xl font-bold">Notifications</h1><div className="flex gap-3 text-sm"><Link className="underline" href="/notifications">Live feed</Link></div><NotificationsLive fullPage /></main>;
+  return (
+    <main className="mx-auto max-w-4xl space-y-4 p-6">
+      <h1 className="text-2xl font-bold">Notifications</h1>
+      <div className="flex gap-3 text-sm"><Link className="underline" href="/notifications">Live feed</Link></div>
+      <NotificationsLive fullPage />
+    </main>
+  );
 }
