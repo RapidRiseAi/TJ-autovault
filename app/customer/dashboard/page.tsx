@@ -23,8 +23,8 @@ export default async function CustomerDashboardPage() {
     supabase.from('invoices').select('id', { count: 'exact', head: true }).eq('customer_account_id', customerAccount.id).neq('payment_status', 'paid'),
     supabase.from('quotes').select('id', { count: 'exact', head: true }).eq('customer_account_id', customerAccount.id).eq('status', 'sent'),
     supabase.from('recommendations').select('id', { count: 'exact', head: true }).eq('customer_account_id', customerAccount.id).eq('status_text', 'open'),
-    supabase.from('notifications').select('id,title,created_at,is_read').eq('to_customer_account_id', customerAccount.id).eq('is_read', false).order('created_at', { ascending: false }).limit(5),
-    supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('to_customer_account_id', customerAccount.id).eq('is_read', false)
+    supabase.from('notifications').select('id,title,created_at,is_read').eq('to_customer_account_id', customerAccount.id).eq('is_read', false).is('deleted_at', null).order('created_at', { ascending: false }).limit(5),
+    supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('to_customer_account_id', customerAccount.id).eq('is_read', false).is('deleted_at', null)
   ]);
 
   const stats = [

@@ -22,7 +22,8 @@ export default async function CustomerNotificationDetailPage({
       .from('notifications')
       .update({ is_read: true })
       .eq('id', notificationId)
-      .eq('to_customer_account_id', customerAccount.id);
+      .eq('to_customer_account_id', customerAccount.id)
+      .is('deleted_at', null);
   }
 
   redirect(next || '/customer/notifications');

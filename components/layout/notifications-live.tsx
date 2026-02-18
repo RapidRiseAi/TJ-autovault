@@ -1,9 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { Bell, ChevronRight } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { ChevronRight, Circle, Loader2, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { Button } from '@/components/ui/button';
+import { markAllNotificationsRead, markNotificationReadState, softDeleteNotification } from '@/lib/actions/customer-notifications';
 
 type Notification = {
   id: string;
@@ -12,6 +14,7 @@ type Notification = {
   is_read: boolean;
   created_at: string;
   body?: string | null;
+  deleted_at?: string | null;
   kind?: string;
   data?: {
     customer_name?: string | null;
@@ -26,6 +29,7 @@ export function NotificationsLive({ fullPage = false }: { fullPage?: boolean }) 
   const [items, setItems] = useState<Notification[]>([]);
   const [uid, setUid] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     let poll: ReturnType<typeof setInterval> | null = null;
@@ -46,14 +50,17 @@ export function NotificationsLive({ fullPage = false }: { fullPage?: boolean }) 
       const isWorkshop = profile?.role === 'admin' || profile?.role === 'technician';
 
       const load = async () => {
-        let query = supabase.from('notifications').select('id,title,href,is_read,created_at,body,kind,data').order('created_at', { ascending: false }).limit(fullPage ? 100 : 10);
-        if (isWorkshop) {
-          query = query.eq('to_profile_id', user.id);
-        } else if (customerAccount?.id) {
-          query = query.eq('to_customer_account_id', customerAccount.id);
-        } else {
-          query = query.eq('to_profile_id', user.id);
-        }
+        let query = supabase
+          .from('notifications')
+          .select('id,title,href,is_read,created_at,body,kind,data,deleted_at')
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false })
+          .limit(fullPage ? 100 : 10);
+
+        if (isWorkshop) query = query.eq('to_profile_id', user.id);
+        else if (customerAccount?.id) query = query.eq('to_customer_account_id', customerAccount.id);
+        else query = query.eq('to_profile_id', user.id);
+
         const { data } = await query;
         setItems(Array.isArray(data) ? (data as Notification[]) : []);
         setIsLoading(false);
@@ -62,9 +69,7 @@ export function NotificationsLive({ fullPage = false }: { fullPage?: boolean }) 
       await load();
       const channel = supabase
         .channel(`notifications-${user.id}`)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => {
-          void load();
-        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => void load())
         .subscribe((status) => {
           if (status !== 'SUBSCRIBED' && !poll) poll = setInterval(() => void load(), 10000);
         });
@@ -86,13 +91,14 @@ export function NotificationsLive({ fullPage = false }: { fullPage?: boolean }) 
       <details className="relative">
         <summary className="cursor-pointer list-none rounded-full border border-black/15 px-2 py-1 text-sm">🔔 {unread}</summary>
         <div className="absolute right-0 z-10 mt-2 w-96 rounded-2xl border bg-white p-3 text-black shadow">
-          <div className="mb-2 flex items-center justify-between"><p className="text-sm font-semibold">Notifications</p><Link href="/customer/notifications" className="text-xs text-brand-red underline">View all</Link></div>
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-sm font-semibold">Notifications</p>
+            <Link href="/customer/notifications" className="text-xs text-brand-red underline">View all</Link>
+          </div>
           <div className="space-y-1">
             {items.map((item) => (
               <Link key={item.id} href={`/customer/notifications/${item.id}?next=${encodeURIComponent(item.href)}`} className="block rounded-lg px-2 py-2 text-sm hover:bg-gray-100">
                 <p className={item.is_read ? 'text-gray-500' : 'font-semibold'}>{item.title}</p>
-                {item.data?.customer_name ? <p className="text-xs text-gray-500">Customer: {item.data.customer_name}</p> : null}
-                {item.data?.vehicle_registration ? <p className="text-xs text-gray-500">Vehicle: {item.data.vehicle_registration}</p> : null}
               </Link>
             ))}
             {!items.length ? <p className="px-2 py-3 text-xs text-gray-500">No notifications yet.</p> : null}
@@ -103,25 +109,67 @@ export function NotificationsLive({ fullPage = false }: { fullPage?: boolean }) 
   }
 
   return (
-    <div className="space-y-2">
-      {isLoading ? (
-        Array.from({ length: 5 }).map((_, index) => <div key={index} className="h-20 animate-pulse rounded-2xl bg-gray-100" />)
-      ) : null}
+    <div className="space-y-3">
+      <div className="flex items-center justify-end">
+        <Button
+          size="sm"
+          disabled={unread === 0 || isPending}
+          onClick={() => startTransition(async () => {
+            await markAllNotificationsRead();
+            setItems((prev) => prev.map((item) => ({ ...item, is_read: true })));
+          })}
+        >
+          {isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
+          Mark all as read
+        </Button>
+      </div>
+      {isLoading ? Array.from({ length: 5 }).map((_, index) => <div key={index} className="h-20 animate-pulse rounded-2xl bg-gray-100" />) : null}
       {items.map((item) => (
-        <Link key={item.id} className="block rounded-2xl border p-4 transition hover:border-black/25 hover:bg-gray-50" href={`/customer/notifications/${item.id}?next=${encodeURIComponent(item.href)}`}>
+        <div key={item.id} className={`rounded-2xl border bg-white p-4 transition hover:border-black/25 ${item.is_read ? 'border-black/10 opacity-80' : 'border-black/20 shadow-sm'}`}>
           <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className={item.is_read ? 'text-gray-600' : 'font-semibold'}>{item.title}</p>
-              {item.body ? <p className="text-sm text-gray-600">{item.body}</p> : null}
-              <p className="text-xs text-gray-500">
-                {item.data?.customer_name ? `Customer: ${item.data.customer_name} · ` : ''}
-                {item.data?.vehicle_registration ? `Vehicle: ${item.data.vehicle_registration} · ` : ''}
-                {new Date(item.created_at).toLocaleString()}
-              </p>
+            <Link href={`/customer/notifications/${item.id}?next=${encodeURIComponent(item.href)}`} className="group flex flex-1 items-start gap-3">
+              <span className={`mt-1 h-10 w-1 rounded-full ${item.is_read ? 'bg-gray-200' : 'bg-brand-red'}`} />
+              <div className="min-w-0">
+                <p className={item.is_read ? 'text-gray-600' : 'font-semibold text-brand-black'}>{item.title}</p>
+                {item.body ? <p className="text-sm text-gray-600">{item.body}</p> : null}
+                <p className="text-xs text-gray-500">{new Date(item.created_at).toLocaleString()}</p>
+              </div>
+            </Link>
+            <div className="flex flex-col items-end gap-2">
+              <span className={`inline-flex items-center gap-1 text-xs ${item.is_read ? 'text-gray-400' : 'text-brand-red'}`}>
+                <Circle className={`h-3 w-3 ${item.is_read ? 'fill-gray-300 text-gray-300' : 'fill-brand-red text-brand-red'}`} />
+                {item.is_read ? 'Read' : 'Unread'}
+              </span>
+              <div className="flex flex-wrap justify-end gap-1">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={isPending}
+                  onClick={() => startTransition(async () => {
+                    await markNotificationReadState({ notificationId: item.id, isRead: !item.is_read });
+                    setItems((prev) => prev.map((n) => (n.id === item.id ? { ...n, is_read: !n.is_read } : n)));
+                  })}
+                >
+                  {item.is_read ? 'Mark unread' : 'Mark read'}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={isPending}
+                  onClick={() => startTransition(async () => {
+                    await softDeleteNotification({ notificationId: item.id });
+                    setItems((prev) => prev.filter((n) => n.id !== item.id));
+                  })}
+                >
+                  <Trash2 className="mr-1 h-4 w-4" /> Delete
+                </Button>
+                <Button asChild size="sm" variant="ghost">
+                  <Link href={`/customer/notifications/${item.id}?next=${encodeURIComponent(item.href)}`}>Open <ChevronRight className="ml-1 h-3 w-3" /></Link>
+                </Button>
+              </div>
             </div>
-            <span className="inline-flex items-center gap-1 text-xs text-gray-500"><Bell className="h-3 w-3" /> {item.is_read ? 'Read' : 'Unread'} <ChevronRight className="h-3 w-3" /></span>
           </div>
-        </Link>
+        </div>
       ))}
       {!isLoading && !items.length ? <p className="text-sm text-gray-500">No notifications yet.</p> : null}
     </div>
