@@ -57,7 +57,7 @@ export default async function VehicleDetailPage({
   ] = await Promise.all([
     supabase
       .from('quotes')
-      .select('id,status,total_cents')
+      .select('id,status,total_cents,created_at')
       .eq('vehicle_id', vehicleId)
       .eq('customer_account_id', customerAccountId)
       .order('created_at', { ascending: false }),
