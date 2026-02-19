@@ -111,9 +111,10 @@ export default function LoginClient({
 
   return (
     <AuthShell>
-      <Card className="w-full space-y-4 rounded-2xl border border-black/10 p-6 shadow-[0_24px_60px_rgba(15,23,42,0.1)] sm:p-8">
-        <h1 className="text-3xl font-semibold text-gray-900">Welcome back</h1>
-        <p className="text-sm text-gray-600">
+      <Card className="relative w-full space-y-4 overflow-hidden rounded-3xl border border-black/10 bg-gradient-to-b from-white to-zinc-50/90 p-6 shadow-[0_34px_90px_rgba(15,23,42,0.2)] sm:p-10">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-0.5 bg-brand-red" aria-hidden />
+        <h1 className="text-3xl font-bold text-gray-900 sm:text-[2rem]">Welcome back</h1>
+        <p className="text-sm text-gray-700">
           Sign in to manage quotes, invoices and service updates.
         </p>
         {created ? (
@@ -128,7 +129,7 @@ export default function LoginClient({
           </label>
           <input
             id="login-email"
-            className="w-full rounded-xl border border-black/15 p-3 text-base transition focus:border-brand-red focus:outline-none focus:ring-2 focus:ring-brand-red/20"
+            className="w-full rounded-xl border border-black/15 bg-white/95 p-3 text-base transition focus:border-brand-red focus:outline-none focus:ring-2 focus:ring-brand-red/20"
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -141,7 +142,7 @@ export default function LoginClient({
           </label>
           <input
             id="login-password"
-            className="w-full rounded-xl border border-black/15 p-3 text-base transition focus:border-brand-red focus:outline-none focus:ring-2 focus:ring-brand-red/20"
+            className="w-full rounded-xl border border-black/15 bg-white/95 p-3 text-base transition focus:border-brand-red focus:outline-none focus:ring-2 focus:ring-brand-red/20"
             type="password"
             placeholder="Password"
             value={password}
@@ -151,7 +152,7 @@ export default function LoginClient({
 
         <Button
           onClick={signIn}
-          className="h-11 w-full active:scale-[0.98]"
+          className="h-11 w-full bg-gradient-to-b from-red-600 to-red-700 shadow-[0_12px_30px_rgba(220,38,38,0.35)] transition-all hover:from-red-500 hover:to-red-600 active:scale-[0.98]"
           disabled={isSigningIn}
         >
           {isSigningIn ? 'Signing you in...' : 'Sign in'}

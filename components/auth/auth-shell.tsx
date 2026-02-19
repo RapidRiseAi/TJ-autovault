@@ -19,26 +19,28 @@ function PortalOverviewPanel() {
   ];
 
   return (
-    <section className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-[0_22px_60px_rgba(15,23,42,0.08)] backdrop-blur supports-[backdrop-filter]:bg-white/70">
-      <div className="mb-4 border-b border-black/10 pb-3">
-        <h2 className="text-base font-semibold text-gray-900">Portal overview</h2>
+    <section className="relative rounded-3xl border border-white/10 bg-gradient-to-b from-zinc-900 via-zinc-950 to-black p-5 shadow-[0_16px_40px_rgba(0,0,0,0.35)]">
+      <div className="pointer-events-none absolute inset-0 rounded-3xl opacity-25 [background-image:linear-gradient(to_right,rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.08)_1px,transparent_1px)] [background-size:30px_30px]" />
+      <div className="relative mb-4 border-b border-white/15 pb-3">
+        <span className="mb-2 inline-flex h-1.5 w-1.5 rounded-full bg-brand-red" aria-hidden />
+        <h2 className="text-base font-semibold text-white">Portal overview</h2>
       </div>
-      <div className="space-y-3">
+      <div className="relative space-y-3">
         {items.map((item) => (
-          <div key={item.title} className="flex gap-3 rounded-xl border border-black/5 bg-white/70 p-3">
-            <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-50 text-brand-red">
+          <div key={item.title} className="flex gap-3 rounded-xl border border-white/10 bg-zinc-900/75 p-3">
+            <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-red-400/40 bg-red-500/10 text-red-300">
               <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" aria-hidden>
                 <path d="M4 10h12M10 4v12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
               </svg>
             </span>
             <div>
-              <p className="text-sm font-semibold text-gray-900">{item.title}</p>
-              <p className="text-xs text-gray-600">{item.text}</p>
+              <p className="text-sm font-semibold text-white">{item.title}</p>
+              <p className="text-xs text-zinc-400">{item.text}</p>
             </div>
           </div>
         ))}
       </div>
-      <p className="mt-4 text-xs text-gray-500">Secure access. Your data stays private.</p>
+      <p className="relative mt-4 text-xs text-zinc-500">Secure access. Your data stays private.</p>
     </section>
   );
 }
@@ -47,22 +49,27 @@ function TodayPanel() {
   const actions = ['Approve quotes', 'View unpaid invoices', 'Download documents'];
 
   return (
-    <section className="rounded-2xl border border-black/10 bg-white/80 p-5 shadow-[0_22px_60px_rgba(15,23,42,0.08)] backdrop-blur supports-[backdrop-filter]:bg-white/70">
-      <div className="mb-4 border-b border-black/10 pb-3">
-        <h2 className="text-base font-semibold text-gray-900">Today you can</h2>
+    <section className="relative rounded-3xl border border-white/10 bg-gradient-to-b from-zinc-900 via-zinc-950 to-black p-5 shadow-[0_16px_40px_rgba(0,0,0,0.35)]">
+      <div className="pointer-events-none absolute inset-0 rounded-3xl opacity-25 [background-image:linear-gradient(to_right,rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.08)_1px,transparent_1px)] [background-size:30px_30px]" />
+      <div className="relative mb-4 border-b border-white/15 pb-3">
+        <span className="mb-2 inline-flex h-1.5 w-6 rounded-full bg-brand-red" aria-hidden />
+        <h2 className="text-base font-semibold text-white">Today you can</h2>
       </div>
-      <ul className="space-y-2">
+      <ul className="relative space-y-2">
         {actions.map((item) => (
-          <li key={item} className="rounded-xl border border-black/5 bg-white/70 px-3 py-2 text-sm text-gray-800">
-            {item}
+          <li key={item} className="flex items-center justify-between rounded-xl border border-white/10 bg-zinc-900/80 px-3 py-2 text-sm text-zinc-200">
+            <span>{item}</span>
+            <svg viewBox="0 0 20 20" className="h-4 w-4 text-zinc-500" fill="none" aria-hidden>
+              <path d="m8 5 5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </li>
         ))}
       </ul>
-      <div className="mt-4 rounded-xl border border-black/10 bg-white px-3 py-3">
-        <p className="text-sm font-semibold text-gray-900">Support</p>
-        <p className="mt-1 text-xs text-gray-600">Need help? Contact the workshop.</p>
+      <div className="relative mt-4 rounded-xl border border-white/10 bg-zinc-800/90 px-3 py-3">
+        <p className="text-sm font-semibold text-white">Support</p>
+        <p className="mt-1 text-xs text-zinc-400">Need help? Contact the workshop.</p>
       </div>
-      <p className="mt-4 inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
+      <p className="relative mt-4 inline-flex rounded-full border border-emerald-300/25 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-300">
         System online
       </p>
     </section>
@@ -71,8 +78,8 @@ function TodayPanel() {
 
 function MobilePanel({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <details className="rounded-2xl border border-black/10 bg-white/80 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/70 lg:hidden">
-      <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-gray-900">{title}</summary>
+    <details className="rounded-2xl border border-white/15 bg-zinc-950/90 shadow-[0_10px_30px_rgba(0,0,0,0.3)] lg:hidden">
+      <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-zinc-100">{title}</summary>
       <div className="px-4 pb-4">{children}</div>
     </details>
   );
@@ -80,15 +87,21 @@ function MobilePanel({ title, children }: { title: string; children: ReactNode }
 
 export function AuthShell({ children }: { children: ReactNode }) {
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.95),rgba(244,244,245,0.95))] text-brand-black">
-      <div className="pointer-events-none fixed inset-0 opacity-30 [background-image:linear-gradient(to_right,rgba(17,24,39,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(17,24,39,0.05)_1px,transparent_1px)] [background-size:32px_32px]" />
-      <header className="relative z-10 h-16 border-b border-black/10 bg-white/95 shadow-sm backdrop-blur">
-        <div className="mx-auto flex h-full w-full max-w-[1320px] items-center justify-between px-4 sm:px-6 lg:px-8">
+    <main className="relative min-h-screen overflow-hidden bg-[#f6f6f7] text-brand-black">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(229,231,235,0.2)_0%,rgba(246,246,247,0.85)_44%,rgba(226,232,240,0.56)_100%)]" />
+      <div className="pointer-events-none absolute inset-0 opacity-[0.08] [background-image:linear-gradient(to_right,rgba(17,24,39,0.1)_1px,transparent_1px),linear-gradient(to_bottom,rgba(17,24,39,0.1)_1px,transparent_1px)] [background-size:34px_34px]" />
+      <div className="pointer-events-none absolute inset-0 opacity-[0.05] mix-blend-multiply [background-image:radial-gradient(circle_at_1px_1px,rgba(15,23,42,0.75)_0.8px,transparent_0.8px)] [background-size:4px_4px]" />
+      <div className="pointer-events-none absolute left-1/2 top-1/2 h-[560px] w-[560px] -translate-x-[68%] -translate-y-1/2 rounded-full border border-slate-500/10 opacity-[0.05] sm:opacity-[0.04]" aria-hidden>
+        <span className="absolute inset-0 grid place-items-center text-[220px] font-black tracking-tight text-slate-800/70">TJ</span>
+      </div>
+
+      <header className="relative z-10 h-16 border-b border-black/10 bg-white/92 shadow-[0_10px_24px_rgba(15,23,42,0.06)] backdrop-blur">
+        <div className="mx-auto flex h-full w-full max-w-[1340px] items-center justify-between px-4 sm:px-6 lg:px-8">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">Customer Portal</p>
-            <p className="relative inline-flex items-center text-lg font-semibold text-gray-900">
+            <p className="inline-flex items-center text-lg font-semibold text-gray-900">
               TJ Service &amp; Repairs
-              <span className="ml-2 inline-block h-1.5 w-1.5 rounded-full bg-brand-red" aria-hidden />
+              <span className="ml-2 mt-px inline-block h-1.5 w-1.5 rounded-full bg-brand-red" aria-hidden />
             </p>
           </div>
           <nav className="flex items-center gap-5 text-sm text-gray-600">
@@ -99,15 +112,18 @@ export function AuthShell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <div className="relative z-10 mx-auto w-full max-w-[1320px] px-4 py-6 sm:px-6 lg:px-8">
-        <div className="grid items-start gap-5 lg:grid-cols-[minmax(220px,1fr)_minmax(0,520px)_minmax(220px,1fr)] lg:items-center">
-          <aside className="hidden lg:block">
+      <div className="relative z-10 mx-auto w-full max-w-[1340px] px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
+        <div className="grid items-start gap-4 lg:grid-cols-[minmax(220px,0.92fr)_minmax(0,600px)_minmax(220px,0.92fr)] lg:items-center">
+          <aside className="hidden opacity-95 lg:block">
             <PortalOverviewPanel />
           </aside>
 
-          <section className="mx-auto w-full max-w-[520px]">{children}</section>
+          <section className="relative mx-auto w-full max-w-[600px]">
+            <div className="pointer-events-none absolute inset-x-8 -bottom-8 -top-8 rounded-[40px] bg-red-500/8 blur-3xl" aria-hidden />
+            {children}
+          </section>
 
-          <aside className="hidden lg:block">
+          <aside className="hidden opacity-95 lg:block">
             <TodayPanel />
           </aside>
         </div>
