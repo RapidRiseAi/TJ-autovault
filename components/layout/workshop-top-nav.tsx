@@ -27,11 +27,7 @@ export async function WorkshopTopNav() {
     .maybeSingle();
 
   const { data: workshopAccount } = profile?.workshop_account_id
-    ? await supabase
-        .from('workshop_accounts')
-        .select('name')
-        .eq('id', profile.workshop_account_id)
-        .maybeSingle()
+    ? await supabase.from('workshop_accounts').select('name').eq('id', profile.workshop_account_id).maybeSingle()
     : { data: null };
 
   const { count } = await supabase
@@ -51,8 +47,12 @@ export async function WorkshopTopNav() {
           TJ service & repairs
         </Link>
 
-        <div className="flex items-center gap-3">
-          <div className="hidden items-center gap-2 rounded-full border border-black/10 bg-white px-2 py-1 sm:flex">
+        <div className="flex items-center gap-2">
+          <Link href="/workshop/notifications" className="inline-flex items-center gap-1 rounded-full border border-black/15 px-3 py-1.5 text-xs font-semibold text-brand-black hover:bg-gray-100 sm:text-sm">
+            <Bell className="h-4 w-4" />
+            {count && count > 0 ? <span>{count}</span> : null}
+          </Link>
+          <Link href="/workshop/profile" className="hidden items-center gap-2 rounded-full border border-black/10 bg-white px-2 py-1 sm:flex hover:bg-gray-50">
             {profile?.avatar_url ? (
               <img src={profile.avatar_url} alt="Workshop avatar" className="h-8 w-8 rounded-full object-cover" />
             ) : (
@@ -60,15 +60,10 @@ export async function WorkshopTopNav() {
                 {initialsFromName(displayName)}
               </div>
             )}
-            <div className="pr-2">
+            <div className="pr-2 text-left">
               <p className="text-xs font-semibold leading-tight text-black">{displayName}</p>
               <p className="text-[11px] leading-tight text-gray-500">{businessName}</p>
             </div>
-          </div>
-
-          <Link href="/notifications" className="inline-flex items-center gap-1 rounded-full border border-black/15 px-3 py-1.5 text-xs font-semibold text-brand-black hover:bg-gray-100 sm:text-sm">
-            <Bell className="h-4 w-4" />
-            {count && count > 0 ? <span>{count}</span> : null}
           </Link>
           <SignOutButton />
         </div>
