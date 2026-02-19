@@ -7,8 +7,8 @@ import { groupVehicleDocuments, VehicleDocumentsGroups } from '@/components/cust
 import { PageHeader } from '@/components/layout/page-header';
 import { RetryButton } from '@/components/ui/retry-button';
 
-export default async function WorkshopVehicleDocumentsPage({ params }: { params: { vehicleId: string } }) {
-  const vehicleId = params?.vehicleId;
+export default async function WorkshopVehicleDocumentsPage({ params }: { params: Promise<{ vehicleId: string }> }) {
+  const { vehicleId } = await params;
   if (!vehicleId) return <main><Card><h1 className="text-xl font-semibold">Vehicle unavailable</h1></Card></main>;
 
   const supabase = await createClient();
