@@ -14,8 +14,8 @@ function money(cents: number) {
   return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format((cents ?? 0) / 100);
 }
 
-export default async function WorkshopVehiclePage({ params }: { params: { vehicleId: string } }) {
-  const { vehicleId } = params;
+export default async function WorkshopVehiclePage({ params }: { params: Promise<{ vehicleId: string }> }) {
+  const { vehicleId } = await params;
   const supabase = await createClient();
   const user = (await supabase.auth.getUser()).data.user;
   if (!user) redirect('/login');
