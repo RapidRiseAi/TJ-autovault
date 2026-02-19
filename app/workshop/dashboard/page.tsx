@@ -1,17 +1,33 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { HeroHeader } from '@/components/layout/hero-header';
-import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/server';
 import { VerifyVehicleButton } from '@/components/workshop/verify-vehicle-button';
+import { SectionCard } from '@/components/ui/section-card';
+import { StatCard } from '@/components/ui/stat-card';
+import { SegmentRing } from '@/components/ui/segment-ring';
 
 type CustomerRow = {
   id: string;
   name: string;
   created_at: string;
+  profile_image_url?: string | null;
+  vehicles?: Array<{ primary_image_path: string | null }> | null;
   customer_users: Array<{ profile_id: string | null }> | null;
 };
+
+function initials(name: string) {
+  return (
+    name
+      .split(' ')
+      .map((part) => part.trim()[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join('')
+      .toUpperCase() || 'CU'
+  );
+}
 
 export default async function WorkshopDashboardPage() {
   const supabase = await createClient();
@@ -27,8 +43,8 @@ export default async function WorkshopDashboardPage() {
     supabase.from('work_requests').select('id', { count: 'exact', head: true }).eq('workshop_account_id', workshopId).in('status', ['requested', 'waiting_for_deposit', 'waiting_for_parts', 'scheduled', 'in_progress']),
     supabase.from('invoices').select('id', { count: 'exact', head: true }).eq('workshop_account_id', workshopId).neq('payment_status', 'paid'),
     supabase.from('quotes').select('id', { count: 'exact', head: true }).eq('workshop_account_id', workshopId).in('status', ['sent', 'pending']),
-    supabase.from('customer_accounts').select('id,name,created_at,customer_users(profile_id)').eq('workshop_account_id', workshopId).order('created_at', { ascending: false }).limit(100),
-    supabase.from('vehicles').select('id,registration_number,status').eq('workshop_account_id', workshopId).ilike('status', '%pending%').limit(8)
+    supabase.from('customer_accounts').select('id,name,created_at,profile_image_url,customer_users(profile_id),vehicles(primary_image_path)').eq('workshop_account_id', workshopId).order('created_at', { ascending: false }).limit(100),
+    supabase.from('vehicles').select('id,registration_number,status,primary_image_path').eq('workshop_account_id', workshopId).ilike('status', '%pending%').limit(8)
   ]);
 
   const uniqueCustomers = (customerRows as CustomerRow[] | null)?.reduce<CustomerRow[]>((acc, row) => {
@@ -53,14 +69,20 @@ export default async function WorkshopDashboardPage() {
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
         {cards.map(([label, value]) => (
-          <Card key={label as string} className="rounded-3xl p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500">{label as string}</p>
-            <p className="mt-2 text-2xl font-semibold text-black">{value as number}</p>
-          </Card>
+          <StatCard
+            key={label as string}
+            title={label as string}
+            value={value as number}
+            ring={
+              label === 'Vehicles pending verification' ? (
+                <SegmentRing size={70} centerLabel={String(value)} subLabel="Pending" total={Math.max(vehicles ?? 0, 1)} segments={[{ value: Number(value), tone: 'negative' }]} />
+              ) : undefined
+            }
+          />
         ))}
       </section>
 
-      <Card className="rounded-3xl">
+      <SectionCard>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-brand-black">Customers</h2>
           <Button asChild size="sm" variant="secondary"><Link href="/workshop/customers">View all</Link></Button>
@@ -77,7 +99,18 @@ export default async function WorkshopDashboardPage() {
             <tbody className="divide-y divide-black/5">
               {uniqueCustomers.map((customer) => (
                 <tr key={customer.id} className="hover:bg-stone-50">
-                  <td className="py-3 text-sm font-medium text-black">{customer.name}</td>
+                  <td className="py-3 text-sm font-medium text-black">
+                    <div className="flex items-center gap-3">
+                      {customer.profile_image_url ? (
+                        <img src={customer.profile_image_url} alt={customer.name} className="h-9 w-9 rounded-full border border-black/10 object-cover" />
+                      ) : customer.vehicles?.[0]?.primary_image_path ? (
+                        <img src={`/api/uploads/download?bucket=vehicle-images&path=${encodeURIComponent(customer.vehicles[0].primary_image_path)}`} alt={customer.name} className="h-9 w-9 rounded-full border border-black/10 object-cover" />
+                      ) : (
+                        <div className="flex h-9 w-9 items-center justify-center rounded-full border border-black/10 bg-white text-xs font-semibold text-black/80">{initials(customer.name)}</div>
+                      )}
+                      <span>{customer.name}</span>
+                    </div>
+                  </td>
                   <td className="py-3 text-sm text-gray-600">{new Date(customer.created_at).toLocaleDateString()}</td>
                   <td className="py-3 text-right"><Button asChild size="sm" variant="outline"><Link href={`/workshop/customers/${customer.id}`}>Open</Link></Button></td>
                 </tr>
@@ -86,9 +119,9 @@ export default async function WorkshopDashboardPage() {
           </table>
           {!uniqueCustomers.length ? <p className="py-4 text-sm text-gray-500">No customers yet.</p> : null}
         </div>
-      </Card>
+      </SectionCard>
 
-      <Card className="rounded-3xl">
+      <SectionCard>
         <h2 className="mb-3 text-lg font-semibold text-brand-black">Pending verification</h2>
         {!pendingVehicles?.length ? <p className="text-sm text-gray-500">No vehicles pending verification.</p> : (
           <div className="space-y-2">
@@ -103,7 +136,7 @@ export default async function WorkshopDashboardPage() {
             ))}
           </div>
         )}
-      </Card>
+      </SectionCard>
     </main>
   );
 }

@@ -6,6 +6,9 @@ import { createClient } from '@/lib/supabase/server';
 import { HeroHeader } from '@/components/layout/hero-header';
 import { VerifyVehicleButton } from '@/components/workshop/verify-vehicle-button';
 import { WorkshopVehicleActionsPanel } from '@/components/workshop/workshop-vehicle-actions-panel';
+import { StatCard } from '@/components/ui/stat-card';
+import { SectionCard } from '@/components/ui/section-card';
+import { SegmentRing } from '@/components/ui/segment-ring';
 
 function money(cents: number) {
   return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format((cents ?? 0) / 100);
@@ -50,18 +53,22 @@ export default async function WorkshopVehiclePage({ params }: { params: Promise<
       />
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <Card className="rounded-3xl p-4"><p className="text-xs text-gray-500">Revenue collected</p><p className="mt-1 text-2xl font-semibold">{money(paidTotal)}</p></Card>
-        <Card className="rounded-3xl p-4"><p className="text-xs text-gray-500">Outstanding balance</p><p className="mt-1 text-2xl font-semibold">{money(unpaidTotal)}</p></Card>
-        <Card className="rounded-3xl p-4"><p className="text-xs text-gray-500">Open work requests</p><p className="mt-1 text-2xl font-semibold">{openRequests}</p></Card>
-        <Card className="rounded-3xl p-4"><p className="text-xs text-gray-500">Reports needing attention</p><p className="mt-1 text-2xl font-semibold">{attentionReports}</p></Card>
-        <Card className="rounded-3xl p-4"><p className="text-xs text-gray-500">Verification</p><p className="mt-1 text-2xl font-semibold">{pendingVerification ? 'Pending' : 'Verified'}</p></Card>
+        <StatCard title="Revenue collected" value={money(paidTotal)} detail="Paid invoices" />
+        <StatCard
+          title="Outstanding balance"
+          value={money(unpaidTotal)}
+          detail="Unpaid invoices"
+          ring={<SegmentRing size={72} centerLabel={unpaidTotal > 0 ? 'Due' : '0'} subLabel="Invoices" total={Math.max(invoices.length, 1)} segments={[{ value: invoices.filter((x) => x.payment_status !== 'paid').length, tone: 'negative' }]} />}
+        />
+        <StatCard title="Open work requests" value={openRequests || 0} detail="Active requests" action={<Button asChild size="sm" variant="secondary"><Link href="/workshop/work-requests">View requests</Link></Button>} />
+        <StatCard title="Reports needing attention" value={attentionReports || 0} detail="Urgent/high docs" action={<Button asChild size="sm" variant="secondary"><Link href={`/workshop/vehicles/${vehicle.id}/documents`}>View reports</Link></Button>} />
+        <StatCard title="Verification status" value={pendingVerification ? 'Pending' : 'Verified'} secondary={pendingVerification ? 'Awaiting workshop verification' : 'Verified by workshop'} />
       </section>
 
-      <Card className="rounded-3xl">
-        <h2 className="mb-3 text-base font-semibold">Actions</h2>
+      <SectionCard className="p-4">
+        <h2 className="mb-3 text-base font-semibold">Quick actions</h2>
         <WorkshopVehicleActionsPanel vehicleId={vehicle.id} invoices={(invoicesResult.data ?? []).map((invoice) => ({ id: invoice.id }))} jobs={(jobsResult.data ?? []).map((job) => ({ id: job.id }))} workRequests={(workRequestsResult.data ?? []).map((request) => ({ id: request.id, status: request.status }))} />
-      </Card>
+      </SectionCard>
     </main>
   );
 }
-
