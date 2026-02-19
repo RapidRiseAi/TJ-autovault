@@ -8,8 +8,8 @@ import { groupVehicleDocuments, VehicleDocumentsGroups } from '@/components/cust
 import { PageHeader } from '@/components/layout/page-header';
 import { RetryButton } from '@/components/ui/retry-button';
 
-export default async function VehicleDocumentsPage({ params }: { params: Promise<{ vehicleId: string }> }) {
-  const { vehicleId } = await params;
+export default async function VehicleDocumentsPage({ params }: { params: { vehicleId: string } }) {
+  const vehicleId = params?.vehicleId;
   if (!vehicleId) {
     return <main><Card><h1 className="text-xl font-semibold">Vehicle unavailable</h1></Card></main>;
   }
@@ -31,7 +31,7 @@ export default async function VehicleDocumentsPage({ params }: { params: Promise
   const customerAccountId = context.customer_account.id;
 
   try {
-    const [{ data: vehicle, error: vehicleError }, { data: docs, error: docsError }] = await Promise.all([
+    const [{ data: vehicle, error: vehicleError }, docsResult] = await Promise.all([
       supabase.from('vehicles').select('id,registration_number').eq('id', vehicleId).eq('current_customer_account_id', customerAccountId).maybeSingle(),
       supabase.from('vehicle_documents').select('id,created_at,document_type,original_name,subject,storage_bucket,storage_path,importance').eq('vehicle_id', vehicleId).eq('customer_account_id', customerAccountId).order('created_at', { ascending: false })
     ]);
@@ -47,8 +47,8 @@ export default async function VehicleDocumentsPage({ params }: { params: Promise
       );
     }
 
-    if (docsError) {
-      console.error('Customer documents fetch failed', docsError);
+    if (docsResult.error) {
+      console.error('Customer documents fetch failed', docsResult.error);
       return (
         <main className="space-y-4">
           <PageHeader title="Documents" subtitle={`${vehicle.registration_number} · Organized by type`} actions={<Button asChild variant="secondary" size="sm"><Link href={customerVehicle(vehicleId)}>Back to vehicle</Link></Button>} />
@@ -60,12 +60,13 @@ export default async function VehicleDocumentsPage({ params }: { params: Promise
       );
     }
 
-    const groups = groupVehicleDocuments(docs ?? []);
+    const docs = Array.isArray(docsResult.data) ? docsResult.data : [];
+    const groups = groupVehicleDocuments(docs);
 
     return (
       <main className="space-y-4">
         <PageHeader title="Documents" subtitle={`${vehicle.registration_number} · Organized by type`} actions={<Button asChild variant="secondary" size="sm"><Link href={customerVehicle(vehicleId)}>Back to vehicle</Link></Button>} />
-        {!docs?.length ? <Card><p className="text-sm text-gray-600">No documents available for this vehicle yet.</p></Card> : null}
+        {!docs.length ? <Card><p className="text-sm text-gray-600">No documents available for this vehicle yet.</p></Card> : null}
         <VehicleDocumentsGroups groups={groups} />
       </main>
     );

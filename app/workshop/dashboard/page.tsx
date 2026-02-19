@@ -5,16 +5,16 @@ import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/server';
 import { VerifyVehicleButton } from '@/components/workshop/verify-vehicle-button';
 import { SectionCard } from '@/components/ui/section-card';
-import { StatCard } from '@/components/ui/stat-card';
 import { SegmentRing } from '@/components/ui/segment-ring';
+import { MetricCard } from '@/components/workshop/metric-card';
 
 type CustomerRow = {
   id: string;
   name: string;
   created_at: string;
-  profile_image_url?: string | null;
-  vehicles?: Array<{ primary_image_path: string | null }> | null;
-  customer_users: Array<{ profile_id: string | null }> | null;
+  customer_users?: Array<{
+    profiles?: Array<{ display_name: string | null; full_name: string | null; avatar_url: string | null }>;
+  }>;
 };
 
 function initials(name: string) {
@@ -38,44 +38,46 @@ export default async function WorkshopDashboardPage() {
   if (!profile?.workshop_account_id || (profile.role !== 'admin' && profile.role !== 'technician')) redirect('/customer/dashboard');
 
   const workshopId = profile.workshop_account_id;
-  const [{ count: vehicles }, { count: openRequests }, { count: unpaidInvoices }, { count: pendingQuotes }, { data: customerRows }, { data: pendingVehicles }] = await Promise.all([
+  const [{ count: vehicles }, { count: openRequests }, { count: unpaidInvoices }, { count: pendingQuotes }, customerResult, { data: pendingVehicles }] = await Promise.all([
     supabase.from('vehicles').select('id', { count: 'exact', head: true }).eq('workshop_account_id', workshopId),
     supabase.from('work_requests').select('id', { count: 'exact', head: true }).eq('workshop_account_id', workshopId).in('status', ['requested', 'waiting_for_deposit', 'waiting_for_parts', 'scheduled', 'in_progress']),
     supabase.from('invoices').select('id', { count: 'exact', head: true }).eq('workshop_account_id', workshopId).neq('payment_status', 'paid'),
     supabase.from('quotes').select('id', { count: 'exact', head: true }).eq('workshop_account_id', workshopId).in('status', ['sent', 'pending']),
-    supabase.from('customer_accounts').select('id,name,created_at,profile_image_url,customer_users(profile_id),vehicles(primary_image_path)').eq('workshop_account_id', workshopId).order('created_at', { ascending: false }).limit(100),
+    supabase
+      .from('customer_accounts')
+      .select('id,name,created_at,customer_users(profiles(display_name,full_name,avatar_url))')
+      .eq('workshop_account_id', workshopId)
+      .order('created_at', { ascending: false })
+      .limit(100),
     supabase.from('vehicles').select('id,registration_number,status,primary_image_path').eq('workshop_account_id', workshopId).ilike('status', '%pending%').limit(8)
   ]);
 
-  const uniqueCustomers = (customerRows as CustomerRow[] | null)?.reduce<CustomerRow[]>((acc, row) => {
-    const profileId = row.customer_users?.[0]?.profile_id;
-    const dedupeKey = profileId ?? row.id;
-    if (!acc.some((entry) => (entry.customer_users?.[0]?.profile_id ?? entry.id) === dedupeKey)) acc.push(row);
-    return acc;
-  }, []) ?? [];
+  const customerRows = (customerResult.data ?? []) as CustomerRow[];
+  const customersError = customerResult.error;
 
   const cards = [
-    ['Customers count', uniqueCustomers.length],
-    ['Vehicles count', vehicles ?? 0],
-    ['Open requests', openRequests ?? 0],
-    ['Unpaid invoices', unpaidInvoices ?? 0],
-    ['Pending quotes', pendingQuotes ?? 0],
-    ['Vehicles pending verification', pendingVehicles?.length ?? 0]
-  ];
+    ['Customers count', customerRows.length, 'Linked customer accounts'],
+    ['Vehicles count', vehicles ?? 0, 'Managed in your workshop'],
+    ['Open requests', openRequests ?? 0, 'Work currently in progress'],
+    ['Unpaid invoices', unpaidInvoices ?? 0, 'Outstanding billing'],
+    ['Pending quotes', pendingQuotes ?? 0, 'Awaiting customer decision'],
+    ['Vehicles pending verification', pendingVehicles?.length ?? 0, 'Needs workshop verification']
+  ] as const;
 
   return (
     <main className="space-y-6">
       <HeroHeader title="Workshop dashboard" subtitle="Track customers, jobs, and payments from one place." actions={<Button asChild variant="secondary" size="sm"><Link href="/workshop/work-requests">Open work request board</Link></Button>} />
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-        {cards.map(([label, value]) => (
-          <StatCard
-            key={label as string}
-            title={label as string}
-            value={value as number}
-            ring={
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+        {cards.map(([label, value, support]) => (
+          <MetricCard
+            key={label}
+            label={label}
+            value={value}
+            support={support}
+            visual={
               label === 'Vehicles pending verification' ? (
-                <SegmentRing size={70} centerLabel={String(value)} subLabel="Pending" total={Math.max(vehicles ?? 0, 1)} segments={[{ value: Number(value), tone: 'negative' }]} />
+                <SegmentRing size={72} centerLabel={String(value)} subLabel="Pending" total={Math.max(vehicles ?? 0, 1)} segments={[{ value: Number(value), tone: 'negative' }]} />
               ) : undefined
             }
           />
@@ -87,38 +89,35 @@ export default async function WorkshopDashboardPage() {
           <h2 className="text-lg font-semibold text-brand-black">Customers</h2>
           <Button asChild size="sm" variant="secondary"><Link href="/workshop/customers">View all</Link></Button>
         </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-black/10 text-sm">
-            <thead>
-              <tr className="text-left text-xs uppercase tracking-[0.14em] text-gray-500">
-                <th className="pb-2 font-semibold">Name</th>
-                <th className="pb-2 font-semibold">Created</th>
-                <th className="pb-2" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-black/5">
-              {uniqueCustomers.map((customer) => (
-                <tr key={customer.id} className="hover:bg-stone-50">
-                  <td className="py-3 text-sm font-medium text-black">
-                    <div className="flex items-center gap-3">
-                      {customer.profile_image_url ? (
-                        <img src={customer.profile_image_url} alt={customer.name} className="h-9 w-9 rounded-full border border-black/10 object-cover" />
-                      ) : customer.vehicles?.[0]?.primary_image_path ? (
-                        <img src={`/api/uploads/download?bucket=vehicle-images&path=${encodeURIComponent(customer.vehicles[0].primary_image_path)}`} alt={customer.name} className="h-9 w-9 rounded-full border border-black/10 object-cover" />
-                      ) : (
-                        <div className="flex h-9 w-9 items-center justify-center rounded-full border border-black/10 bg-white text-xs font-semibold text-black/80">{initials(customer.name)}</div>
-                      )}
-                      <span>{customer.name}</span>
+        {customersError ? <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">Unable to load customers right now. Please refresh and try again.</p> : null}
+        {!customersError ? (
+          <div className="space-y-2">
+            {customerRows.map((customer) => {
+              const profileInfo = customer.customer_users?.[0]?.profiles?.[0];
+              const customerName = profileInfo?.full_name || profileInfo?.display_name || customer.name;
+              const businessName = customer.name;
+              const avatar = profileInfo?.avatar_url;
+
+              return (
+                <div key={customer.id} className="flex items-center justify-between rounded-2xl border border-black/10 p-3 hover:bg-stone-50">
+                  <div className="flex items-center gap-3">
+                    {avatar ? (
+                      <img src={avatar} alt={customerName} className="h-10 w-10 rounded-full border border-black/10 object-cover" />
+                    ) : (
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full border border-black/10 bg-white text-xs font-semibold text-black/80">{initials(customerName)}</div>
+                    )}
+                    <div>
+                      <p className="text-sm font-semibold text-brand-black">{customerName}</p>
+                      <p className="text-xs text-gray-500">{businessName}</p>
                     </div>
-                  </td>
-                  <td className="py-3 text-sm text-gray-600">{new Date(customer.created_at).toLocaleDateString()}</td>
-                  <td className="py-3 text-right"><Button asChild size="sm" variant="outline"><Link href={`/workshop/customers/${customer.id}`}>Open</Link></Button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {!uniqueCustomers.length ? <p className="py-4 text-sm text-gray-500">No customers yet.</p> : null}
-        </div>
+                  </div>
+                  <Button asChild size="sm" variant="outline"><Link href={`/workshop/customers/${customer.id}`}>Open profile</Link></Button>
+                </div>
+              );
+            })}
+            {!customerRows.length ? <p className="py-4 text-sm text-gray-500">No customers yet.</p> : null}
+          </div>
+        ) : null}
       </SectionCard>
 
       <SectionCard>
