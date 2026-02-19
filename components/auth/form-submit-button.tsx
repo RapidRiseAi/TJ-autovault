@@ -30,7 +30,7 @@ export function FormSubmitButton({
   return (
     <Button
       type="submit"
-      className="w-full active:scale-[0.98]"
+      className="h-11 w-full bg-gradient-to-b from-red-600 to-red-700 shadow-[0_12px_30px_rgba(220,38,38,0.35)] transition-all hover:from-red-500 hover:to-red-600 active:scale-[0.98]"
       disabled={pending}
     >
       {pending ? pendingLabel : idleLabel}

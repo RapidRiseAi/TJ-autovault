@@ -20,9 +20,11 @@ export default async function SignupPage({
 
   return (
     <AuthShell>
-      <Card className="w-full space-y-5 rounded-2xl border border-black/10 p-6 shadow-[0_24px_60px_rgba(15,23,42,0.1)] sm:p-8">
-        <h1 className="text-3xl font-semibold text-gray-900">Create account</h1>
-        <p className="text-sm text-gray-600">
+      <Card className="relative w-full space-y-5 overflow-hidden rounded-3xl border border-black/10 bg-gradient-to-b from-white to-zinc-50/90 p-6 shadow-[0_34px_90px_rgba(15,23,42,0.22)] sm:p-10">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-0.5 bg-brand-red" aria-hidden />
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">Create your portal access</p>
+        <h1 className="text-3xl font-bold text-gray-900 sm:text-[2rem]">Create account</h1>
+        <p className="text-sm text-gray-700">
           Track service history, quotes, invoices and documents.
         </p>
 
@@ -42,7 +44,7 @@ export default async function SignupPage({
             <input
               id="display-name"
               name="displayName"
-              className="w-full rounded-xl border border-black/15 p-3 text-base transition focus:border-brand-red focus:outline-none focus:ring-2 focus:ring-brand-red/20"
+              className="w-full rounded-xl border border-black/15 bg-white/95 p-3 text-base transition focus:border-brand-red focus:outline-none focus:ring-2 focus:ring-brand-red/20"
               placeholder="Display name"
             />
           </div>
@@ -56,7 +58,7 @@ export default async function SignupPage({
               name="email"
               type="email"
               required
-              className="w-full rounded-xl border border-black/15 p-3 text-base transition focus:border-brand-red focus:outline-none focus:ring-2 focus:ring-brand-red/20"
+              className="w-full rounded-xl border border-black/15 bg-white/95 p-3 text-base transition focus:border-brand-red focus:outline-none focus:ring-2 focus:ring-brand-red/20"
               placeholder="Email"
             />
           </div>
@@ -70,7 +72,7 @@ export default async function SignupPage({
               name="password"
               type="password"
               required
-              className="w-full rounded-xl border border-black/15 p-3 text-base transition focus:border-brand-red focus:outline-none focus:ring-2 focus:ring-brand-red/20"
+              className="w-full rounded-xl border border-black/15 bg-white/95 p-3 text-base transition focus:border-brand-red focus:outline-none focus:ring-2 focus:ring-brand-red/20"
               placeholder="Password"
               minLength={6}
             />
@@ -84,12 +86,13 @@ export default async function SignupPage({
               id="phone-number"
               name="phone"
               type="tel"
-              className="w-full rounded-xl border border-black/15 p-3 text-base transition focus:border-brand-red focus:outline-none focus:ring-2 focus:ring-brand-red/20"
+              className="w-full rounded-xl border border-black/15 bg-white/95 p-3 text-base transition focus:border-brand-red focus:outline-none focus:ring-2 focus:ring-brand-red/20"
               placeholder="Phone number"
             />
           </div>
 
           <SignupPlanSelector plans={plans} />
+          <p className="text-xs font-medium text-gray-500">Choose a plan. You can upgrade anytime.</p>
 
           <FormSubmitButton
             idleLabel="Create account"
@@ -103,7 +106,7 @@ export default async function SignupPage({
           </p>
         </form>
 
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-gray-700">
           Already have an account?{' '}
           <Link href="/login" className="font-semibold text-brand-red underline-offset-4 hover:underline">
             Sign in
