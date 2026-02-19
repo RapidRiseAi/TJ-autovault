@@ -9,6 +9,7 @@ import { VehicleWorkflowActions } from '@/components/workshop/vehicle-workflow-a
 import { UploadsActionsForm } from '@/components/workshop/uploads-actions-form';
 import { RecentActivitySnippet } from '@/components/customer/vehicle-activity';
 import { buildActivityStream } from '@/lib/activity-stream';
+import { HeroHeader } from '@/components/layout/hero-header';
 
 function centsToCurrency(totalCents: number | null) {
   if (typeof totalCents !== 'number') return 'R0.00';
@@ -165,24 +166,32 @@ export default async function WorkshopVehiclePage({ params }: { params: Promise<
 
   return (
     <main className="space-y-4">
-      <Card>
-        <div className="flex items-center gap-4">
-          {vehicle.primary_image_path ? <img src={`/api/uploads/download?bucket=vehicle-images&path=${encodeURIComponent(vehicle.primary_image_path)}`} alt="Vehicle" className="h-20 w-20 rounded object-cover" /> : null}
-          <div className="space-y-2">
-            <h1 className="text-2xl font-bold">{vehicle.registration_number}</h1>
-            <p>{vehicle.make} {vehicle.model}</p>
-            <p className="text-xs">Status: {vehicle.status} · Odometer {vehicle.odometer_km ?? 'N/A'} km · Next service {vehicle.next_service_km ?? 'N/A'} km / {vehicle.next_service_date ?? 'N/A'}</p>
-            <div className="flex flex-wrap gap-2">
-              <Button asChild size="sm" variant="outline">
-                <Link href={`/workshop/vehicles/${vehicle.id}/documents`}>View all documents</Link>
-              </Button>
-              <Button asChild size="sm" variant="outline">
-                <Link href={`/workshop/vehicles/${vehicle.id}/timeline`}>View full timeline</Link>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </Card>
+      <HeroHeader
+        title={vehicle.registration_number}
+        subtitle={`${vehicle.make} ${vehicle.model} · Status ${vehicle.status}`}
+        media={
+          vehicle.primary_image_path ? (
+            <img src={`/api/uploads/download?bucket=vehicle-images&path=${encodeURIComponent(vehicle.primary_image_path)}`} alt="Vehicle" className="h-20 w-20 rounded-2xl object-cover" />
+          ) : null
+        }
+        meta={
+          <>
+            <span className="rounded-full border border-white/25 bg-white/10 px-3 py-1">Odometer {vehicle.odometer_km ?? 'N/A'} km</span>
+            <span className="rounded-full border border-white/25 bg-white/10 px-3 py-1">Next service {vehicle.next_service_km ?? 'N/A'} km</span>
+            <span className="rounded-full border border-white/25 bg-white/10 px-3 py-1">Date {vehicle.next_service_date ?? 'N/A'}</span>
+          </>
+        }
+        actions={
+          <>
+            <Button asChild size="sm" variant="secondary">
+              <Link href={`/workshop/vehicles/${vehicle.id}/documents`}>View all documents</Link>
+            </Button>
+            <Button asChild size="sm" variant="secondary">
+              <Link href={`/workshop/vehicles/${vehicle.id}/timeline`}>View full timeline</Link>
+            </Button>
+          </>
+        }
+      />
 
       <Card>
         <h2 className="mb-3 text-lg font-semibold">Recent activity</h2>
@@ -228,7 +237,9 @@ export default async function WorkshopVehiclePage({ params }: { params: Promise<
           </Card>
         </div>
 
-        <UploadsActionsForm vehicleId={vehicle.id} />
+        <Card>
+          <UploadsActionsForm vehicleId={vehicle.id} />
+        </Card>
       </div>
     </main>
   );

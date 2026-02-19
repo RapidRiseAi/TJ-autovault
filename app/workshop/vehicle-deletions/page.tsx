@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { PageHeader } from '@/components/layout/page-header';
 import { Card } from '@/components/ui/card';
 import { createClient } from '@/lib/supabase/server';
 import { VehicleDeletionRowActions } from '@/components/workshop/vehicle-deletion-row-actions';
@@ -20,10 +21,7 @@ export default async function WorkshopVehicleDeletionRequestsPage() {
 
   return (
     <main className="space-y-4">
-      <h1 className="text-2xl font-bold">Vehicle deletion requests</h1>
-      <Card>
-        <p className="text-sm text-gray-600">Export a full archive first, then permanently delete to free database and storage space.</p>
-      </Card>
+      <PageHeader title="Vehicle deletion requests" subtitle="Export an archive before permanently deleting vehicle data." />
 
       <div className="space-y-3">
         {(requests ?? []).map((request) => (

@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+import { PageHeader } from '@/components/layout/page-header';
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { WorkRequestStatusForm } from '@/components/workshop/work-request-status-form';
 import { createClient } from '@/lib/supabase/server';
@@ -24,28 +26,33 @@ export default async function WorkshopWorkRequestDetailPage({ params }: { params
 
   return (
     <main className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Work request detail</h1>
-        <Link href="/workshop/work-requests" className="text-sm text-brand-red underline">Back to list</Link>
-      </div>
+      <PageHeader
+        title="Work request detail"
+        subtitle="Review request details and update status."
+        actions={
+          <Button asChild variant="secondary" size="sm">
+            <Link href="/workshop/work-requests">Back to list</Link>
+          </Button>
+        }
+      />
 
-      <Card>
-        <p className="text-sm"><span className="font-semibold">Type:</span> {request.request_type}</p>
-        <p className="text-sm"><span className="font-semibold">Status:</span> {request.status.replaceAll('_', ' ')}</p>
-        <p className="text-sm"><span className="font-semibold">Customer:</span> {request.customer_accounts?.[0]?.name ?? 'Unknown customer'}</p>
-        <p className="text-sm"><span className="font-semibold">Vehicle:</span> {request.vehicles?.[0]?.registration_number ?? 'Unknown registration'} {request.vehicles?.[0]?.make ?? ''} {request.vehicles?.[0]?.model ?? ''}</p>
-        <p className="text-sm"><span className="font-semibold">Preferred date:</span> {request.preferred_date ?? 'n/a'}</p>
-        <p className="text-sm"><span className="font-semibold">Notes:</span> {request.notes ?? 'n/a'}</p>
+      <Card className="space-y-2 text-sm">
+        <p><span className="font-semibold">Type:</span> {request.request_type}</p>
+        <p><span className="font-semibold">Status:</span> {request.status.replaceAll('_', ' ')}</p>
+        <p><span className="font-semibold">Customer:</span> {request.customer_accounts?.[0]?.name ?? 'Unknown customer'}</p>
+        <p><span className="font-semibold">Vehicle:</span> {request.vehicles?.[0]?.registration_number ?? 'Unknown registration'} {request.vehicles?.[0]?.make ?? ''} {request.vehicles?.[0]?.model ?? ''}</p>
+        <p><span className="font-semibold">Preferred date:</span> {request.preferred_date ?? 'n/a'}</p>
+        <p><span className="font-semibold">Notes:</span> {request.notes ?? 'n/a'}</p>
         <p className="text-xs text-gray-500">Created {new Date(request.created_at).toLocaleString()}</p>
       </Card>
 
       <Card>
-        <h2 className="mb-2 font-semibold">Update status</h2>
+        <h2 className="mb-2 text-sm font-semibold">Update status</h2>
         <WorkRequestStatusForm workRequestId={request.id} initialStatus={request.status} />
       </Card>
 
       <Card>
-        <Link href={`/workshop/vehicles/${request.vehicle_id}`} className="text-sm text-brand-red underline">Open vehicle timeline</Link>
+        <Link href={`/workshop/vehicles/${request.vehicle_id}`} className="text-sm font-semibold text-brand-red underline">Open vehicle timeline</Link>
       </Card>
     </main>
   );

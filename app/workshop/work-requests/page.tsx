@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { PageHeader } from '@/components/layout/page-header';
 import { Card } from '@/components/ui/card';
 import { createClient } from '@/lib/supabase/server';
 
@@ -19,14 +20,14 @@ export default async function WorkshopWorkRequestsPage() {
 
   return (
     <main className="space-y-4">
-      <h1 className="text-2xl font-bold">Work requests</h1>
+      <PageHeader title="Work requests" subtitle="Review and update active customer requests." />
       <Card>
-        <div className="space-y-2">
+        <div className="space-y-3">
           {(requests ?? []).map((request) => (
-            <Link key={request.id} href={`/workshop/work-requests/${request.id}`} className="block rounded border p-3 text-sm hover:bg-gray-50">
-              <p className="font-semibold">{request.request_type} · {request.status.replaceAll('_', ' ')}</p>
-              <p>{request.customer_accounts?.[0]?.name ?? 'Unknown customer'} · {request.vehicles?.[0]?.registration_number ?? 'Unknown registration'}</p>
-              <p className="text-xs text-gray-500">Preferred: {request.preferred_date ?? 'n/a'} · Created: {new Date(request.created_at).toLocaleString()}</p>
+            <Link key={request.id} href={`/workshop/work-requests/${request.id}`} className="block rounded-2xl border border-black/10 bg-white p-4 shadow-[0_6px_24px_rgba(17,17,17,0.04)] transition hover:-translate-y-px">
+              <p className="text-sm font-semibold text-black">{request.request_type} · {request.status.replaceAll('_', ' ')}</p>
+              <p className="mt-1 text-sm text-gray-700">{request.customer_accounts?.[0]?.name ?? 'Unknown customer'} · {request.vehicles?.[0]?.registration_number ?? 'Unknown registration'}</p>
+              <p className="mt-1 text-xs text-gray-500">Preferred: {request.preferred_date ?? 'n/a'} · Created: {new Date(request.created_at).toLocaleString()}</p>
             </Link>
           ))}
           {!requests?.length ? <p className="text-sm text-gray-500">No work requests yet.</p> : null}
