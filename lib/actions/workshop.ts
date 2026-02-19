@@ -291,3 +291,36 @@ export async function updateVehicleServiceReminders(input: {
   revalidatePath(`/customer/vehicles/${vehicle.id}`);
   return { ok: true };
 }
+
+export async function verifyVehicle(input: { vehicleId: string }): Promise<Result> {
+  const ctx = await getWorkshopContext();
+  if (!ctx) return { ok: false, error: 'Unauthorized' };
+
+  const { data: vehicle, error } = await ctx.supabase
+    .from('vehicles')
+    .update({ status: 'verified' })
+    .eq('id', input.vehicleId)
+    .eq('workshop_account_id', ctx.profile.workshop_account_id)
+    .select('id,current_customer_account_id,workshop_account_id,registration_number')
+    .maybeSingle();
+
+  if (error || !vehicle?.current_customer_account_id) return { ok: false, error: error?.message ?? 'Vehicle not found' };
+
+  await ctx.supabase.from('vehicle_timeline_events').insert({
+    workshop_account_id: vehicle.workshop_account_id,
+    customer_account_id: vehicle.current_customer_account_id,
+    vehicle_id: vehicle.id,
+    actor_profile_id: ctx.profile.id,
+    actor_role: 'admin',
+    event_type: 'note',
+    title: 'Vehicle verified',
+    importance: 'info',
+    metadata: { status: 'verified' }
+  });
+
+  revalidatePath('/workshop/dashboard');
+  revalidatePath('/workshop/customers');
+  revalidatePath(`/workshop/vehicles/${vehicle.id}`);
+  revalidatePath(`/customer/vehicles/${vehicle.id}`);
+  return { ok: true, message: 'Vehicle verified' };
+}

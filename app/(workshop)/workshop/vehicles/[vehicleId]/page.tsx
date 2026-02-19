@@ -3,17 +3,12 @@ import { redirect } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/server';
-import { buildTimelineActorLabel } from '@/lib/timeline';
-import { UploadsSection } from '@/components/customer/uploads-section';
-import { VehicleWorkflowActions } from '@/components/workshop/vehicle-workflow-actions';
-import { UploadsActionsForm } from '@/components/workshop/uploads-actions-form';
-import { RecentActivitySnippet } from '@/components/customer/vehicle-activity';
-import { buildActivityStream } from '@/lib/activity-stream';
 import { HeroHeader } from '@/components/layout/hero-header';
+import { VerifyVehicleButton } from '@/components/workshop/verify-vehicle-button';
+import { WorkshopVehicleActionsPanel } from '@/components/workshop/workshop-vehicle-actions-panel';
 
-function centsToCurrency(totalCents: number | null) {
-  if (typeof totalCents !== 'number') return 'R0.00';
-  return `R${(totalCents / 100).toFixed(2)}`;
+function money(cents: number) {
+  return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format((cents ?? 0) / 100);
 }
 
 export default async function WorkshopVehiclePage({ params }: { params: Promise<{ vehicleId: string }> }) {
@@ -22,225 +17,51 @@ export default async function WorkshopVehiclePage({ params }: { params: Promise<
   const user = (await supabase.auth.getUser()).data.user;
   if (!user) redirect('/login');
 
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('role,workshop_account_id')
-    .eq('id', user.id)
-    .single();
-
-  if (profileError || !profile?.workshop_account_id || (profile.role !== 'admin' && profile.role !== 'technician')) {
-    return (
-      <main>
-        <Card>
-          <h1 className="text-xl font-semibold">Unable to load vehicle</h1>
-          <p className="mt-2 text-sm text-gray-600">Your workshop access could not be verified.</p>
-        </Card>
-      </main>
-    );
-  }
+  const { data: profile } = await supabase.from('profiles').select('role,workshop_account_id').eq('id', user.id).single();
+  if (!profile?.workshop_account_id || (profile.role !== 'admin' && profile.role !== 'technician')) redirect('/customer/dashboard');
 
   const workshopId = profile.workshop_account_id;
-
-  const [
-    vehicleResult,
-    jobsResult,
-    recsResult,
-    timelineResult,
-    quotesResult,
-    invoicesResult,
-    docsResult,
-    workRequestsResult
-  ] = await Promise.all([
-    supabase
-      .from('vehicles')
-      .select('id,registration_number,make,model,year,vin,odometer_km,current_customer_account_id,workshop_account_id,primary_image_path,status,next_service_km,next_service_date')
-      .eq('id', vehicleId)
-      .eq('workshop_account_id', workshopId)
-      .maybeSingle(),
-    supabase
-      .from('service_jobs')
-      .select('id,status,complaint')
-      .eq('vehicle_id', vehicleId)
-      .eq('workshop_account_id', workshopId)
-      .order('opened_at', { ascending: false }),
-    supabase
-      .from('recommendations')
-      .select('id,title,status,severity')
-      .eq('vehicle_id', vehicleId)
-      .eq('workshop_account_id', workshopId)
-      .order('created_at', { ascending: false }),
-    supabase
-      .from('vehicle_timeline_events')
-      .select('*')
-      .eq('vehicle_id', vehicleId)
-      .eq('workshop_account_id', workshopId)
-      .order('created_at', { ascending: false }),
-    supabase
-      .from('quotes')
-      .select('id,status,total_cents')
-      .eq('vehicle_id', vehicleId)
-      .eq('workshop_account_id', workshopId)
-      .order('created_at', { ascending: false }),
-    supabase
-      .from('invoices')
-      .select('id,status,payment_status,total_cents')
-      .eq('vehicle_id', vehicleId)
-      .eq('workshop_account_id', workshopId)
-      .order('created_at', { ascending: false }),
-    supabase
-      .from('vehicle_documents')
-      .select('id,storage_bucket,storage_path,original_name,created_at,document_type,subject,importance')
-      .eq('vehicle_id', vehicleId)
-      .eq('workshop_account_id', workshopId)
-      .order('created_at', { ascending: false }),
-    supabase
-      .from('work_requests')
-      .select('id,status')
-      .eq('vehicle_id', vehicleId)
-      .eq('workshop_account_id', workshopId)
-      .order('created_at', { ascending: false })
+  const [vehicleResult, jobsResult, invoicesResult, docsResult, workRequestsResult] = await Promise.all([
+    supabase.from('vehicles').select('id,registration_number,make,model,year,odometer_km,workshop_account_id,primary_image_path,status').eq('id', vehicleId).eq('workshop_account_id', workshopId).maybeSingle(),
+    supabase.from('service_jobs').select('id,status').eq('vehicle_id', vehicleId).eq('workshop_account_id', workshopId),
+    supabase.from('invoices').select('id,payment_status,total_cents').eq('vehicle_id', vehicleId).eq('workshop_account_id', workshopId),
+    supabase.from('vehicle_documents').select('id,importance').eq('vehicle_id', vehicleId).eq('workshop_account_id', workshopId),
+    supabase.from('work_requests').select('id,status').eq('vehicle_id', vehicleId).eq('workshop_account_id', workshopId)
   ]);
 
-  const queryErrors = [
-    vehicleResult.error,
-    jobsResult.error,
-    recsResult.error,
-    timelineResult.error,
-    quotesResult.error,
-    invoicesResult.error,
-    docsResult.error,
-    workRequestsResult.error
-  ].filter(Boolean);
-
-  if (queryErrors.length > 0) {
-    return (
-      <main>
-        <Card>
-          <h1 className="text-xl font-semibold">Unable to load vehicle</h1>
-          <p className="mt-2 text-sm text-gray-600">There was a problem loading one or more data sections. Please refresh and try again.</p>
-        </Card>
-      </main>
-    );
-  }
-
   const vehicle = vehicleResult.data;
-  if (!vehicle) {
-    return (
-      <main>
-        <Card>
-          <h1 className="text-xl font-semibold">Vehicle not found</h1>
-          <p className="mt-2 text-sm text-gray-600">This vehicle does not exist for your workshop account.</p>
-        </Card>
-      </main>
-    );
-  }
+  if (!vehicle) return <main><Card><h1 className="text-xl font-semibold">Vehicle not found</h1></Card></main>;
 
-  const { data: jobs = [] } = jobsResult;
-  const { data: recs = [] } = recsResult;
-  const { data: timeline = [] } = timelineResult;
-  const { data: quotes = [] } = quotesResult;
-  const { data: invoices = [] } = invoicesResult;
-  const { data: docs = [] } = docsResult;
-  const { data: workRequests = [] } = workRequestsResult;
-
-  const safeJobs = Array.isArray(jobs) ? jobs : [];
-  const safeRecs = Array.isArray(recs) ? recs : [];
-  const safeTimeline = Array.isArray(timeline) ? timeline : [];
-  const safeQuotes = Array.isArray(quotes) ? quotes : [];
-  const safeInvoices = Array.isArray(invoices) ? invoices : [];
-  const safeDocs = Array.isArray(docs) ? docs : [];
-  const safeWorkRequests = Array.isArray(workRequests) ? workRequests : [];
-
-  const timelineRows = await Promise.all(safeTimeline.map(async (event) => ({ ...event, actorLabel: await buildTimelineActorLabel(supabase as never, event) })));
-  const attachments = safeDocs.map((d) => ({
-    id: d.id,
-    bucket: d.storage_bucket,
-    storage_path: d.storage_path,
-    original_name: d.original_name,
-    created_at: d.created_at,
-    document_type: d.document_type,
-    subject: d.subject,
-    importance: d.importance
-  }));
-  const activity = buildActivityStream(timelineRows, safeDocs);
+  const invoices = invoicesResult.data ?? [];
+  const paidTotal = invoices.filter((x) => x.payment_status === 'paid').reduce((sum, x) => sum + (x.total_cents ?? 0), 0);
+  const unpaidTotal = invoices.filter((x) => x.payment_status !== 'paid').reduce((sum, x) => sum + (x.total_cents ?? 0), 0);
+  const openRequests = (workRequestsResult.data ?? []).filter((x) => !['completed', 'delivered', 'cancelled'].includes(x.status)).length;
+  const attentionReports = (docsResult.data ?? []).filter((x) => (x.importance ?? '').toLowerCase() === 'high' || (x.importance ?? '').toLowerCase() === 'urgent').length;
+  const pendingVerification = (vehicle.status ?? '').toLowerCase().includes('pending');
 
   return (
     <main className="space-y-4">
       <HeroHeader
         title={vehicle.registration_number}
-        subtitle={`${vehicle.make} ${vehicle.model} · Status ${vehicle.status}`}
-        media={
-          vehicle.primary_image_path ? (
-            <img src={`/api/uploads/download?bucket=vehicle-images&path=${encodeURIComponent(vehicle.primary_image_path)}`} alt="Vehicle" className="h-20 w-20 rounded-2xl object-cover" />
-          ) : null
-        }
-        meta={
-          <>
-            <span className="rounded-full border border-white/25 bg-white/10 px-3 py-1">Odometer {vehicle.odometer_km ?? 'N/A'} km</span>
-            <span className="rounded-full border border-white/25 bg-white/10 px-3 py-1">Next service {vehicle.next_service_km ?? 'N/A'} km</span>
-            <span className="rounded-full border border-white/25 bg-white/10 px-3 py-1">Date {vehicle.next_service_date ?? 'N/A'}</span>
-          </>
-        }
-        actions={
-          <>
-            <Button asChild size="sm" variant="secondary">
-              <Link href={`/workshop/vehicles/${vehicle.id}/documents`}>View all documents</Link>
-            </Button>
-            <Button asChild size="sm" variant="secondary">
-              <Link href={`/workshop/vehicles/${vehicle.id}/timeline`}>View full timeline</Link>
-            </Button>
-          </>
-        }
+        subtitle={`${vehicle.make ?? ''} ${vehicle.model ?? ''} ${vehicle.year ? `(${vehicle.year})` : ''}`}
+        media={vehicle.primary_image_path ? <img src={`/api/uploads/download?bucket=vehicle-images&path=${encodeURIComponent(vehicle.primary_image_path)}`} alt="Vehicle" className="h-20 w-20 rounded-2xl object-cover" /> : <div className="h-20 w-20 rounded-2xl bg-white/10" />}
+        meta={<><span className="rounded-full border border-white/25 bg-white/10 px-3 py-1">Mileage {vehicle.odometer_km ?? 'N/A'} km</span><span className="rounded-full border border-white/25 bg-white/10 px-3 py-1">Status {vehicle.status ?? 'pending'}</span></>}
+        actions={<><Button asChild size="sm" variant="secondary"><Link href={`/workshop/vehicles/${vehicle.id}/timeline`}>View full timeline</Link></Button><Button asChild size="sm" variant="secondary"><Link href={`/workshop/vehicles/${vehicle.id}/documents`}>View documents</Link></Button>{pendingVerification ? <VerifyVehicleButton vehicleId={vehicle.id} /> : null}</>}
       />
 
-      <Card>
-        <h2 className="mb-3 text-lg font-semibold">Recent activity</h2>
-        <RecentActivitySnippet activities={activity} maxItems={4} timelineHref={`/workshop/vehicles/${vehicle.id}/timeline`} />
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <Card className="rounded-3xl p-4"><p className="text-xs text-gray-500">Revenue collected</p><p className="mt-1 text-2xl font-semibold">{money(paidTotal)}</p></Card>
+        <Card className="rounded-3xl p-4"><p className="text-xs text-gray-500">Outstanding balance</p><p className="mt-1 text-2xl font-semibold">{money(unpaidTotal)}</p></Card>
+        <Card className="rounded-3xl p-4"><p className="text-xs text-gray-500">Open work requests</p><p className="mt-1 text-2xl font-semibold">{openRequests}</p></Card>
+        <Card className="rounded-3xl p-4"><p className="text-xs text-gray-500">Reports needing attention</p><p className="mt-1 text-2xl font-semibold">{attentionReports}</p></Card>
+        <Card className="rounded-3xl p-4"><p className="text-xs text-gray-500">Verification</p><p className="mt-1 text-2xl font-semibold">{pendingVerification ? 'Pending' : 'Verified'}</p></Card>
+      </section>
+
+      <Card className="rounded-3xl">
+        <h2 className="mb-3 text-base font-semibold">Actions</h2>
+        <WorkshopVehicleActionsPanel vehicleId={vehicle.id} invoices={(invoicesResult.data ?? []).map((invoice) => ({ id: invoice.id }))} jobs={(jobsResult.data ?? []).map((job) => ({ id: job.id }))} workRequests={(workRequestsResult.data ?? []).map((request) => ({ id: request.id, status: request.status }))} />
       </Card>
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="space-y-4 lg:col-span-2">
-          <Card>
-            <h2 className="font-semibold">Overview</h2>
-            <p className="text-sm">Open jobs: {safeJobs.filter((job) => job.status !== 'completed' && job.status !== 'cancelled').length}</p>
-            <p className="mt-1 text-sm">Open requests: {safeWorkRequests.filter((request) => !['completed', 'delivered', 'cancelled'].includes(request.status)).length}</p>
-            <Button asChild size="sm" variant="outline" className="mt-3">
-              <Link href="/workshop/work-requests">Open work request board</Link>
-            </Button>
-          </Card>
-
-          <Card>
-            <UploadsSection vehicleId={vehicle.id} attachments={attachments} />
-          </Card>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <h2 className="font-semibold">Recommendations</h2>
-              {safeRecs.map((recommendation) => <p key={recommendation.id} className="text-sm">{recommendation.title} · {recommendation.status} · {recommendation.severity}</p>)}
-            </Card>
-            <Card>
-              <h2 className="font-semibold">Mileage / payment / jobs</h2>
-              <VehicleWorkflowActions
-                vehicleId={vehicle.id}
-                invoices={safeInvoices.map((invoice) => ({ id: invoice.id }))}
-                jobs={safeJobs.map((job) => ({ id: job.id }))}
-                workRequests={safeWorkRequests.map((request) => ({ id: request.id, status: request.status }))}
-                compact
-              />
-            </Card>
-          </div>
-
-          <Card>
-            <h2 className="font-semibold">Quotes & invoices</h2>
-            {safeQuotes.map((quote) => <p key={quote.id} className="text-sm">Quote {quote.status} · {centsToCurrency(quote.total_cents)}</p>)}
-            {safeInvoices.map((invoice) => <p key={invoice.id} className="text-sm">Invoice {invoice.status}/{invoice.payment_status} · {centsToCurrency(invoice.total_cents)}</p>)}
-          </Card>
-        </div>
-
-        <Card>
-          <UploadsActionsForm vehicleId={vehicle.id} />
-        </Card>
-      </div>
     </main>
   );
 }
+

@@ -1,5 +1,12 @@
 import { redirect } from 'next/navigation';
+import { createClient } from '@/lib/supabase/server';
 
-export default function NotificationsRedirectPage() {
+export default async function NotificationsRedirectPage() {
+  const supabase = await createClient();
+  const user = (await supabase.auth.getUser()).data.user;
+  if (!user) redirect('/login');
+
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
+  if (profile?.role === 'admin' || profile?.role === 'technician') redirect('/workshop/notifications');
   redirect('/customer/notifications');
 }
