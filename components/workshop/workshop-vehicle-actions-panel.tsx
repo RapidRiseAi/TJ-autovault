@@ -11,9 +11,13 @@ export function WorkshopVehicleActionsPanel({ vehicleId, invoices, jobs, workReq
 
   return (
     <>
-      <div className="mb-3 flex flex-wrap gap-2"><Button size="sm" variant="secondary" onClick={() => setUploadOpen(true)}>Upload document</Button></div>
+      <div className="mb-3 flex flex-wrap gap-2">
+        <Button size="sm" onClick={() => setUploadOpen(true)}>Upload document</Button>
+      </div>
       <VehicleWorkflowActions vehicleId={vehicleId} invoices={invoices} jobs={jobs} workRequests={workRequests} compact />
-      <Modal open={uploadOpen} onClose={() => setUploadOpen(false)} title="Upload document"><UploadsActionsForm vehicleId={vehicleId} onSuccess={() => setUploadOpen(false)} /></Modal>
+      <Modal open={uploadOpen} onClose={() => setUploadOpen(false)} title="Upload document">
+        <UploadsActionsForm vehicleId={vehicleId} onSuccess={() => setUploadOpen(false)} />
+      </Modal>
     </>
   );
 }

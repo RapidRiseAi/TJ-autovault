@@ -29,6 +29,7 @@ export function NotificationsLive({ fullPage = false }: { fullPage?: boolean }) 
   const [items, setItems] = useState<Notification[]>([]);
   const [uid, setUid] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isWorkshopUser, setIsWorkshopUser] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -48,6 +49,7 @@ export function NotificationsLive({ fullPage = false }: { fullPage?: boolean }) 
       ]);
 
       const isWorkshop = profile?.role === 'admin' || profile?.role === 'technician';
+      setIsWorkshopUser(isWorkshop);
 
       const load = async () => {
         let query = supabase
@@ -85,6 +87,8 @@ export function NotificationsLive({ fullPage = false }: { fullPage?: boolean }) 
 
   if (!uid) return null;
   const unread = items.filter((item) => !item.is_read).length;
+  const listHref = isWorkshopUser ? '/workshop/notifications' : '/customer/notifications';
+  const itemHref = (item: Notification) => (isWorkshopUser ? item.href || '/workshop/notifications' : `/customer/notifications/${item.id}?next=${encodeURIComponent(item.href)}`);
 
   if (!fullPage) {
     return (
@@ -93,11 +97,11 @@ export function NotificationsLive({ fullPage = false }: { fullPage?: boolean }) 
         <div className="absolute right-0 z-10 mt-2 w-96 rounded-2xl border bg-white p-3 text-black shadow">
           <div className="mb-2 flex items-center justify-between">
             <p className="text-sm font-semibold">Notifications</p>
-            <Link href="/customer/notifications" className="text-xs text-brand-red underline">View all</Link>
+            <Link href={listHref} className="text-xs text-brand-red underline">View all</Link>
           </div>
           <div className="space-y-1">
             {items.map((item) => (
-              <Link key={item.id} href={`/customer/notifications/${item.id}?next=${encodeURIComponent(item.href)}`} className="block rounded-lg px-2 py-2 text-sm hover:bg-gray-100">
+              <Link key={item.id} href={itemHref(item)} className="block rounded-lg px-2 py-2 text-sm hover:bg-gray-100">
                 <p className={item.is_read ? 'text-gray-500' : 'font-semibold'}>{item.title}</p>
               </Link>
             ))}
@@ -127,7 +131,7 @@ export function NotificationsLive({ fullPage = false }: { fullPage?: boolean }) 
       {items.map((item) => (
         <div key={item.id} className={`rounded-2xl border bg-white p-4 transition hover:border-black/25 ${item.is_read ? 'border-black/10 opacity-80' : 'border-black/20 shadow-sm'}`}>
           <div className="flex items-start justify-between gap-3">
-            <Link href={`/customer/notifications/${item.id}?next=${encodeURIComponent(item.href)}`} className="group flex flex-1 items-start gap-3">
+            <Link href={itemHref(item)} className="group flex flex-1 items-start gap-3">
               <span className={`mt-1 h-10 w-1 rounded-full ${item.is_read ? 'bg-gray-200' : 'bg-brand-red'}`} />
               <div className="min-w-0">
                 <p className={item.is_read ? 'text-gray-600' : 'font-semibold text-brand-black'}>{item.title}</p>
@@ -164,7 +168,7 @@ export function NotificationsLive({ fullPage = false }: { fullPage?: boolean }) 
                   <Trash2 className="mr-1 h-4 w-4" /> Delete
                 </Button>
                 <Button asChild size="sm" variant="ghost">
-                  <Link href={`/customer/notifications/${item.id}?next=${encodeURIComponent(item.href)}`}>Open <ChevronRight className="ml-1 h-3 w-3" /></Link>
+                  <Link href={itemHref(item)}>Open <ChevronRight className="ml-1 h-3 w-3" /></Link>
                 </Button>
               </div>
             </div>

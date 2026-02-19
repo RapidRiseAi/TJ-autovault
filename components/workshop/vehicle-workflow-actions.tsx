@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast-provider';
@@ -14,6 +15,7 @@ type Mode = 'recommendation' | 'mileage' | 'request' | 'payment' | 'job' | null;
 export function VehicleWorkflowActions({ vehicleId, invoices, jobs, workRequests, compact }: { vehicleId: string; invoices: Array<{ id: string }>; jobs: Array<{ id: string }>; workRequests: Array<{ id: string; status: string }>; compact?: boolean; }) {
   const [open, setOpen] = useState<Mode>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
   const [msg, setMsg] = useState('');
   const { pushToast } = useToast();
 
@@ -25,6 +27,7 @@ export function VehicleWorkflowActions({ vehicleId, invoices, jobs, workRequests
       pushToast({ title: result.message ?? 'Saved', tone: 'success' });
       setMsg('');
       setOpen(null);
+      router.refresh();
     } else {
       const message = result.error ?? 'Failed';
       pushToast({ title: 'Action failed', description: message, tone: 'error' });
@@ -39,7 +42,7 @@ export function VehicleWorkflowActions({ vehicleId, invoices, jobs, workRequests
         <Button size="sm" variant="secondary" onClick={() => setOpen('mileage')}>Update mileage</Button>
         {workRequests.length ? <Button size="sm" variant="secondary" onClick={() => setOpen('request')}>Update work request status</Button> : null}
         {invoices.length ? <Button size="sm" variant="secondary" onClick={() => setOpen('payment')}>Update payment status</Button> : null}
-        {jobs.length ? <Button size="sm" variant="secondary" onClick={() => setOpen('job')}>Update work request status</Button> : null}
+        {jobs.length ? <Button size="sm" variant="secondary" onClick={() => setOpen('job')}>Update service job status</Button> : null}
       </div>
 
       <Modal open={open === 'recommendation'} onClose={() => setOpen(null)} title="Add recommendation">
