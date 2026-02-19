@@ -7,8 +7,10 @@ import { groupVehicleDocuments, VehicleDocumentsGroups } from '@/components/cust
 import { PageHeader } from '@/components/layout/page-header';
 import { RetryButton } from '@/components/ui/retry-button';
 
-export default async function WorkshopVehicleDocumentsPage({ params }: { params: Promise<{ vehicleId: string }> }) {
-  const { vehicleId } = await params;
+export default async function WorkshopVehicleDocumentsPage({ params }: { params: { vehicleId: string } }) {
+  const vehicleId = params?.vehicleId;
+  if (!vehicleId) return <main><Card><h1 className="text-xl font-semibold">Vehicle unavailable</h1></Card></main>;
+
   const supabase = await createClient();
   const user = (await supabase.auth.getUser()).data.user;
   if (!user) redirect('/login');
@@ -33,7 +35,7 @@ export default async function WorkshopVehicleDocumentsPage({ params }: { params:
   const workshopId = profile.workshop_account_id;
 
   try {
-    const [{ data: vehicle }, { data: docs, error: docsError }] = await Promise.all([
+    const [{ data: vehicle }, docsResult] = await Promise.all([
       supabase
         .from('vehicles')
         .select('id,registration_number')
@@ -59,8 +61,8 @@ export default async function WorkshopVehicleDocumentsPage({ params }: { params:
       );
     }
 
-    if (docsError) {
-      console.error('Workshop documents fetch failed', docsError);
+    if (docsResult.error) {
+      console.error('Workshop documents fetch failed', docsResult.error);
       return (
         <main className="space-y-4">
           <PageHeader
@@ -76,7 +78,8 @@ export default async function WorkshopVehicleDocumentsPage({ params }: { params:
       );
     }
 
-    const groups = groupVehicleDocuments(docs ?? []);
+    const docs = Array.isArray(docsResult.data) ? docsResult.data : [];
+    const groups = groupVehicleDocuments(docs);
 
     return (
       <main className="space-y-4">
@@ -85,7 +88,7 @@ export default async function WorkshopVehicleDocumentsPage({ params }: { params:
           subtitle={`${vehicle.registration_number} · Organized by type`}
           actions={<Button asChild variant="secondary" size="sm"><Link href={`/workshop/vehicles/${vehicleId}`}>Back to vehicle</Link></Button>}
         />
-        {!docs?.length ? <Card><p className="text-sm text-gray-600">No documents available for this vehicle yet.</p></Card> : null}
+        {!docs.length ? <Card><p className="text-sm text-gray-600">No documents available for this vehicle yet.</p></Card> : null}
         <VehicleDocumentsGroups groups={groups} />
       </main>
     );

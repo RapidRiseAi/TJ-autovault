@@ -6,16 +6,16 @@ import { createClient } from '@/lib/supabase/server';
 import { HeroHeader } from '@/components/layout/hero-header';
 import { VerifyVehicleButton } from '@/components/workshop/verify-vehicle-button';
 import { WorkshopVehicleActionsPanel } from '@/components/workshop/workshop-vehicle-actions-panel';
-import { StatCard } from '@/components/ui/stat-card';
 import { SectionCard } from '@/components/ui/section-card';
 import { SegmentRing } from '@/components/ui/segment-ring';
+import { MetricCard } from '@/components/workshop/metric-card';
 
 function money(cents: number) {
   return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format((cents ?? 0) / 100);
 }
 
-export default async function WorkshopVehiclePage({ params }: { params: Promise<{ vehicleId: string }> }) {
-  const { vehicleId } = await params;
+export default async function WorkshopVehiclePage({ params }: { params: { vehicleId: string } }) {
+  const { vehicleId } = params;
   const supabase = await createClient();
   const user = (await supabase.auth.getUser()).data.user;
   if (!user) redirect('/login');
@@ -41,6 +41,7 @@ export default async function WorkshopVehiclePage({ params }: { params: Promise<
   const openRequests = (workRequestsResult.data ?? []).filter((x) => !['completed', 'delivered', 'cancelled'].includes(x.status)).length;
   const attentionReports = (docsResult.data ?? []).filter((x) => (x.importance ?? '').toLowerCase() === 'high' || (x.importance ?? '').toLowerCase() === 'urgent').length;
   const pendingVerification = (vehicle.status ?? '').toLowerCase().includes('pending');
+  const unpaidInvoiceCount = invoices.filter((x) => x.payment_status !== 'paid').length;
 
   return (
     <main className="space-y-4">
@@ -52,21 +53,29 @@ export default async function WorkshopVehiclePage({ params }: { params: Promise<
         actions={<><Button asChild size="sm" variant="secondary"><Link href={`/workshop/vehicles/${vehicle.id}/timeline`}>View full timeline</Link></Button><Button asChild size="sm" variant="secondary"><Link href={`/workshop/vehicles/${vehicle.id}/documents`}>View documents</Link></Button>{pendingVerification ? <VerifyVehicleButton vehicleId={vehicle.id} /> : null}</>}
       />
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <StatCard title="Revenue collected" value={money(paidTotal)} detail="Paid invoices" />
-        <StatCard
-          title="Outstanding balance"
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <MetricCard label="Revenue collected" value={money(paidTotal)} support="Paid invoices" />
+        <MetricCard
+          label="Outstanding balance"
           value={money(unpaidTotal)}
-          detail="Unpaid invoices"
-          ring={<SegmentRing size={72} centerLabel={unpaidTotal > 0 ? 'Due' : '0'} subLabel="Invoices" total={Math.max(invoices.length, 1)} segments={[{ value: invoices.filter((x) => x.payment_status !== 'paid').length, tone: 'negative' }]} />}
+          support="Unpaid invoices"
+          visual={
+            <SegmentRing
+              size={72}
+              centerLabel={String(unpaidInvoiceCount)}
+              subLabel="Unpaid"
+              total={Math.max(invoices.length, 1)}
+              segments={[{ value: unpaidInvoiceCount, tone: 'negative' }]}
+            />
+          }
         />
-        <StatCard title="Open work requests" value={openRequests || 0} detail="Active requests" action={<Button asChild size="sm" variant="secondary"><Link href="/workshop/work-requests">View requests</Link></Button>} />
-        <StatCard title="Reports needing attention" value={attentionReports || 0} detail="Urgent/high docs" action={<Button asChild size="sm" variant="secondary"><Link href={`/workshop/vehicles/${vehicle.id}/documents`}>View reports</Link></Button>} />
-        <StatCard title="Verification status" value={pendingVerification ? 'Pending' : 'Verified'} secondary={pendingVerification ? 'Awaiting workshop verification' : 'Verified by workshop'} />
+        <MetricCard label="Open work requests" value={openRequests || 0} support="Active requests" action={<Button asChild size="sm" variant="secondary"><Link href="/workshop/work-requests">View requests</Link></Button>} />
+        <MetricCard label="Reports needing attention" value={attentionReports || 0} support="Urgent/high docs" action={<Button asChild size="sm" variant="secondary"><Link href={`/workshop/vehicles/${vehicle.id}/documents`}>View reports</Link></Button>} />
+        <MetricCard label="Verification status" value={pendingVerification ? 'Pending' : 'Verified'} support={pendingVerification ? 'Awaiting workshop verification' : 'Verified by workshop'} />
       </section>
 
-      <SectionCard className="p-4">
-        <h2 className="mb-3 text-base font-semibold">Quick actions</h2>
+      <SectionCard className="space-y-4 p-5">
+        <h2 className="text-base font-semibold">Quick actions</h2>
         <WorkshopVehicleActionsPanel vehicleId={vehicle.id} invoices={(invoicesResult.data ?? []).map((invoice) => ({ id: invoice.id }))} jobs={(jobsResult.data ?? []).map((job) => ({ id: job.id }))} workRequests={(workRequestsResult.data ?? []).map((request) => ({ id: request.id, status: request.status }))} />
       </SectionCard>
     </main>

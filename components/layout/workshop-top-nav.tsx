@@ -52,7 +52,7 @@ export async function WorkshopTopNav() {
             <Bell className="h-4 w-4" />
             {count && count > 0 ? <span>{count}</span> : null}
           </Link>
-          <Link href="/workshop/profile" className="hidden items-center gap-2 rounded-full border border-black/10 bg-white px-2 py-1 sm:flex hover:bg-gray-50">
+          <Link href="/workshop/profile" className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-2 py-1 hover:bg-gray-50">
             {profile?.avatar_url ? (
               <img src={profile.avatar_url} alt="Workshop avatar" className="h-8 w-8 rounded-full object-cover" />
             ) : (
@@ -61,7 +61,7 @@ export async function WorkshopTopNav() {
               </div>
             )}
             <div className="pr-2 text-left">
-              <p className="text-xs font-semibold leading-tight text-black">{displayName}</p>
+              <p className="text-xs font-semibold leading-tight text-black">team</p>
               <p className="text-[11px] leading-tight text-gray-500">{businessName}</p>
             </div>
           </Link>
