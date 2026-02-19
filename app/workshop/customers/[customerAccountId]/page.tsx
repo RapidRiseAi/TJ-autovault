@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+import { PageHeader } from '@/components/layout/page-header';
 import { Card } from '@/components/ui/card';
 import { createClient } from '@/lib/supabase/server';
 
@@ -39,30 +40,29 @@ export default async function WorkshopCustomerPage({ params }: { params: Promise
 
   return (
     <main className="space-y-4">
-      <h1 className="text-2xl font-bold">{customerDisplayName}</h1>
-      <p className="text-sm text-gray-600">Customer account: {customer.name}</p>
-      <div className="grid gap-3 md:grid-cols-3">
+      <PageHeader title={customerDisplayName} subtitle={`Customer account: ${customer.name}`} />
+      <div className="grid gap-3 md:grid-cols-4">
         {[
           ['Vehicles', hasVehicles ? vehicles.length : 0],
           ['Open quotes', pendingQuotes ?? 0],
           ['Unpaid invoices', unpaidInvoices ?? 0],
           ['Active jobs', activeJobs ?? 0]
         ].map(([label, value]) => (
-          <Card key={label as string}>
+          <Card key={label as string} className="p-4">
             <p className="text-xs text-gray-500">{label}</p>
-            <p className="text-2xl font-bold">{value as number}</p>
+            <p className="mt-1 text-2xl font-semibold">{value as number}</p>
           </Card>
         ))}
       </div>
       <Card>
-        <h2 className="mb-2 font-semibold">Vehicles</h2>
+        <h2 className="mb-2 text-sm font-semibold">Vehicles</h2>
         {isVehiclesLoading ? <p className="text-sm text-gray-500">Loading vehicles...</p> : null}
         {!isVehiclesLoading && !hasVehicles ? (
           <div className="space-y-2">
             <button
               type="button"
               disabled
-              className="cursor-not-allowed rounded border border-gray-200 px-3 py-2 text-sm text-gray-500"
+              className="cursor-not-allowed rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-500"
               aria-disabled="true"
             >
               No vehicles yet
@@ -73,13 +73,11 @@ export default async function WorkshopCustomerPage({ params }: { params: Promise
         {hasVehicles ? (
           <div className="space-y-2">
             {vehicles.map((vehicle) => (
-              <div key={vehicle.id} className="rounded border p-2 text-sm">
+              <div key={vehicle.id} className="flex items-center justify-between rounded-xl border border-black/10 p-3 text-sm">
                 <p>{vehicle.registration_number}</p>
-                <div className="mt-1 flex gap-3 text-xs">
-                  <Link className="underline" href={`/workshop/vehicles/${vehicle.id}`}>
-                    View vehicle
-                  </Link>
-                </div>
+                <Link className="text-xs font-semibold text-brand-red underline" href={`/workshop/vehicles/${vehicle.id}`}>
+                  View vehicle
+                </Link>
               </div>
             ))}
           </div>

@@ -1,16 +1,16 @@
-import Link from 'next/link';
-import { ReactNode } from 'react';
-import { TopNav } from '@/components/layout/top-nav';
-
-const WORKSHOP_NAV = [
-  { href: '/workshop/dashboard', label: 'Dashboard' },
-  { href: '/workshop/customers', label: 'Customers' },
-  { href: '/workshop/work-requests', label: 'Work requests' },
-  { href: '/workshop/vehicle-deletions', label: 'Vehicle deletions' },
-  { href: '/notifications', label: 'Notifications' },
-  { href: '/workshop/profile', label: 'Profile' }
-];
+import type { ReactNode } from 'react';
+import { PageContainer } from '@/components/layout/page-container';
+import { WorkshopSubNav } from '@/components/layout/workshop-sub-nav';
+import { WorkshopTopNav } from '@/components/layout/workshop-top-nav';
 
 export default function WorkshopLayout({ children }: { children: ReactNode }) {
-  return <div><TopNav /><div className="mx-auto max-w-7xl space-y-4 p-6"><nav className="flex flex-wrap gap-2 text-sm">{WORKSHOP_NAV.map((item)=><Link key={item.href} href={item.href} className="rounded border px-3 py-1.5 hover:bg-gray-50">{item.label}</Link>)}</nav>{children}</div></div>;
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-stone-50 via-[#f9f8f6] to-white">
+      <WorkshopTopNav />
+      <PageContainer className="space-y-6">
+        <WorkshopSubNav />
+        {children}
+      </PageContainer>
+    </div>
+  );
 }
