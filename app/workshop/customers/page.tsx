@@ -4,7 +4,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Card } from '@/components/ui/card';
 import { createClient } from '@/lib/supabase/server';
 import { Button } from '@/components/ui/button';
-import { getAvatarSrc, getCustomerDisplayName, getInitials } from '@/lib/workshop/customer-display';
+import { getAvatarSrc, getCustomerDisplayName, getInitials, selectBestCustomerProfile } from '@/lib/workshop/customer-display';
 
 export default async function WorkshopCustomersPage() {
   const supabase = await createClient();
@@ -25,7 +25,7 @@ export default async function WorkshopCustomersPage() {
       <Card className="rounded-3xl">
         <div className="space-y-2">
           {(customers ?? []).map((customer) => {
-            const customerProfile = customer.customer_users?.[0]?.profiles?.[0];
+            const customerProfile = selectBestCustomerProfile(customer.customer_users);
             const customerName = getCustomerDisplayName(customerProfile, customer.name);
             const avatar = getAvatarSrc(customerProfile?.avatar_url);
             return (
