@@ -7,7 +7,7 @@ import { VehicleWorkflowActions } from '@/components/workshop/vehicle-workflow-a
 import { UploadsActionsForm } from '@/components/workshop/uploads-actions-form';
 import { ActionTile } from '@/components/workshop/action-tile';
 
-export function WorkshopVehicleActionsPanel({ vehicleId, invoices, jobs, workRequests }: { vehicleId: string; invoices: Array<{ id: string }>; jobs: Array<{ id: string }>; workRequests: Array<{ id: string; status: string }> }) {
+export function WorkshopVehicleActionsPanel({ vehicleId, invoices, jobs, workRequests }: { vehicleId: string; invoices: Array<{ id: string; invoiceNumber?: string | null; paymentStatus?: string | null; totalCents?: number | null }>; jobs: Array<{ id: string }>; workRequests: Array<{ id: string; status: string }> }) {
   const [uploadOpen, setUploadOpen] = useState(false);
 
   return (

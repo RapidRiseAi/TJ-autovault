@@ -5,25 +5,7 @@ import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { importanceBadgeClass } from '@/lib/timeline';
-
-type VehicleDocument = {
-  id: string;
-  created_at: string | null;
-  document_type: string | null;
-  original_name: string | null;
-  subject: string | null;
-  storage_bucket: string | null;
-  storage_path: string | null;
-  importance: string | null;
-};
-
-type DocumentGroups = {
-  quotes: VehicleDocument[];
-  invoices: VehicleDocument[];
-  inspectionReports: VehicleDocument[];
-  photos: VehicleDocument[];
-  other: VehicleDocument[];
-};
+import type { VehicleDocument, VehicleDocumentsGroups } from '@/lib/vehicle-documents';
 
 function toLabel(type?: string | null) {
   return (type ?? 'other').replaceAll('_', ' ');
@@ -32,20 +14,6 @@ function toLabel(type?: string | null) {
 function toDownloadHref(doc: VehicleDocument) {
   if (!doc.storage_path) return null;
   return `/api/uploads/download?bucket=${encodeURIComponent(doc.storage_bucket ?? '')}&path=${encodeURIComponent(doc.storage_path)}`;
-}
-
-export function groupVehicleDocuments(documents: VehicleDocument[]): DocumentGroups {
-  return documents.reduce<DocumentGroups>(
-    (groups, doc) => {
-      if (doc.document_type === 'quote') groups.quotes.push(doc);
-      else if (doc.document_type === 'invoice') groups.invoices.push(doc);
-      else if (doc.document_type === 'inspection') groups.inspectionReports.push(doc);
-      else if (doc.document_type === 'before_images' || doc.document_type === 'after_images' || doc.document_type === 'vehicle_photo') groups.photos.push(doc);
-      else groups.other.push(doc);
-      return groups;
-    },
-    { quotes: [], invoices: [], inspectionReports: [], photos: [], other: [] }
-  );
 }
 
 function DocumentList({ documents }: { documents: VehicleDocument[] }) {
@@ -85,7 +53,7 @@ function DocumentList({ documents }: { documents: VehicleDocument[] }) {
   );
 }
 
-export function VehicleDocumentsGroups({ groups }: { groups: DocumentGroups }) {
+export function VehicleDocumentsGroups({ groups }: { groups: VehicleDocumentsGroups }) {
   const sections = useMemo(() => [
     { key: 'quotes', title: 'Quotes', items: groups.quotes },
     { key: 'invoices', title: 'Invoices', items: groups.invoices },

@@ -30,6 +30,7 @@ const requestSchema = z.object({
   importance: z.enum(['info', 'warning', 'urgent']).optional(),
   urgency: z.enum(['info', 'low', 'medium', 'high', 'critical']).default('info'),
   amountCents: z.number().int().nonnegative().optional(),
+  referenceNumber: z.string().trim().min(1).max(64).optional(),
   dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
 });
 
@@ -111,7 +112,7 @@ export async function POST(request: NextRequest) {
   let linkedEntityId: string | null = null;
 
   if (normalizedDocType === 'quote') {
-    if (!payload.amountCents || !payload.subject) return NextResponse.json({ error: 'Quote amount and subject are required' }, { status: 400 });
+    if (!payload.amountCents || !payload.subject || !payload.referenceNumber) return NextResponse.json({ error: 'Quote amount, subject, and reference are required' }, { status: 400 });
     const { data: quote, error: quoteError } = await supabase
       .from('quotes')
       .insert({
@@ -122,6 +123,7 @@ export async function POST(request: NextRequest) {
         subtotal_cents: payload.amountCents,
         notes: payload.body || null,
         status: 'sent',
+        quote_number: payload.referenceNumber,
         document_id: doc.id
       })
       .select('id')
@@ -130,7 +132,7 @@ export async function POST(request: NextRequest) {
     linkedEntityId = quote.id;
     await supabase.from('vehicle_documents').update({ quote_id: quote.id }).eq('id', doc.id);
   } else if (normalizedDocType === 'invoice') {
-    if (!payload.amountCents || !payload.subject) return NextResponse.json({ error: 'Invoice amount and subject are required' }, { status: 400 });
+    if (!payload.amountCents || !payload.subject || !payload.referenceNumber) return NextResponse.json({ error: 'Invoice amount, subject, and reference are required' }, { status: 400 });
     const { data: invoice, error: invoiceError } = await supabase
       .from('invoices')
       .insert({
@@ -140,6 +142,7 @@ export async function POST(request: NextRequest) {
         total_cents: payload.amountCents,
         status: 'sent',
         payment_status: 'unpaid',
+        invoice_number: payload.referenceNumber,
         due_date: payload.dueDate || null,
         subject: payload.subject,
         notes: payload.body || null,

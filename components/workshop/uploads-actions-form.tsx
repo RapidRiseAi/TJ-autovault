@@ -22,6 +22,7 @@ export function UploadsActionsForm({ vehicleId, onSuccess }: { vehicleId: string
   const [body, setBody] = useState('');
   const [urgency, setUrgency] = useState<Urgency>('info');
   const [amount, setAmount] = useState('');
+  const [referenceNumber, setReferenceNumber] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -32,8 +33,8 @@ export function UploadsActionsForm({ vehicleId, onSuccess }: { vehicleId: string
   const isWarning = documentType === 'warning';
 
   const disableSubmit = useMemo(
-    () => isSubmitting || !file || !subject.trim() || (isQuoteOrInvoice && !amount) || (isWarning && !body.trim()),
-    [amount, body, file, isQuoteOrInvoice, isSubmitting, isWarning, subject]
+    () => isSubmitting || !file || !subject.trim() || (isQuoteOrInvoice && (!amount || !referenceNumber.trim())) || (isWarning && !body.trim()),
+    [amount, body, file, isQuoteOrInvoice, isSubmitting, isWarning, referenceNumber, subject]
   );
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -58,7 +59,7 @@ export function UploadsActionsForm({ vehicleId, onSuccess }: { vehicleId: string
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           vehicleId, bucket: signedPayload.bucket, path: signedPayload.path, contentType: file.type, size: file.size, originalName: file.name, docType: signedPayload.docType,
-          subject: subject.trim(), body: body.trim() || undefined, urgency: isWarning ? 'high' : urgency, amountCents: isQuoteOrInvoice ? Math.round(Number(amount) * 100) : undefined, dueDate: isInvoice && dueDate ? dueDate : undefined
+          subject: subject.trim(), body: body.trim() || undefined, urgency: isWarning ? 'high' : urgency, amountCents: isQuoteOrInvoice ? Math.round(Number(amount) * 100) : undefined, referenceNumber: isQuoteOrInvoice ? referenceNumber.trim() : undefined, dueDate: isInvoice && dueDate ? dueDate : undefined
         })
       });
       if (!completeResponse.ok) throw new Error((await completeResponse.json()).error ?? 'Could not complete upload');
@@ -91,6 +92,7 @@ export function UploadsActionsForm({ vehicleId, onSuccess }: { vehicleId: string
         <input value={subject} onChange={(event) => setSubject(event.target.value)} required className="mt-1 w-full rounded border p-2" />
       </label>
       {isQuoteOrInvoice ? <label className="block text-sm font-medium">Amount<input type="number" min="0" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} required className="mt-1 w-full rounded border p-2" /></label> : null}
+      {isQuoteOrInvoice ? <label className="block text-sm font-medium">{documentType === 'invoice' ? 'Invoice reference number' : 'Quote reference number'}<input value={referenceNumber} onChange={(event) => setReferenceNumber(event.target.value)} required className="mt-1 w-full rounded border p-2" placeholder={documentType === 'invoice' ? 'INV-0001' : 'QTE-0001'} /></label> : null}
       {isInvoice ? <label className="block text-sm font-medium">Due date (optional)<input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} className="mt-1 w-full rounded border p-2" /></label> : null}
       <label className="block text-sm font-medium">Body / notes<textarea value={body} onChange={(event) => setBody(event.target.value)} className="mt-1 w-full rounded border p-2" rows={3} /></label>
       <label className="block text-sm font-medium">File<input type="file" accept="application/pdf,image/*" required className="mt-1 block w-full text-sm" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /></label>
