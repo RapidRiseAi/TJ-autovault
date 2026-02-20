@@ -9,6 +9,7 @@ import { SectionCard } from '@/components/ui/section-card';
 import { SegmentRing } from '@/components/ui/segment-ring';
 import { EmptyState } from '@/components/ui/empty-state';
 import { getAvatarSrc, getCustomerDisplayName, getInitials, selectBestCustomerProfile } from '@/lib/workshop/customer-display';
+import { SendMessageModal } from '@/components/messages/send-message-modal';
 
 type CustomerRow = {
   id: string;
@@ -132,9 +133,15 @@ export default async function WorkshopDashboardPage() {
         title="Workshop dashboard"
         subtitle="Track customers, active jobs, and billing from one polished workspace."
         actions={
-          <Button asChild className="shadow-sm hover:-translate-y-px hover:shadow-md">
-            <Link href="/workshop/work-requests">Open work request board</Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <SendMessageModal
+              vehicles={(customerVehicles ?? []).map((vehicle) => ({ id: vehicle.id, registration_number: vehicle.registration_number }))}
+              customers={customerRows.map((customer) => ({ id: customer.id, name: customer.name }))}
+            />
+            <Button asChild className="shadow-sm hover:-translate-y-px hover:shadow-md">
+              <Link href="/workshop/work-requests">Open work request board</Link>
+            </Button>
+          </div>
         }
       />
 

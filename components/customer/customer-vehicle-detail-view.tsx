@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { SegmentRing, type RingSegment } from '@/components/ui/segment-ring';
 import { RingChart } from '@/components/ui/ring-chart';
 import { LogSomethingModal } from '@/components/customer/log-something-modal';
+import { SendMessageModal } from '@/components/messages/send-message-modal';
 
 type Vehicle = {
   id: string;
@@ -115,7 +116,8 @@ export function CustomerVehicleDetailView({
   timelineHref,
   documentsHref,
   editHref,
-  dashboardHref
+  dashboardHref,
+  customerVehiclesForMessage
 }: {
   vehicle: Vehicle;
   timeline: Array<{
@@ -133,6 +135,7 @@ export function CustomerVehicleDetailView({
   documentsHref: string;
   editHref: string;
   dashboardHref: string;
+  customerVehiclesForMessage: Array<{ id: string; registration_number: string | null }>;
 }) {
   const [openModal, setOpenModal] = useState<
     | 'request'
@@ -338,6 +341,11 @@ export function CustomerVehicleDetailView({
             >
               <Link href={documentsHref}>Documents</Link>
             </Button>
+            <SendMessageModal
+              vehicles={customerVehiclesForMessage}
+              defaultVehicleId={vehicle.id}
+              triggerClassName="border-white/30 bg-white/10 text-white hover:bg-white/20"
+            />
             <div className="relative">
               <Button
                 size="sm"
