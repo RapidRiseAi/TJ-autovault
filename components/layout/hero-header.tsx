@@ -23,15 +23,15 @@ export function HeroHeader({
         className
       )}
     >
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-start gap-4">
           {media ? <div className="shrink-0">{media}</div> : null}
           <div className="space-y-2">
-            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+            <h1 className="text-3xl font-bold tracking-tight sm:text-[2.05rem]">
               {title}
             </h1>
             {subtitle ? (
-              <p className="max-w-2xl text-sm text-white/75">{subtitle}</p>
+              <p className="max-w-xl text-xs text-white/70 sm:text-sm">{subtitle}</p>
             ) : null}
             {meta ? (
               <div className="flex flex-wrap gap-2 text-xs text-white/80">

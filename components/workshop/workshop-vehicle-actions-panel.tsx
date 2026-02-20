@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Upload } from 'lucide-react';
 import { Modal } from '@/components/ui/modal';
 import { VehicleWorkflowActions } from '@/components/workshop/vehicle-workflow-actions';
 import { UploadsActionsForm } from '@/components/workshop/uploads-actions-form';
@@ -11,8 +12,14 @@ export function WorkshopVehicleActionsPanel({ vehicleId, invoices, jobs, workReq
 
   return (
     <>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <ActionTile title="Upload document" description="Attach reports, invoices, quotes, or photos for this vehicle." onClick={() => setUploadOpen(true)} />
+      <div className="grid gap-3 md:grid-cols-2">
+        <ActionTile
+          title="Upload document"
+          description="Attach reports, invoices, quotes, or photos for this vehicle."
+          icon={<Upload className="h-4 w-4" />}
+          primary
+          onClick={() => setUploadOpen(true)}
+        />
       </div>
       <VehicleWorkflowActions vehicleId={vehicleId} invoices={invoices} jobs={jobs} workRequests={workRequests} />
       <Modal open={uploadOpen} onClose={() => setUploadOpen(false)} title="Upload document">

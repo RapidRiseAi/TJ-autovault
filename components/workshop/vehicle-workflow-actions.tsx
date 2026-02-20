@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Wrench } from 'lucide-react';
+import { BadgeDollarSign, ClipboardCheck, Gauge, Wrench } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast-provider';
@@ -40,11 +40,11 @@ export function VehicleWorkflowActions({ vehicleId, invoices, jobs, workRequests
 
   return (
     <div className="space-y-3">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <ActionTile title="Add recommendation" description="Log work and recommended follow-up items." icon={<Wrench className="h-4 w-4" />} onClick={() => setOpen('recommendation')} />
-        <ActionTile title="Update mileage" description="Capture latest odometer and service reminders." icon={<Wrench className="h-4 w-4" />} onClick={() => setOpen('mileage')} />
-        {workRequests.length ? <ActionTile title="Update work request status" description="Move requests through the workshop pipeline." icon={<Wrench className="h-4 w-4" />} onClick={() => setOpen('request')} /> : null}
-        {invoices.length ? <ActionTile title="Update payment status" description="Mark invoice payment progress for this vehicle." icon={<Wrench className="h-4 w-4" />} onClick={() => setOpen('payment')} /> : null}
+      <div className="grid gap-3 md:grid-cols-2">
+        <ActionTile title="Add recommendation" description="Log work and recommended follow-up items." icon={<ClipboardCheck className="h-4 w-4" />} onClick={() => setOpen('recommendation')} />
+        <ActionTile title="Update mileage" description="Capture latest odometer and service reminders." icon={<Gauge className="h-4 w-4" />} onClick={() => setOpen('mileage')} />
+        {workRequests.length ? <ActionTile title="Update work request status" description="Move requests through the workshop pipeline." icon={<ClipboardCheck className="h-4 w-4" />} onClick={() => setOpen('request')} /> : null}
+        {invoices.length ? <ActionTile title="Update payment status" description="Mark invoice payment progress for this vehicle." icon={<BadgeDollarSign className="h-4 w-4" />} onClick={() => setOpen('payment')} /> : null}
         {jobs.length ? <ActionTile title="Update service job status" description="Update service job stage for active work." icon={<Wrench className="h-4 w-4" />} onClick={() => setOpen('job')} /> : null}
       </div>
 

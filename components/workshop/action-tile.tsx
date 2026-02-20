@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function ActionTile({
@@ -6,13 +7,15 @@ export function ActionTile({
   description,
   icon,
   onClick,
-  disabled
+  disabled,
+  primary = false
 }: {
   title: string;
   description: string;
   icon?: ReactNode;
   onClick: () => void;
   disabled?: boolean;
+  primary?: boolean;
 }) {
   return (
     <button
@@ -20,14 +23,20 @@ export function ActionTile({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        'flex w-full flex-col rounded-2xl border border-black/10 bg-white p-4 text-left shadow-[0_8px_24px_rgba(17,17,17,0.06)] transition hover:-translate-y-px hover:border-black/20 hover:shadow-[0_12px_28px_rgba(17,17,17,0.08)] disabled:cursor-not-allowed disabled:opacity-50'
+        'flex w-full items-center justify-between gap-3 rounded-xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-px hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50',
+        primary
+          ? 'border-brand-red/30 bg-gradient-to-r from-red-50 to-white'
+          : 'border-neutral-200'
       )}
     >
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <p className="text-sm font-semibold text-black">{title}</p>
-        {icon ? <span className="text-black/70">{icon}</span> : null}
+      <div className="flex min-w-0 items-start gap-3">
+        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-700">{icon}</span>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-black">{title}</p>
+          <p className="text-xs text-gray-500">{description}</p>
+        </div>
       </div>
-      <p className="text-xs text-gray-500">{description}</p>
+      <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" />
     </button>
   );
 }
