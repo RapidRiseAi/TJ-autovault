@@ -2,12 +2,10 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import {
-  BadgeCheck,
   BadgeDollarSign,
   ClipboardList,
   FileWarning,
   ReceiptText,
-  TriangleAlert
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -89,20 +87,19 @@ export default async function WorkshopVehiclePage({ params }: { params: Promise<
         actions={<><Button asChild size="sm" variant="secondary"><Link href={`/workshop/vehicles/${vehicle.id}/timeline`}>View full timeline</Link></Button><Button asChild size="sm" variant="secondary"><Link href={`/workshop/vehicles/${vehicle.id}/documents`}>View documents</Link></Button>{pendingVerification ? <VerifyVehicleButton vehicleId={vehicle.id} /> : null}</>}
       />
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile label="Revenue collected" value={money(paidTotal)} subtext="Paid invoices" icon={<BadgeDollarSign className="h-4 w-4" />} />
         <StatTile label="Outstanding balance" value={money(unpaidTotal)} subtext="Unpaid invoices" icon={<ReceiptText className="h-4 w-4" />} badge={unpaidInvoiceCount > 0 ? `${unpaidInvoiceCount} unpaid` : undefined} />
         <StatTile label="Open work requests" value={openRequests || 0} subtext="Active requests" icon={<ClipboardList className="h-4 w-4" />} />
         <StatTile label="Reports needing attention" value={attentionReports || 0} subtext="Urgent/high docs" icon={<FileWarning className="h-4 w-4" />} />
-        <StatTile label="Verification status" value={pendingVerification ? 'Pending' : 'Verified'} subtext={pendingVerification ? 'Awaiting workshop verification' : 'Verified by workshop'} icon={pendingVerification ? <TriangleAlert className="h-4 w-4" /> : <BadgeCheck className="h-4 w-4" />} />
       </section>
 
-      <SectionCard className="rounded-2xl border border-neutral-200 bg-white p-6 shadow-[0_18px_40px_rgba(17,17,17,0.09)]">
+      <SectionCard className="rounded-3xl border border-neutral-200/90 bg-neutral-50/70 p-7 shadow-[0_20px_42px_rgba(17,17,17,0.08)]">
         <div className="mb-4">
           <h2 className="text-base font-semibold">Quick actions</h2>
           <p className="text-sm text-gray-500">Run common workshop updates without leaving this page.</p>
         </div>
-        <div className="rounded-xl bg-neutral-50 p-4">
+        <div className="rounded-2xl border border-neutral-200 bg-white/80 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]">
           <WorkshopVehicleActionsPanel vehicleId={vehicle.id} invoices={(invoicesResult.data ?? []).map((invoice) => ({ id: invoice.id }))} jobs={(jobsResult.data ?? []).map((job) => ({ id: job.id }))} workRequests={(workRequestsResult.data ?? []).map((request) => ({ id: request.id, status: request.status }))} />
         </div>
       </SectionCard>
