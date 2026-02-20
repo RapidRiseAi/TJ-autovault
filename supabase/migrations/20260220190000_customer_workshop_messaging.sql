@@ -42,12 +42,59 @@ create index if not exists messages_customer_created_idx on public.messages(cust
 create index if not exists messages_vehicle_created_idx on public.messages(vehicle_id, created_at desc);
 create index if not exists messages_conversation_created_idx on public.messages(conversation_id, created_at asc);
 
-alter table if exists public.vehicle_timeline_events drop constraint if exists vehicle_timeline_events_event_type_check;
-alter table if exists public.vehicle_timeline_events
-  add constraint vehicle_timeline_events_event_type_check
-  check (event_type in (
-    'vehicle_created','status_changed','doc_uploaded','job_created','job_status_changed','recommendation_added','recommendation_status_changed','ticket_created','message','note','inspection_requested','service_requested','quote_created','quote_status_changed','invoice_created','payment_status_changed','problem_reported','deletion_requested','deletion_reviewed','manual_log','message_sent','message_reply'
-  ));
+do $$
+declare
+  v_allowed_types text[];
+  v_allowed_types_sql text;
+begin
+  select array(
+    select distinct event_type
+    from (
+      select unnest(array[
+        'vehicle_created',
+        'status_changed',
+        'doc_uploaded',
+        'job_created',
+        'job_status_changed',
+        'recommendation_added',
+        'recommendation_status_changed',
+        'ticket_created',
+        'message',
+        'note',
+        'inspection_requested',
+        'service_requested',
+        'quote_created',
+        'quote_status_changed',
+        'invoice_created',
+        'payment_status_changed',
+        'problem_reported',
+        'mileage_updated',
+        'deletion_requested',
+        'deletion_reviewed',
+        'deletion_exported',
+        'deletion_completed',
+        'manual_log',
+        'message_sent',
+        'message_reply'
+      ]::text[]) as event_type
+      union all
+      select vte.event_type
+      from public.vehicle_timeline_events vte
+    ) all_event_types
+    where event_type is not null and event_type <> ''
+    order by event_type
+  ) into v_allowed_types;
+
+  select string_agg(quote_literal(event_type), ', ')
+  into v_allowed_types_sql
+  from unnest(v_allowed_types) event_type;
+
+  alter table if exists public.vehicle_timeline_events drop constraint if exists vehicle_timeline_events_event_type_check;
+  execute format(
+    'alter table public.vehicle_timeline_events add constraint vehicle_timeline_events_event_type_check check (event_type in (%s))',
+    v_allowed_types_sql
+  );
+end $$;
 
 alter table if exists public.message_conversations enable row level security;
 alter table if exists public.messages enable row level security;

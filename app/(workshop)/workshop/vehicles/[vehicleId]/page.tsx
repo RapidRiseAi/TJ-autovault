@@ -14,6 +14,7 @@ import { HeroHeader } from '@/components/layout/hero-header';
 import { VerifyVehicleButton } from '@/components/workshop/verify-vehicle-button';
 import { WorkshopVehicleActionsPanel } from '@/components/workshop/workshop-vehicle-actions-panel';
 import { SectionCard } from '@/components/ui/section-card';
+import { SendMessageModal } from '@/components/messages/send-message-modal';
 
 function money(cents: number) {
   return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format((cents ?? 0) / 100);
@@ -53,7 +54,7 @@ export default async function WorkshopVehiclePage({ params }: { params: Promise<
   if (!profile?.workshop_account_id || (profile.role !== 'admin' && profile.role !== 'technician')) redirect('/customer/dashboard');
 
   const workshopId = profile.workshop_account_id;
-  const [vehicleResult, jobsResult, invoicesResult, docsResult, workRequestsResult] = await Promise.all([
+  const [vehicleResult, jobsResult, invoicesResult, docsResult, workRequestsResult, customersResult] = await Promise.all([
     supabase
       .from('vehicles')
       .select('id,registration_number,make,model,year,odometer_km,workshop_account_id,primary_image_path,status,current_customer_account_id')
@@ -63,7 +64,8 @@ export default async function WorkshopVehiclePage({ params }: { params: Promise<
     supabase.from('service_jobs').select('id,status').eq('vehicle_id', vehicleId).eq('workshop_account_id', workshopId),
     supabase.from('invoices').select('id,payment_status,total_cents,invoice_number').eq('vehicle_id', vehicleId).eq('workshop_account_id', workshopId),
     supabase.from('vehicle_documents').select('id,importance').eq('vehicle_id', vehicleId).eq('workshop_account_id', workshopId),
-    supabase.from('work_requests').select('id,status').eq('vehicle_id', vehicleId).eq('workshop_account_id', workshopId)
+    supabase.from('work_requests').select('id,status').eq('vehicle_id', vehicleId).eq('workshop_account_id', workshopId),
+    supabase.from('customer_accounts').select('id,name').eq('workshop_account_id', workshopId).order('name', { ascending: true })
   ]);
 
   const vehicle = vehicleResult.data;
@@ -96,7 +98,7 @@ export default async function WorkshopVehiclePage({ params }: { params: Promise<
         subtitle={`${vehicle.make ?? ''} ${vehicle.model ?? ''} ${vehicle.year ? `(${vehicle.year})` : ''}`}
         media={vehicle.primary_image_path ? <img src={`/api/uploads/download?bucket=vehicle-images&path=${encodeURIComponent(vehicle.primary_image_path)}`} alt="Vehicle" className="h-20 w-20 rounded-2xl object-cover" /> : <div className="h-20 w-20 rounded-2xl bg-white/10" />}
         meta={<><span className="rounded-full border border-white/25 bg-white/10 px-3 py-1">Mileage {vehicle.odometer_km ?? 'N/A'} km</span><span className="rounded-full border border-white/25 bg-white/10 px-3 py-1">Status {vehicle.status ?? 'pending'}</span></>}
-        actions={<><Button asChild size="sm" variant="secondary"><Link href={`/workshop/vehicles/${vehicle.id}/timeline`}>View full timeline</Link></Button><Button asChild size="sm" variant="secondary"><Link href={`/workshop/vehicles/${vehicle.id}/documents`}>View documents</Link></Button>{pendingVerification ? <VerifyVehicleButton vehicleId={vehicle.id} /> : null}</>}
+        actions={<><SendMessageModal vehicles={[{ id: vehicle.id, registration_number: vehicle.registration_number }]} defaultVehicleId={vehicle.id} customers={(customersResult.data ?? []).map((customer) => ({ id: customer.id, name: customer.name }))} defaultCustomerId={vehicle.current_customer_account_id} /><Button asChild size="sm" variant="secondary"><Link href={`/workshop/vehicles/${vehicle.id}/timeline`}>View full timeline</Link></Button><Button asChild size="sm" variant="secondary"><Link href={`/workshop/vehicles/${vehicle.id}/documents`}>View documents</Link></Button>{pendingVerification ? <VerifyVehicleButton vehicleId={vehicle.id} /> : null}</>}
       />
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
