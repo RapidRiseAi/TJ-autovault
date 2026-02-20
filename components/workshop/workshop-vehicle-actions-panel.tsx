@@ -7,7 +7,7 @@ import { VehicleWorkflowActions } from '@/components/workshop/vehicle-workflow-a
 import { UploadsActionsForm } from '@/components/workshop/uploads-actions-form';
 import { ActionTile } from '@/components/workshop/action-tile';
 
-export function WorkshopVehicleActionsPanel({ vehicleId, invoices, jobs, workRequests, currentMileage }: { vehicleId: string; invoices: Array<{ id: string; invoiceNumber?: string | null; paymentStatus?: string | null; totalCents?: number | null }>; jobs: Array<{ id: string }>; workRequests: Array<{ id: string; status: string }>; currentMileage: number }) {
+export function WorkshopVehicleActionsPanel({ vehicleId, invoices, jobs, workRequests, currentMileage, uploadDestinationLabel }: { vehicleId: string; invoices: Array<{ id: string; invoiceNumber?: string | null; paymentStatus?: string | null; totalCents?: number | null }>; jobs: Array<{ id: string }>; workRequests: Array<{ id: string; status: string }>; currentMileage: number; uploadDestinationLabel: string }) {
   const [uploadOpen, setUploadOpen] = useState(false);
 
   return (
@@ -23,7 +23,7 @@ export function WorkshopVehicleActionsPanel({ vehicleId, invoices, jobs, workReq
       </div>
       <VehicleWorkflowActions vehicleId={vehicleId} invoices={invoices} jobs={jobs} workRequests={workRequests} currentMileage={currentMileage} />
       <Modal open={uploadOpen} onClose={() => setUploadOpen(false)} title="Upload document">
-        <UploadsActionsForm vehicleId={vehicleId} onSuccess={() => setUploadOpen(false)} />
+        <UploadsActionsForm vehicleId={vehicleId} destinationLabel={uploadDestinationLabel} onSuccess={() => setUploadOpen(false)} />
       </Modal>
     </>
   );

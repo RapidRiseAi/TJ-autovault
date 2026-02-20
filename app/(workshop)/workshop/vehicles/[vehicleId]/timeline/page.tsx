@@ -35,7 +35,7 @@ export default async function WorkshopVehicleTimelinePage({ params }: { params: 
   const [{ data: vehicle }, { data: timeline, error: timelineError }, { data: documents, error: documentsError }, { data: deletionRequests }] = await Promise.all([
     supabase
       .from('vehicles')
-      .select('id,registration_number')
+      .select('id,registration_number,make,model,current_customer_account_id')
       .eq('id', vehicleId)
       .eq('workshop_account_id', workshopId)
       .maybeSingle(),
@@ -72,6 +72,19 @@ export default async function WorkshopVehicleTimelinePage({ params }: { params: 
     );
   }
 
+
+  const { data: customerAccount } = vehicle.current_customer_account_id
+    ? await supabase
+        .from('customer_accounts')
+        .select('name')
+        .eq('id', vehicle.current_customer_account_id)
+        .maybeSingle()
+    : { data: null };
+
+  const customerName = customerAccount?.name?.trim() || 'Customer';
+  const vehicleName = `${vehicle.make?.trim() || ''} ${vehicle.model?.trim() || ''}`.trim() || 'vehicle';
+  const timelineTitle = `${customerName}'s ${vehicleName} timeline`;
+
   if (timelineError || documentsError) {
     return (
       <main className="space-y-4">
@@ -96,7 +109,7 @@ export default async function WorkshopVehicleTimelinePage({ params }: { params: 
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold">Full timeline</h1>
+            <h1 className="text-2xl font-bold">{timelineTitle}</h1>
             <p className="text-sm text-gray-600">{vehicle.registration_number} · Unified activity stream</p>
           </div>
           <div className="flex gap-2">

@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { CheckCircle2, Loader2, XCircle } from 'lucide-react';
+import { Modal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast-provider';
 
 async function upload(
@@ -84,17 +85,19 @@ export function CustomerUploadActions({ vehicleId }: { vehicleId: string }) {
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const [result, setResult] = useState<UploadResult>(null);
   const [uploadedState, setUploadedState] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingUpload, setPendingUpload] = useState<{ file: File; type: 'report' | 'vehicle_photo' } | null>(null);
 
-  async function onChoose(file: File | null, type: 'report' | 'vehicle_photo') {
+  function onChoose(file: File | null, type: 'report' | 'vehicle_photo') {
     if (!file) return;
-    const receiver = 'your workshop';
-    const confirmed = window.confirm(
-      `Are you sure you want to upload "${file.name}" as ${
-        type === 'vehicle_photo' ? 'a vehicle photo' : 'a report'
-      } to ${receiver}?`
-    );
-    if (!confirmed) return;
+    setPendingUpload({ file, type });
+    setConfirmOpen(true);
+  }
 
+  async function confirmUpload() {
+    if (!pendingUpload) return;
+    const { file, type } = pendingUpload;
+    setConfirmOpen(false);
     setSelectedFileName(file.name);
     setResult(null);
     setActiveType(type);
@@ -123,6 +126,7 @@ export function CustomerUploadActions({ vehicleId }: { vehicleId: string }) {
     } finally {
       setIsUploading(false);
       setActiveType(null);
+      setPendingUpload(null);
     }
   }
 
@@ -200,7 +204,7 @@ export function CustomerUploadActions({ vehicleId }: { vehicleId: string }) {
         className="hidden"
         accept="application/pdf,image/*"
         onChange={(e) => {
-          void onChoose(e.target.files?.[0] ?? null, 'report');
+          onChoose(e.target.files?.[0] ?? null, 'report');
           e.currentTarget.value = '';
         }}
       />
@@ -210,10 +214,24 @@ export function CustomerUploadActions({ vehicleId }: { vehicleId: string }) {
         className="hidden"
         accept="image/*"
         onChange={(e) => {
-          void onChoose(e.target.files?.[0] ?? null, 'vehicle_photo');
+          onChoose(e.target.files?.[0] ?? null, 'vehicle_photo');
           e.currentTarget.value = '';
         }}
       />
+
+      <Modal open={confirmOpen} onClose={() => setConfirmOpen(false)} title="Confirm upload">
+        <div className="space-y-4 text-sm">
+          <dl className="space-y-1 rounded border border-black/10 bg-zinc-50 p-3">
+            <div><dt className="font-medium">File name</dt><dd>{pendingUpload?.file.name ?? 'Unknown file'}</dd></div>
+            <div><dt className="font-medium">Upload type</dt><dd>{pendingUpload?.type === 'vehicle_photo' ? 'Vehicle photo' : 'Report'}</dd></div>
+            <div><dt className="font-medium">Destination</dt><dd>Your workshop timeline</dd></div>
+          </dl>
+          <div className="flex justify-end gap-2">
+            <button type="button" className="rounded border px-3 py-2" onClick={() => setConfirmOpen(false)}>Cancel</button>
+            <button type="button" className="rounded bg-black px-3 py-2 text-white" onClick={() => { void confirmUpload(); }}>Confirm upload</button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

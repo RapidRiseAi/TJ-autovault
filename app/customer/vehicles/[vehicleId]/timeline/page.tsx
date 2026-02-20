@@ -28,7 +28,7 @@ export default async function VehicleTimelinePage({ params }: { params: Promise<
   const customerAccountId = context.customer_account.id;
   const { data: vehicle } = await supabase
     .from('vehicles')
-    .select('id,registration_number')
+    .select('id,registration_number,make,model')
     .eq('id', vehicleId)
     .eq('current_customer_account_id', customerAccountId)
     .maybeSingle();
@@ -43,6 +43,16 @@ export default async function VehicleTimelinePage({ params }: { params: Promise<
       </main>
     );
   }
+
+  const { data: customerAccount } = await supabase
+    .from('customer_accounts')
+    .select('name')
+    .eq('id', customerAccountId)
+    .maybeSingle();
+
+  const customerName = customerAccount?.name?.trim() || 'Customer';
+  const vehicleName = `${vehicle.make?.trim() || ''} ${vehicle.model?.trim() || ''}`.trim() || 'vehicle';
+  const timelineTitle = `${customerName}'s ${vehicleName} timeline`;
 
   const [{ data: timeline }, { data: documents }, { data: deletionRequests }] = await Promise.all([
     supabase
@@ -77,7 +87,7 @@ export default async function VehicleTimelinePage({ params }: { params: Promise<
 
   return (
     <main className="space-y-4">
-      <PageHeader title="Full timeline" subtitle={`${vehicle.registration_number} · Unified activity stream`} actions={<div className="flex gap-2"><Button asChild variant="secondary" size="sm"><Link href={`/customer/vehicles/${vehicleId}/documents`}>Upload document</Link></Button><Button asChild variant="secondary" size="sm"><Link href={customerVehicle(vehicleId)}>Back to vehicle</Link></Button></div>} />
+      <PageHeader title={timelineTitle} subtitle={`${vehicle.registration_number} · Unified activity stream`} actions={<div className="flex gap-2"><Button asChild variant="secondary" size="sm"><Link href={`/customer/vehicles/${vehicleId}/documents`}>Upload document</Link></Button><Button asChild variant="secondary" size="sm"><Link href={customerVehicle(vehicleId)}>Back to vehicle</Link></Button></div>} />
 
       <Card>
         <h2 className="mb-3 text-lg font-semibold">Activity</h2>
