@@ -192,5 +192,5 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  return NextResponse.json({ ok: true, documentId: doc.id });
+  return NextResponse.json({ ok: true, documentId: doc.id, bucket: payload.bucket, path: payload.path });
 }
