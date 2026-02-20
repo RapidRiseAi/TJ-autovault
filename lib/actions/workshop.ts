@@ -75,18 +75,22 @@ export async function createInvoice(input: { vehicleId: string; totalCents: numb
   const { data: vehicle } = await getVehicleContext(ctx, input.vehicleId);
   if (!vehicle?.current_customer_account_id) return { ok: false, error: 'Vehicle not found' };
 
-  const { error } = await ctx.supabase.from('invoices').insert({
-    workshop_account_id: vehicle.workshop_account_id,
-    customer_account_id: vehicle.current_customer_account_id,
-    vehicle_id: vehicle.id,
-    total_cents: input.totalCents,
-    due_date: input.dueDate || null,
-    status: 'sent',
-    payment_status: 'unpaid',
-    subject: input.subject || null,
-    notes: input.notes || null
-  });
-  if (error) return { ok: false, error: error.message };
+  const { data: invoice, error } = await ctx.supabase
+    .from('invoices')
+    .insert({
+      workshop_account_id: vehicle.workshop_account_id,
+      customer_account_id: vehicle.current_customer_account_id,
+      vehicle_id: vehicle.id,
+      total_cents: input.totalCents,
+      due_date: input.dueDate || null,
+      status: 'sent',
+      payment_status: 'unpaid',
+      subject: input.subject || null,
+      notes: input.notes || null
+    })
+    .select('id')
+    .single();
+  if (error || !invoice) return { ok: false, error: error?.message ?? 'Unable to create invoice' };
 
   await ctx.supabase.from('vehicle_timeline_events').insert({
     workshop_account_id: vehicle.workshop_account_id,
@@ -98,7 +102,7 @@ export async function createInvoice(input: { vehicleId: string; totalCents: numb
     title: input.subject?.trim() || 'Invoice issued',
     description: input.notes || null,
     importance: 'warning',
-    metadata: {}
+    metadata: { invoice_id: invoice.id }
   });
 
   revalidatePath(`/workshop/vehicles/${vehicle.id}`);
@@ -129,7 +133,7 @@ export async function updateInvoicePaymentStatus(input: { invoiceId: string; pay
     event_type: 'payment_status_changed',
     title: `Payment ${input.paymentStatus}`,
     importance: input.paymentStatus === 'paid' ? 'info' : 'warning',
-    metadata: {}
+    metadata: { invoice_id: input.invoiceId }
   });
 
   revalidatePath(`/workshop/vehicles/${data.vehicle_id}`);
@@ -259,8 +263,25 @@ export async function updateVehicleServiceReminders(input: {
   const ctx = await getWorkshopContext();
   if (!ctx) return { ok: false, error: 'Unauthorized' };
 
+  const { data: currentVehicle } = await ctx.supabase
+    .from('vehicles')
+    .select('odometer_km')
+    .eq('id', input.vehicleId)
+    .eq('workshop_account_id', ctx.profile.workshop_account_id)
+    .maybeSingle();
+
+  if (!currentVehicle) return { ok: false, error: 'Vehicle not found' };
+
+  const currentMileage = currentVehicle.odometer_km ?? 0;
+  if (typeof input.odometerKm === 'number' && input.odometerKm < currentMileage) {
+    return {
+      ok: false,
+      error: `Mileage must be at least ${currentMileage.toLocaleString()} km.`
+    };
+  }
+
   const patch = {
-    odometer_km: input.odometerKm ?? null,
+    odometer_km: input.odometerKm ?? currentMileage,
     next_service_km: input.nextServiceKm ?? null,
     next_service_date: input.nextServiceDate || null
   };

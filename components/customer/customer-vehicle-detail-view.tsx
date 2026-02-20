@@ -695,7 +695,7 @@ export function CustomerVehicleDetailView({
         onClose={() => setOpenModal(null)}
         title="Update mileage"
       >
-        <MileageForm vehicleId={vehicle.id} />
+        <MileageForm vehicleId={vehicle.id} currentMileage={vehicle.odometer_km ?? 0} />
       </Modal>
       <Modal
         open={openModal === 'upload'}

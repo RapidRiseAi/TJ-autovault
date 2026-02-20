@@ -153,6 +153,23 @@ export async function updateMileage(input: {
   if (!context) return { ok: false, error: 'Please sign in.' };
   const account = context.customer_account;
 
+  const { data: vehicle } = await supabase
+    .from('vehicles')
+    .select('odometer_km')
+    .eq('id', input.vehicleId)
+    .eq('current_customer_account_id', account.id)
+    .maybeSingle();
+
+  if (!vehicle) return { ok: false, error: 'Vehicle not found.' };
+
+  const currentMileage = vehicle.odometer_km ?? 0;
+  if (input.odometerKm < currentMileage) {
+    return {
+      ok: false,
+      error: `Mileage must be at least ${currentMileage.toLocaleString()} km.`
+    };
+  }
+
   const { error } = await supabase
     .from('vehicles')
     .update({ odometer_km: input.odometerKm })

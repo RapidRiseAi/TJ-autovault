@@ -51,7 +51,7 @@ export default async function CustomerInvoicesPage({
       .eq('current_customer_account_id', customerAccountId),
     supabase
       .from('vehicle_documents')
-      .select('id,storage_bucket,storage_path,subject,document_type,vehicle_id')
+      .select('id,storage_bucket,storage_path,subject,document_type,vehicle_id,invoice_id')
       .eq('customer_account_id', customerAccountId)
       .eq('document_type', 'invoice')
   ]);
@@ -72,10 +72,20 @@ export default async function CustomerInvoicesPage({
 
   (docs ?? []).forEach((doc) => {
     if (!doc.storage_path || !doc.storage_bucket) return;
+
+    if (doc.invoice_id && !docMap.has(doc.invoice_id)) {
+      docMap.set(doc.invoice_id, {
+        storage_bucket: doc.storage_bucket,
+        storage_path: doc.storage_path
+      });
+      return;
+    }
+
     const subject = (doc.subject ?? '').toLowerCase();
-    const invoiceHit = (invoices ?? []).find((invoice) =>
-      subject.includes(invoice.id.toLowerCase()) && invoice.vehicle_id === doc.vehicle_id
+    const invoiceHit = (invoices ?? []).find(
+      (invoice) => subject.includes(invoice.id.toLowerCase()) && invoice.vehicle_id === doc.vehicle_id
     );
+
     if (invoiceHit && !docMap.has(invoiceHit.id)) {
       docMap.set(invoiceHit.id, {
         storage_bucket: doc.storage_bucket,
@@ -165,15 +175,25 @@ export default async function CustomerInvoicesPage({
                   <Link href={`/customer/vehicles/${invoice.vehicle_id}`}>Open vehicle</Link>
                 </Button>
                 {file ? (
-                  <Button asChild size="sm" variant="secondary">
-                    <a
-                      href={`/api/uploads/download?bucket=${encodeURIComponent(file.storage_bucket ?? '')}&path=${encodeURIComponent(file.storage_path ?? '')}`}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Download
-                    </a>
-                  </Button>
+                  <>
+                    <Button asChild size="sm" variant="secondary">
+                      <a
+                        href={`/api/uploads/download?bucket=${encodeURIComponent(file.storage_bucket ?? '')}&path=${encodeURIComponent(file.storage_path ?? '')}`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Preview
+                      </a>
+                    </Button>
+                    <Button asChild size="sm" variant="secondary">
+                      <a
+                        href={`/api/uploads/download?bucket=${encodeURIComponent(file.storage_bucket ?? '')}&path=${encodeURIComponent(file.storage_path ?? '')}`}
+                        download
+                      >
+                        Download
+                      </a>
+                    </Button>
+                  </>
                 ) : null}
               </div>
             </Card>

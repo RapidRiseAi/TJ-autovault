@@ -70,7 +70,8 @@ export default async function WorkshopDashboardPage() {
     { count: openRequests },
     unpaidInvoicesResult,
     customerResult,
-    { data: pendingVehicles }
+    { data: pendingVehicles },
+    { data: customerVehicles }
   ] = await Promise.all([
     supabase.from('vehicles').select('id', { count: 'exact', head: true }).eq('workshop_account_id', workshopId),
     supabase
@@ -96,7 +97,13 @@ export default async function WorkshopDashboardPage() {
       .select('id,registration_number,status')
       .eq('workshop_account_id', workshopId)
       .ilike('status', '%pending%')
-      .limit(8)
+      .limit(8),
+    supabase
+      .from('vehicles')
+      .select('id,registration_number,make,model,status,current_customer_account_id')
+      .eq('workshop_account_id', workshopId)
+      .order('registration_number', { ascending: true })
+      .limit(200)
   ]);
 
   const customerRows = (customerResult.data ?? []) as CustomerRow[];
@@ -122,6 +129,13 @@ export default async function WorkshopDashboardPage() {
   const topOutstandingInvoices = [...invoiceBreakdown]
     .sort((a, b) => b.outstandingCents - a.outstandingCents)
     .slice(0, 3);
+  const customerNameById = new Map(
+    customerRows.map((customer) => {
+      const profileInfo = customer.customer_users?.[0]?.profiles?.[0];
+      const name = profileInfo?.full_name || profileInfo?.display_name || customer.name;
+      return [customer.id, name];
+    })
+  );
 
   return (
     <main className="space-y-7 pb-2">
@@ -253,6 +267,37 @@ export default async function WorkshopDashboardPage() {
             ) : null}
           </div>
         ) : null}
+      </SectionCard>
+
+
+      <SectionCard>
+        <div className="mb-5 flex items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-brand-black">Vehicle list</h2>
+          <Button asChild size="sm" variant="secondary">
+            <Link href="/workshop/customers">Manage customers</Link>
+          </Button>
+        </div>
+        {!customerVehicles?.length ? (
+          <EmptyState title="No vehicles yet" description="Vehicles linked to your customers will appear here." />
+        ) : (
+          <div className="grid gap-2 md:grid-cols-2">
+            {customerVehicles.map((vehicle) => (
+              <div key={vehicle.id} className="flex items-center justify-between rounded-xl border border-neutral-200 p-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-brand-black">{vehicle.registration_number}</p>
+                  <p className="truncate text-xs text-gray-500">{vehicle.make ?? ''} {vehicle.model ?? ''}</p>
+                  <p className="truncate text-xs text-gray-400">{vehicle.current_customer_account_id ? customerNameById.get(vehicle.current_customer_account_id) ?? 'Customer unavailable' : 'Customer unavailable'}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full border border-black/10 bg-white px-2 py-1 text-[10px] uppercase text-gray-600">{vehicle.status ?? 'active'}</span>
+                  <Button asChild size="sm" variant="secondary">
+                    <Link href={`/workshop/vehicles/${vehicle.id}`}>Open</Link>
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </SectionCard>
 
       <SectionCard id="pending-verification">

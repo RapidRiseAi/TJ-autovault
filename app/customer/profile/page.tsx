@@ -47,18 +47,32 @@ async function updateProfile(formData: FormData) {
     }
   }
 
+  const profilePatch: {
+    display_name: string;
+    full_name: string;
+    phone: string;
+    preferred_contact_method: string;
+    billing_name: string;
+    company_name: string;
+    billing_address: string;
+    avatar_url?: string;
+  } = {
+    display_name: fullName,
+    full_name: fullName,
+    phone,
+    preferred_contact_method: preferredContactMethod,
+    billing_name: billingName,
+    company_name: companyName,
+    billing_address: billingAddress
+  };
+
+  if (avatarUrl) {
+    profilePatch.avatar_url = avatarUrl;
+  }
+
   await supabase
     .from('profiles')
-    .update({
-      display_name: fullName,
-      full_name: fullName,
-      phone,
-      preferred_contact_method: preferredContactMethod,
-      billing_name: billingName,
-      company_name: companyName,
-      billing_address: billingAddress,
-      avatar_url: avatarUrl
-    })
+    .update(profilePatch)
     .eq('id', user.id);
 
   revalidatePath('/customer/profile');

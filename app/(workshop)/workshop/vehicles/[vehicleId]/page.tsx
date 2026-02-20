@@ -100,7 +100,7 @@ export default async function WorkshopVehiclePage({ params }: { params: Promise<
           <p className="text-sm text-gray-500">Run common workshop updates without leaving this page.</p>
         </div>
         <div className="rounded-2xl border border-neutral-200 bg-white/80 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]">
-          <WorkshopVehicleActionsPanel vehicleId={vehicle.id} invoices={(invoicesResult.data ?? []).map((invoice) => ({ id: invoice.id, invoiceNumber: invoice.invoice_number, paymentStatus: invoice.payment_status, totalCents: invoice.total_cents }))} jobs={(jobsResult.data ?? []).map((job) => ({ id: job.id }))} workRequests={(workRequestsResult.data ?? []).map((request) => ({ id: request.id, status: request.status }))} />
+          <WorkshopVehicleActionsPanel vehicleId={vehicle.id} invoices={(invoicesResult.data ?? []).map((invoice) => ({ id: invoice.id, invoiceNumber: invoice.invoice_number, paymentStatus: invoice.payment_status, totalCents: invoice.total_cents }))} jobs={(jobsResult.data ?? []).map((job) => ({ id: job.id }))} workRequests={(workRequestsResult.data ?? []).map((request) => ({ id: request.id, status: request.status }))} currentMileage={vehicle.odometer_km ?? 0} />
         </div>
       </SectionCard>
     </main>
