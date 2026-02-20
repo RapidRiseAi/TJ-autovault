@@ -68,7 +68,7 @@ export async function WorkshopTopNav() {
           </Link>
           <Link
             href="/workshop/profile"
-            className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-3 py-1.5 shadow-sm transition hover:-translate-y-px hover:bg-gray-50 hover:shadow-md"
+            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-black/10 bg-white px-3 py-1.5 shadow-sm transition hover:-translate-y-px hover:border-black/20 hover:bg-gray-50 hover:shadow-md"
           >
             {profile?.avatar_url ? (
               <img

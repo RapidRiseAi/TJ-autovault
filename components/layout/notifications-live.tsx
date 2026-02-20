@@ -31,6 +31,7 @@ export function NotificationsLive({ fullPage = false }: { fullPage?: boolean }) 
   const [isLoading, setIsLoading] = useState(true);
   const [isWorkshopUser, setIsWorkshopUser] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     let poll: ReturnType<typeof setInterval> | null = null;
@@ -63,8 +64,15 @@ export function NotificationsLive({ fullPage = false }: { fullPage?: boolean }) 
         else if (customerAccount?.id) query = query.eq('to_customer_account_id', customerAccount.id);
         else query = query.eq('to_profile_id', user.id);
 
-        const { data } = await query;
-        setItems(Array.isArray(data) ? (data as Notification[]) : []);
+        const { data, error } = await query;
+        if (error) {
+          console.error('Notifications query failed', error);
+          setLoadError('Unable to load notifications right now.');
+          setItems([]);
+        } else {
+          setLoadError(null);
+          setItems(Array.isArray(data) ? (data as Notification[]) : []);
+        }
         setIsLoading(false);
       };
 
@@ -85,7 +93,9 @@ export function NotificationsLive({ fullPage = false }: { fullPage?: boolean }) 
     void init();
   }, [fullPage, supabase]);
 
-  if (!uid) return null;
+  if (!uid) {
+    return fullPage ? <p className="text-sm text-gray-500">No notifications yet.</p> : null;
+  }
   const unread = items.filter((item) => !item.is_read).length;
   const listHref = isWorkshopUser ? '/workshop/notifications' : '/customer/notifications';
   const itemHref = (item: Notification) => (isWorkshopUser ? item.href || '/workshop/notifications' : `/customer/notifications/${item.id}?next=${encodeURIComponent(item.href)}`);
@@ -128,6 +138,7 @@ export function NotificationsLive({ fullPage = false }: { fullPage?: boolean }) 
         </Button>
       </div>
       {isLoading ? Array.from({ length: 5 }).map((_, index) => <div key={index} className="h-20 animate-pulse rounded-2xl bg-gray-100" />) : null}
+      {loadError ? <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{loadError}</p> : null}
       {items.map((item) => (
         <div key={item.id} className={`rounded-2xl border bg-white p-4 transition hover:border-black/25 ${item.is_read ? 'border-black/10 opacity-80' : 'border-black/20 shadow-sm'}`}>
           <div className="flex items-start justify-between gap-3">
