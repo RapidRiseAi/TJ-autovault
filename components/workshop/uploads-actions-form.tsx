@@ -2,6 +2,7 @@
 
 import { FormEvent, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Modal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast-provider';
 
 const DOCUMENT_TYPES = [
@@ -14,7 +15,7 @@ const DOCUMENT_TYPES = [
 type DocType = (typeof DOCUMENT_TYPES)[number]['value'];
 type Urgency = 'info' | 'low' | 'medium' | 'high' | 'critical';
 
-export function UploadsActionsForm({ vehicleId, onSuccess }: { vehicleId: string; onSuccess?: () => void }) {
+export function UploadsActionsForm({ vehicleId, onSuccess, destinationLabel = 'customer timeline' }: { vehicleId: string; onSuccess?: () => void; destinationLabel?: string }) {
   const router = useRouter();
   const { pushToast } = useToast();
   const [documentType, setDocumentType] = useState<DocType>('inspection_report');
@@ -27,6 +28,7 @@ export function UploadsActionsForm({ vehicleId, onSuccess }: { vehicleId: string
   const [file, setFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const isQuoteOrInvoice = documentType === 'quote' || documentType === 'invoice';
   const isInvoice = documentType === 'invoice';
@@ -37,23 +39,17 @@ export function UploadsActionsForm({ vehicleId, onSuccess }: { vehicleId: string
     [amount, body, file, isQuoteOrInvoice, isSubmitting, isWarning, referenceNumber, subject]
   );
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!file) return;
-
-    const confirmed = window.confirm(`Are you sure you want to upload "${file.name}" (${documentType.replaceAll('_', ' ')}) to the customer timeline?`);
-    if (!confirmed) return;
-
+  async function submitUpload(uploadFile: File) {
     setIsSubmitting(true);
     setError(null);
 
     try {
-      const signResponse = await fetch('/api/uploads/sign', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vehicleId, fileName: file.name, contentType: file.type, kind: file.type.startsWith('image/') ? 'image' : 'document', documentType }) });
+      const signResponse = await fetch('/api/uploads/sign', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vehicleId, fileName: uploadFile.name, contentType: uploadFile.type, kind: uploadFile.type.startsWith('image/') ? 'image' : 'document', documentType }) });
       if (!signResponse.ok) throw new Error((await signResponse.json()).error ?? 'Could not sign upload');
 
       const signedPayload = (await signResponse.json()) as { bucket: string; path: string; token: string; docType: string };
       const uploadResponse = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/upload/sign/${signedPayload.bucket}/${signedPayload.path}?token=${signedPayload.token}`, {
-        method: 'PUT', headers: { 'Content-Type': file.type, 'x-upsert': 'true' }, body: file
+        method: 'PUT', headers: { 'Content-Type': uploadFile.type, 'x-upsert': 'true' }, body: uploadFile
       });
       if (!uploadResponse.ok) throw new Error('Upload failed');
 
@@ -61,7 +57,7 @@ export function UploadsActionsForm({ vehicleId, onSuccess }: { vehicleId: string
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          vehicleId, bucket: signedPayload.bucket, path: signedPayload.path, contentType: file.type, size: file.size, originalName: file.name, docType: signedPayload.docType,
+          vehicleId, bucket: signedPayload.bucket, path: signedPayload.path, contentType: uploadFile.type, size: uploadFile.size, originalName: uploadFile.name, docType: signedPayload.docType,
           subject: subject.trim(), body: body.trim() || undefined, urgency: isWarning ? 'high' : urgency, amountCents: isQuoteOrInvoice ? Math.round(Number(amount) * 100) : undefined, referenceNumber: isQuoteOrInvoice ? referenceNumber.trim() : undefined, dueDate: isInvoice && dueDate ? dueDate : undefined
         })
       });
@@ -77,6 +73,12 @@ export function UploadsActionsForm({ vehicleId, onSuccess }: { vehicleId: string
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!file) return;
+    setConfirmOpen(true);
   }
 
   return (
@@ -101,6 +103,24 @@ export function UploadsActionsForm({ vehicleId, onSuccess }: { vehicleId: string
       <label className="block text-sm font-medium">File<input type="file" accept="application/pdf,image/*" required className="mt-1 block w-full text-sm" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /></label>
       <button type="submit" disabled={disableSubmit} className="w-full rounded bg-black px-3 py-2 text-white disabled:opacity-50">{isSubmitting ? 'Uploading...' : 'Upload file'}</button>
       {error ? <p className="text-sm text-red-700">{error}</p> : null}
+      <Modal open={confirmOpen} onClose={() => setConfirmOpen(false)} title="Confirm upload">
+        <div className="space-y-4 text-sm">
+          <p>Upload this file?</p>
+          <dl className="space-y-1 rounded border border-black/10 bg-zinc-50 p-3">
+            <div><dt className="font-medium">File name</dt><dd>{file?.name ?? 'Unknown file'}</dd></div>
+            <div><dt className="font-medium">Upload type</dt><dd>{DOCUMENT_TYPES.find((entry) => entry.value === documentType)?.label ?? documentType}</dd></div>
+            <div><dt className="font-medium">Destination</dt><dd>{destinationLabel}</dd></div>
+          </dl>
+          <div className="flex justify-end gap-2">
+            <button type="button" className="rounded border px-3 py-2" onClick={() => setConfirmOpen(false)}>Cancel</button>
+            <button type="button" disabled={isSubmitting || !file} className="rounded bg-black px-3 py-2 text-white disabled:opacity-50" onClick={() => {
+              if (!file) return;
+              setConfirmOpen(false);
+              void submitUpload(file);
+            }}>Confirm upload</button>
+          </div>
+        </div>
+      </Modal>
     </form>
   );
 }

@@ -56,7 +56,7 @@ export default async function WorkshopVehiclePage({ params }: { params: Promise<
   const [vehicleResult, jobsResult, invoicesResult, docsResult, workRequestsResult] = await Promise.all([
     supabase
       .from('vehicles')
-      .select('id,registration_number,make,model,year,odometer_km,workshop_account_id,primary_image_path,status')
+      .select('id,registration_number,make,model,year,odometer_km,workshop_account_id,primary_image_path,status,current_customer_account_id')
       .eq('id', vehicleId)
       .eq('workshop_account_id', workshopId)
       .maybeSingle(),
@@ -69,6 +69,18 @@ export default async function WorkshopVehiclePage({ params }: { params: Promise<
   const vehicle = vehicleResult.data;
   if (!vehicle) return <main><Card><h1 className="text-xl font-semibold">Vehicle not found</h1></Card></main>;
 
+
+  const { data: customerAccount } = vehicle.current_customer_account_id
+    ? await supabase
+        .from('customer_accounts')
+        .select('name')
+        .eq('id', vehicle.current_customer_account_id)
+        .maybeSingle()
+    : { data: null };
+
+  const customerName = customerAccount?.name?.trim() || 'Customer';
+  const vehicleLabel = `${vehicle.make?.trim() || 'Vehicle'} ${vehicle.model?.trim() || ''}`.trim();
+  const uploadDestinationLabel = `${customerName} • ${vehicleLabel} timeline`;
   const invoices = invoicesResult.data ?? [];
   const paidTotal = invoices.filter((x) => x.payment_status === 'paid').reduce((sum, x) => sum + (x.total_cents ?? 0), 0);
   const unpaidTotal = invoices.filter((x) => x.payment_status !== 'paid').reduce((sum, x) => sum + (x.total_cents ?? 0), 0);
@@ -100,7 +112,7 @@ export default async function WorkshopVehiclePage({ params }: { params: Promise<
           <p className="text-sm text-gray-500">Run common workshop updates without leaving this page.</p>
         </div>
         <div className="rounded-2xl border border-neutral-200 bg-white/80 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]">
-          <WorkshopVehicleActionsPanel vehicleId={vehicle.id} invoices={(invoicesResult.data ?? []).map((invoice) => ({ id: invoice.id, invoiceNumber: invoice.invoice_number, paymentStatus: invoice.payment_status, totalCents: invoice.total_cents }))} jobs={(jobsResult.data ?? []).map((job) => ({ id: job.id }))} workRequests={(workRequestsResult.data ?? []).map((request) => ({ id: request.id, status: request.status }))} currentMileage={vehicle.odometer_km ?? 0} />
+          <WorkshopVehicleActionsPanel vehicleId={vehicle.id} invoices={(invoicesResult.data ?? []).map((invoice) => ({ id: invoice.id, invoiceNumber: invoice.invoice_number, paymentStatus: invoice.payment_status, totalCents: invoice.total_cents }))} jobs={(jobsResult.data ?? []).map((job) => ({ id: job.id }))} workRequests={(workRequestsResult.data ?? []).map((request) => ({ id: request.id, status: request.status }))} currentMileage={vehicle.odometer_km ?? 0} uploadDestinationLabel={uploadDestinationLabel} />
         </div>
       </SectionCard>
     </main>

@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Modal } from '@/components/ui/modal';
 
 const DOCUMENT_TYPES = [
   { value: 'before_images', label: 'Before images', defaultSubject: 'Before images' },
@@ -17,7 +18,7 @@ const DOCUMENT_TYPES = [
 
 type DocType = (typeof DOCUMENT_TYPES)[number]['value'];
 
-export function WorkflowUploadPanel({ vehicleId }: { vehicleId: string }) {
+export function WorkflowUploadPanel({ vehicleId, destinationLabel = 'customer/workshop shared timeline' }: { vehicleId: string; destinationLabel?: string }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
   const [documentType, setDocumentType] = useState<DocType>('inspection');
@@ -27,6 +28,8 @@ export function WorkflowUploadPanel({ vehicleId }: { vehicleId: string }) {
   const [importance, setImportance] = useState<'info' | 'warning' | 'urgent'>('info');
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
 
   const isQuoteOrInvoice = documentType === 'quote' || documentType === 'invoice';
   const isOther = documentType === 'other';
@@ -69,22 +72,22 @@ export function WorkflowUploadPanel({ vehicleId }: { vehicleId: string }) {
     if (!completeResponse.ok) throw new Error((await completeResponse.json()).error ?? 'Could not complete upload');
   }
 
-  async function onUploadFiles(files: FileList | null) {
+  function onUploadFiles(files: FileList | null) {
     if (!files?.length) return;
-    const fileSummary = Array.from(files)
-      .map((file) => file.name)
-      .join(', ');
-    const confirmed = window.confirm(
-      `Are you sure you want to upload ${fileSummary} as ${documentType.replaceAll('_', ' ')} to the customer/workshop shared timeline?`
-    );
-    if (!confirmed) return;
+    setPendingFiles(Array.from(files));
+    setConfirmOpen(true);
+  }
 
+  async function confirmUpload() {
+    if (!pendingFiles.length) return;
+    setConfirmOpen(false);
     setIsUploading(true);
     setError(null);
     try {
-      for (const file of Array.from(files)) {
+      for (const file of pendingFiles) {
         await uploadSingle(file);
       }
+      setPendingFiles([]);
       router.refresh();
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : 'Upload failed');
@@ -128,11 +131,25 @@ export function WorkflowUploadPanel({ vehicleId }: { vehicleId: string }) {
         </select>
       </label> : null}
 
-      <input ref={fileRef} type="file" accept="application/pdf,image/*" multiple={allowMultiUpload} className="hidden" onChange={(event) => { void onUploadFiles(event.target.files); event.currentTarget.value = ''; }} />
+      <input ref={fileRef} type="file" accept="application/pdf,image/*" multiple={allowMultiUpload} className="hidden" onChange={(event) => { onUploadFiles(event.target.files); event.currentTarget.value = ''; }} />
       <button type="button" disabled={isUploading || (isQuoteOrInvoice && !amount) || ((isQuoteOrInvoice || isOther) && !subject.trim())} onClick={() => fileRef.current?.click()} className="w-full rounded bg-black px-3 py-2 text-white disabled:opacity-50">
         {isUploading ? 'Uploading...' : allowMultiUpload ? 'Upload files' : 'Upload file'}
       </button>
       {error ? <p className="text-red-700">{error}</p> : null}
+
+      <Modal open={confirmOpen} onClose={() => setConfirmOpen(false)} title="Confirm upload">
+        <div className="space-y-4">
+          <dl className="space-y-2 rounded border border-black/10 bg-zinc-50 p-3 text-sm">
+            <div><dt className="font-medium">File name</dt><dd>{pendingFiles.map((file) => file.name).join(', ')}</dd></div>
+            <div><dt className="font-medium">Upload type</dt><dd>{DOCUMENT_TYPES.find((entry) => entry.value === documentType)?.label ?? documentType}</dd></div>
+            <div><dt className="font-medium">Destination</dt><dd>{destinationLabel}</dd></div>
+          </dl>
+          <div className="flex justify-end gap-2">
+            <button type="button" className="rounded border px-3 py-2" onClick={() => setConfirmOpen(false)}>Cancel</button>
+            <button type="button" className="rounded bg-black px-3 py-2 text-white" onClick={() => { void confirmUpload(); }}>Confirm upload</button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
