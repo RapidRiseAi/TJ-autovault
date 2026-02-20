@@ -8,6 +8,7 @@ import { HeroHeader } from '@/components/layout/hero-header';
 import { getCustomerContextOrCreate } from '@/lib/customer/get-customer-context-or-create';
 import { customerVehicle, customerVehicleNew } from '@/lib/routes';
 import { createClient } from '@/lib/supabase/server';
+import { SendMessageModal } from '@/components/messages/send-message-modal';
 
 function formatMoney(cents: number) {
   return new Intl.NumberFormat('en-ZA', {
@@ -192,9 +193,14 @@ export default async function CustomerDashboardPage() {
         title="Customer dashboard"
         subtitle="Track active work, invoices, and your vehicles at a glance."
         actions={
-          <Button asChild>
-            <Link href={customerVehicleNew()}>Add vehicle</Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <SendMessageModal
+              vehicles={(vehicles ?? []).map((vehicle) => ({ id: vehicle.id, registration_number: vehicle.registration_number }))}
+            />
+            <Button asChild>
+              <Link href={customerVehicleNew()}>Add vehicle</Link>
+            </Button>
+          </div>
         }
       />
 

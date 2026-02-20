@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { createClient } from '@/lib/supabase/server';
 import { Button } from '@/components/ui/button';
 import { VerifyVehicleButton } from '@/components/workshop/verify-vehicle-button';
+import { SendMessageModal } from '@/components/messages/send-message-modal';
 
 function statusTone(status: string | null) {
   const normalized = (status ?? 'pending').toLowerCase();
@@ -42,7 +43,7 @@ export default async function WorkshopCustomerPage({ params }: { params: Promise
 
   return (
     <main className="space-y-4">
-      <PageHeader title={customerDisplayName} subtitle={`Customer account: ${customer.name}`} />
+      <PageHeader title={customerDisplayName} subtitle={`Customer account: ${customer.name}`} actions={<SendMessageModal vehicles={(vehicles ?? []).map((vehicle) => ({ id: vehicle.id, registration_number: vehicle.registration_number }))} customers={[{ id: customer.id, name: customerDisplayName }]} defaultCustomerId={customer.id} />} />
       <div className="grid gap-3 md:grid-cols-4">
         {[
           ['Vehicles', vehicles?.length ?? 0],

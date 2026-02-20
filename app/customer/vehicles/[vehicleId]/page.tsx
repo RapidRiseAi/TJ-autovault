@@ -53,7 +53,8 @@ export default async function VehicleDetailPage({
     { data: invoices },
     { data: requests },
     { data: recommendations },
-    { data: docs }
+    { data: docs },
+    { data: customerVehiclesForMessage }
   ] = await Promise.all([
     supabase
       .from('quotes')
@@ -86,7 +87,12 @@ export default async function VehicleDetailPage({
       )
       .eq('vehicle_id', vehicleId)
       .eq('customer_account_id', customerAccountId)
-      .order('created_at', { ascending: false })
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('vehicles')
+      .select('id,registration_number')
+      .eq('current_customer_account_id', customerAccountId)
+      .order('registration_number', { ascending: true })
   ]);
 
   const attachments = (docs ?? []).map((d) => ({
@@ -114,6 +120,7 @@ export default async function VehicleDetailPage({
         documentsHref={customerVehicleDocuments(vehicle.id)}
         editHref={`/customer/vehicles/${vehicle.id}/edit`}
         dashboardHref={customerDashboard()}
+        customerVehiclesForMessage={customerVehiclesForMessage ?? []}
       />
     </main>
   );
