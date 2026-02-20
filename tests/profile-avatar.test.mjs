@@ -11,7 +11,42 @@ import {
 } from '../lib/customer/avatar-upload.ts';
 import { buildProfileUpdatePatch } from '../lib/customer/profile-update.ts';
 import { shouldBypassMiddlewareForRequest } from '../lib/auth/middleware-guards.ts';
+import { canAccessProfileAvatar, extractAvatarOwnerId } from '../lib/uploads/avatar-access.ts';
 
+function createMockSupabase({ actorProfile, customerMemberships = [], linkedAccount = null }) {
+  return {
+    from(table) {
+      const query = {
+        _table: table,
+        select() {
+          return this;
+        },
+        eq() {
+          return this;
+        },
+        in() {
+          return this;
+        },
+        limit() {
+          return this;
+        },
+        maybeSingle: async function () {
+          if (this._table === 'profiles') return { data: actorProfile };
+          if (this._table === 'customer_accounts') return { data: linkedAccount };
+          return { data: null };
+        },
+        then(resolve) {
+          if (this._table === 'customer_users') {
+            return Promise.resolve(resolve({ data: customerMemberships }));
+          }
+          return Promise.resolve(resolve({ data: null }));
+        }
+      };
+
+      return query;
+    }
+  };
+}
 
 test('avatar uploads use the dedicated private profile bucket', () => {
   assert.equal(AVATAR_BUCKET, 'profile-avatars');
@@ -43,7 +78,6 @@ test('buildAvatarStoragePath creates profile-scoped path', () => {
   assert.match(path, /^profiles\/user-123\//);
   assert.match(path, /\.png$/);
 });
-
 
 test('buildAvatarReadUrl points to authenticated download endpoint', () => {
   const url = buildAvatarReadUrl('profiles/00000000-0000-0000-0000-000000000000/avatar.png');
@@ -81,7 +115,6 @@ test('customer profile enhancement migration grants avatar_url updates and does 
   assert.doesNotMatch(migration, /avatar_path/i);
 });
 
-
 test('profile avatar bucket migration defines dedicated bucket and auth.uid ownership policies', () => {
   const migration = readFileSync('supabase/migrations/202602190002_profile_avatar_bucket_rls.sql', 'utf8');
 
@@ -91,6 +124,64 @@ test('profile avatar bucket migration defines dedicated bucket and auth.uid owne
   assert.match(migration, /create policy "profile avatars self upload"[\s\S]*split_part\(name, '\/', 2\)::uuid = auth\.uid\(\)/i);
   assert.match(migration, /create policy "profile avatars self read"[\s\S]*for select[\s\S]*bucket_id = 'profile-avatars'/i);
   assert.match(migration, /create policy "profile avatars self read"[\s\S]*split_part\(name, '\/', 2\)::uuid = auth\.uid\(\)/i);
+});
+
+test('new avatar workshop migration grants linked workshop read access with constrained bucket/path rules', () => {
+  const migration = readFileSync('supabase/migrations/202602190003_profile_avatar_workshop_read.sql', 'utf8');
+
+  assert.match(migration, /create policy "profile avatars workshop linked read"/i);
+  assert.match(migration, /bucket_id = 'profile-avatars'/i);
+  assert.match(migration, /split_part\(name, '\/', 1\) = 'profiles'/i);
+  assert.match(migration, /split_part\(name, '\/', 2\)::uuid/i);
+  assert.match(migration, /customer_users/i);
+  assert.match(migration, /customer_accounts/i);
+  assert.match(migration, /actor\.role in \('admin', 'technician'\)/i);
+});
+
+test('route avatar authorization allows owner and linked workshop staff, denies unrelated user', async () => {
+  const ownerAllowed = await canAccessProfileAvatar(createMockSupabase({}), 'owner-id', 'owner-id');
+  assert.equal(ownerAllowed, true);
+
+  const staffAllowed = await canAccessProfileAvatar(
+    createMockSupabase({
+      actorProfile: { role: 'admin', workshop_account_id: 'workshop-1' },
+      customerMemberships: [{ customer_account_id: 'customer-1' }],
+      linkedAccount: { id: 'customer-1' }
+    }),
+    'staff-id',
+    'customer-profile-id'
+  );
+  assert.equal(staffAllowed, true);
+
+  const unrelatedDenied = await canAccessProfileAvatar(
+    createMockSupabase({
+      actorProfile: { role: 'admin', workshop_account_id: 'workshop-1' },
+      customerMemberships: [{ customer_account_id: 'customer-2' }],
+      linkedAccount: null
+    }),
+    'staff-id',
+    'customer-profile-id'
+  );
+  assert.equal(unrelatedDenied, false);
+});
+
+test('workshop customer pages render image when avatar exists and fallback initials when absent', () => {
+  const dashboardPage = readFileSync('app/workshop/dashboard/page.tsx', 'utf8');
+  const customersPage = readFileSync('app/workshop/customers/page.tsx', 'utf8');
+
+  assert.match(dashboardPage, /const avatar = getAvatarSrc\(profileInfo\?\.avatar_url\)/);
+  assert.match(dashboardPage, /\{avatar \? \(/);
+  assert.match(dashboardPage, /<img src=\{avatar\}/);
+  assert.match(dashboardPage, /getInitials\(customerName\)/);
+
+  assert.match(customersPage, /const avatar = getAvatarSrc\(customerProfile\?\.avatar_url\)/);
+  assert.match(customersPage, /\{avatar \? <img src=\{avatar\}/);
+  assert.match(customersPage, /getInitials\(customerName\)/);
+});
+
+test('extractAvatarOwnerId enforces profiles prefix', () => {
+  assert.equal(extractAvatarOwnerId('profiles/user-1/avatar.png'), 'user-1');
+  assert.equal(extractAvatarOwnerId('other/user-1/avatar.png'), null);
 });
 
 test('middleware bypass helper preserves next-action pass-through behavior', () => {

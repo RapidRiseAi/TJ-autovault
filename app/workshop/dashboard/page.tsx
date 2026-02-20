@@ -8,6 +8,7 @@ import { VerifyVehicleButton } from '@/components/workshop/verify-vehicle-button
 import { SectionCard } from '@/components/ui/section-card';
 import { SegmentRing } from '@/components/ui/segment-ring';
 import { EmptyState } from '@/components/ui/empty-state';
+import { getAvatarSrc, getCustomerDisplayName, getInitials } from '@/lib/workshop/customer-display';
 
 type CustomerRow = {
   id: string;
@@ -28,18 +29,6 @@ type InvoiceRow = {
   payment_status: string | null;
   invoice_number?: string | null;
 };
-
-function initials(name: string) {
-  return (
-    name
-      .split(' ')
-      .map((part) => part.trim()[0])
-      .filter(Boolean)
-      .slice(0, 2)
-      .join('')
-      .toUpperCase() || 'CU'
-  );
-}
 
 function formatDate(value: string) {
   if (!value) return 'Unknown date';
@@ -132,7 +121,7 @@ export default async function WorkshopDashboardPage() {
   const customerNameById = new Map(
     customerRows.map((customer) => {
       const profileInfo = customer.customer_users?.[0]?.profiles?.[0];
-      const name = profileInfo?.full_name || profileInfo?.display_name || customer.name;
+      const name = getCustomerDisplayName(profileInfo, customer.name);
       return [customer.id, name];
     })
   );
@@ -236,9 +225,9 @@ export default async function WorkshopDashboardPage() {
           <div className="grid gap-3 md:grid-cols-1 xl:grid-cols-2">
             {customerRows.map((customer) => {
               const profileInfo = customer.customer_users?.[0]?.profiles?.[0];
-              const customerName = profileInfo?.full_name || profileInfo?.display_name || customer.name;
+              const customerName = getCustomerDisplayName(profileInfo, customer.name);
               const businessName = customer.name;
-              const avatar = profileInfo?.avatar_url;
+              const avatar = getAvatarSrc(profileInfo?.avatar_url);
 
               return (
                 <div key={customer.id} className="flex h-full items-center justify-between gap-2 border-b border-neutral-200/80 py-1.5 last:border-b-0">
@@ -246,7 +235,7 @@ export default async function WorkshopDashboardPage() {
                     {avatar ? (
                       <img src={avatar} alt={customerName} className="h-7 w-7 rounded-full border border-black/10 object-cover" />
                     ) : (
-                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-neutral-100 text-[10px] font-semibold text-black/80">{initials(customerName)}</div>
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-neutral-100 text-[10px] font-semibold text-black/80">{getInitials(customerName)}</div>
                     )}
                     <div className="min-w-0">
                       <p className="truncate text-xs font-semibold leading-tight text-brand-black">{customerName}</p>
