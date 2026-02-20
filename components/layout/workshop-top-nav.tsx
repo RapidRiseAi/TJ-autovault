@@ -27,7 +27,11 @@ export async function WorkshopTopNav() {
     .maybeSingle();
 
   const { data: workshopAccount } = profile?.workshop_account_id
-    ? await supabase.from('workshop_accounts').select('name').eq('id', profile.workshop_account_id).maybeSingle()
+    ? await supabase
+        .from('workshop_accounts')
+        .select('name')
+        .eq('id', profile.workshop_account_id)
+        .maybeSingle()
     : { data: null };
 
   const { count } = await supabase
@@ -37,32 +41,53 @@ export async function WorkshopTopNav() {
     .is('deleted_at', null)
     .eq('to_profile_id', user.id);
 
-  const displayName = profile?.full_name || profile?.display_name || user.email || 'Workshop user';
+  const displayName =
+    profile?.full_name ||
+    profile?.display_name ||
+    user.email ||
+    'Workshop user';
   const businessName = workshopAccount?.name || 'Workshop';
 
   return (
     <header className="sticky top-0 z-40 border-b border-black/10 bg-white/95 backdrop-blur">
-      <div className="mx-auto flex h-16 w-full max-w-[1320px] items-center justify-between px-4 sm:px-6 lg:px-8">
-        <Link href="/workshop/dashboard" className="text-sm font-semibold uppercase tracking-[0.2em] text-brand-black sm:text-base">
+      <div className="mx-auto flex h-[74px] w-full max-w-[1320px] items-center justify-between px-4 sm:px-6 lg:px-8">
+        <Link
+          href="/workshop/dashboard"
+          className="text-sm font-semibold uppercase tracking-[0.2em] text-brand-black sm:text-base"
+        >
           TJ service & repairs
         </Link>
 
-        <div className="flex items-center gap-2">
-          <Link href="/workshop/notifications" className="inline-flex items-center gap-1 rounded-full border border-black/15 px-3 py-1.5 text-xs font-semibold text-brand-black hover:bg-gray-100 sm:text-sm">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <Link
+            href="/workshop/notifications"
+            className="inline-flex items-center gap-1.5 rounded-full border border-black/15 bg-white px-3.5 py-2 text-xs font-semibold text-brand-black shadow-sm transition hover:-translate-y-px hover:bg-gray-50 hover:shadow-md sm:text-sm"
+          >
             <Bell className="h-4 w-4" />
             {count && count > 0 ? <span>{count}</span> : null}
           </Link>
-          <Link href="/workshop/profile" className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-2 py-1 hover:bg-gray-50">
+          <Link
+            href="/workshop/profile"
+            className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-3 py-1.5 shadow-sm transition hover:-translate-y-px hover:bg-gray-50 hover:shadow-md"
+          >
             {profile?.avatar_url ? (
-              <img src={profile.avatar_url} alt="Workshop avatar" className="h-8 w-8 rounded-full object-cover" />
+              <img
+                src={profile.avatar_url}
+                alt="Workshop avatar"
+                className="h-8 w-8 rounded-full object-cover"
+              />
             ) : (
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-black text-xs font-semibold text-white">
                 {initialsFromName(displayName)}
               </div>
             )}
             <div className="pr-2 text-left">
-              <p className="text-xs font-semibold leading-tight text-black">team</p>
-              <p className="text-[11px] leading-tight text-gray-500">{businessName}</p>
+              <p className="text-xs font-semibold leading-tight text-black">
+                team
+              </p>
+              <p className="text-[11px] leading-tight text-gray-500">
+                {businessName}
+              </p>
             </div>
           </Link>
           <SignOutButton />

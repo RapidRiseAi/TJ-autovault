@@ -17,7 +17,14 @@ export function SignOutButton() {
   }
 
   return (
-    <Button type="button" onClick={onSignOut} disabled={isSigningOut} variant="ghost" size="sm" className="rounded-full border border-black/15">
+    <Button
+      type="button"
+      onClick={onSignOut}
+      disabled={isSigningOut}
+      variant="ghost"
+      size="sm"
+      className="rounded-full border border-black/15 px-3.5 shadow-sm transition hover:-translate-y-px hover:shadow-md"
+    >
       {isSigningOut ? 'Signing out...' : 'Sign out'}
     </Button>
   );
