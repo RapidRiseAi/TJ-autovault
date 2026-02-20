@@ -12,6 +12,7 @@ import {
 import { buildProfileUpdatePatch } from '../lib/customer/profile-update.ts';
 import { shouldBypassMiddlewareForRequest } from '../lib/auth/middleware-guards.ts';
 import { canAccessProfileAvatar, extractAvatarOwnerId } from '../lib/uploads/avatar-access.ts';
+import { selectBestCustomerProfile } from '../lib/workshop/customer-profile-selection.ts';
 
 function createMockSupabase({ actorProfile, customerMemberships = [], linkedAccount = null }) {
   return {
@@ -165,15 +166,42 @@ test('route avatar authorization allows owner and linked workshop staff, denies 
   assert.equal(unrelatedDenied, false);
 });
 
+
+test('selectBestCustomerProfile prefers avatar_url over other profile fields', () => {
+  const selected = selectBestCustomerProfile([
+    { profiles: [{ full_name: 'Alex Name', display_name: 'Alex', avatar_url: null }] },
+    { profiles: [{ full_name: null, display_name: 'A Driver', avatar_url: 'profiles/user-1/avatar.png' }] }
+  ]);
+
+  assert.equal(selected?.avatar_url, 'profiles/user-1/avatar.png');
+});
+
+test('selectBestCustomerProfile falls back to full_name then display_name', () => {
+  const fullNameSelected = selectBestCustomerProfile([
+    { profiles: [{ full_name: null, display_name: null, avatar_url: null }] },
+    { profiles: [{ full_name: 'Morgan Full', display_name: null, avatar_url: null }] },
+    { profiles: [{ full_name: null, display_name: 'Morgan Display', avatar_url: null }] }
+  ]);
+  assert.equal(fullNameSelected?.full_name, 'Morgan Full');
+
+  const displayNameSelected = selectBestCustomerProfile([
+    { profiles: [{ full_name: null, display_name: '', avatar_url: null }] },
+    { profiles: [{ full_name: null, display_name: 'Only Display', avatar_url: null }] }
+  ]);
+  assert.equal(displayNameSelected?.display_name, 'Only Display');
+});
+
 test('workshop customer pages render image when avatar exists and fallback initials when absent', () => {
   const dashboardPage = readFileSync('app/workshop/dashboard/page.tsx', 'utf8');
   const customersPage = readFileSync('app/workshop/customers/page.tsx', 'utf8');
 
+  assert.match(dashboardPage, /const profileInfo = selectBestCustomerProfile\(customer\.customer_users\);/);
   assert.match(dashboardPage, /const avatar = getAvatarSrc\(profileInfo\?\.avatar_url\)/);
   assert.match(dashboardPage, /\{avatar \? \(/);
   assert.match(dashboardPage, /<img src=\{avatar\}/);
   assert.match(dashboardPage, /getInitials\(customerName\)/);
 
+  assert.match(customersPage, /const customerProfile = selectBestCustomerProfile\(customer\.customer_users\);/);
   assert.match(customersPage, /const avatar = getAvatarSrc\(customerProfile\?\.avatar_url\)/);
   assert.match(customersPage, /\{avatar \? <img src=\{avatar\}/);
   assert.match(customersPage, /getInitials\(customerName\)/);

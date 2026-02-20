@@ -1,10 +1,9 @@
 import { buildAvatarReadUrl } from '../customer/avatar-upload';
+import type { WorkshopCustomerProfile, WorkshopCustomerUser } from './customer-profile-selection';
+import { selectBestCustomerProfile } from './customer-profile-selection';
 
-export type WorkshopCustomerProfile = {
-  display_name: string | null;
-  full_name: string | null;
-  avatar_url: string | null;
-};
+export type { WorkshopCustomerProfile, WorkshopCustomerUser };
+export { selectBestCustomerProfile };
 
 export function getAvatarSrc(avatarUrl: string | null | undefined): string | null {
   if (!avatarUrl) return null;

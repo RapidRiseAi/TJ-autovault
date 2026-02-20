@@ -8,7 +8,7 @@ import { VerifyVehicleButton } from '@/components/workshop/verify-vehicle-button
 import { SectionCard } from '@/components/ui/section-card';
 import { SegmentRing } from '@/components/ui/segment-ring';
 import { EmptyState } from '@/components/ui/empty-state';
-import { getAvatarSrc, getCustomerDisplayName, getInitials } from '@/lib/workshop/customer-display';
+import { getAvatarSrc, getCustomerDisplayName, getInitials, selectBestCustomerProfile } from '@/lib/workshop/customer-display';
 
 type CustomerRow = {
   id: string;
@@ -120,7 +120,7 @@ export default async function WorkshopDashboardPage() {
     .slice(0, 3);
   const customerNameById = new Map(
     customerRows.map((customer) => {
-      const profileInfo = customer.customer_users?.[0]?.profiles?.[0];
+      const profileInfo = selectBestCustomerProfile(customer.customer_users);
       const name = getCustomerDisplayName(profileInfo, customer.name);
       return [customer.id, name];
     })
@@ -224,7 +224,7 @@ export default async function WorkshopDashboardPage() {
         {!customersError ? (
           <div className="grid gap-3 md:grid-cols-1 xl:grid-cols-2">
             {customerRows.map((customer) => {
-              const profileInfo = customer.customer_users?.[0]?.profiles?.[0];
+              const profileInfo = selectBestCustomerProfile(customer.customer_users);
               const customerName = getCustomerDisplayName(profileInfo, customer.name);
               const businessName = customer.name;
               const avatar = getAvatarSrc(profileInfo?.avatar_url);
