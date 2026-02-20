@@ -15,12 +15,15 @@ type ActionResponse = { ok: boolean; error?: string; message?: string };
 
 type Mode = 'recommendation' | 'mileage' | 'request' | 'payment' | 'job' | null;
 
-export function VehicleWorkflowActions({ vehicleId, invoices, jobs, workRequests }: { vehicleId: string; invoices: Array<{ id: string }>; jobs: Array<{ id: string }>; workRequests: Array<{ id: string; status: string }>; compact?: boolean; }) {
+export function VehicleWorkflowActions({ vehicleId, invoices, jobs, workRequests }: { vehicleId: string; invoices: Array<{ id: string; invoiceNumber?: string | null; paymentStatus?: string | null; totalCents?: number | null }>; jobs: Array<{ id: string }>; workRequests: Array<{ id: string; status: string }>; compact?: boolean; }) {
   const [open, setOpen] = useState<Mode>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const [msg, setMsg] = useState('');
   const { pushToast } = useToast();
+
+  const activeWorkRequests = workRequests.filter((request) => !['cancelled', 'completed'].includes((request.status ?? '').toLowerCase()));
+  const unpaidInvoices = invoices.filter((invoice) => (invoice.paymentStatus ?? '').toLowerCase() !== 'paid');
 
   async function on(run: () => Promise<ActionResponse>) {
     setIsLoading(true);
@@ -43,8 +46,8 @@ export function VehicleWorkflowActions({ vehicleId, invoices, jobs, workRequests
       <div className="grid gap-3 md:grid-cols-2">
         <ActionTile title="Add recommendation" description="Log work and recommended follow-up items." icon={<ClipboardCheck className="h-4 w-4" />} onClick={() => setOpen('recommendation')} />
         <ActionTile title="Update mileage" description="Capture latest odometer and service reminders." icon={<Gauge className="h-4 w-4" />} onClick={() => setOpen('mileage')} />
-        {workRequests.length ? <ActionTile title="Update work request status" description="Move requests through the workshop pipeline." icon={<ClipboardCheck className="h-4 w-4" />} onClick={() => setOpen('request')} /> : null}
-        {invoices.length ? <ActionTile title="Update payment status" description="Mark invoice payment progress for this vehicle." icon={<BadgeDollarSign className="h-4 w-4" />} onClick={() => setOpen('payment')} /> : null}
+        {activeWorkRequests.length ? <ActionTile title="Update work request status" description="Move requests through the workshop pipeline." icon={<ClipboardCheck className="h-4 w-4" />} onClick={() => setOpen('request')} /> : null}
+        {unpaidInvoices.length ? <ActionTile title="Update payment status" description="Mark invoice payment progress for this vehicle." icon={<BadgeDollarSign className="h-4 w-4" />} onClick={() => setOpen('payment')} /> : null}
         {jobs.length ? <ActionTile title="Update service job status" description="Update service job stage for active work." icon={<Wrench className="h-4 w-4" />} onClick={() => setOpen('job')} /> : null}
       </div>
 
@@ -75,7 +78,7 @@ export function VehicleWorkflowActions({ vehicleId, invoices, jobs, workRequests
       <Modal open={open === 'request'} onClose={() => setOpen(null)} title="Update work request status">
         <form onSubmit={(event) => { event.preventDefault(); const formData = new FormData(event.currentTarget); void on(() => updateWorkRequestStatus({ workRequestId: String(formData.get('workRequestId') || ''), status: String(formData.get('status') || 'requested') as (typeof WORK_REQUEST_STATUSES)[number] })); }}>
           <ModalFormShell>
-            <select name="workRequestId">{workRequests.map((request) => <option key={request.id} value={request.id}>{request.id} ({request.status})</option>)}</select>
+            <select name="workRequestId">{activeWorkRequests.map((request) => <option key={request.id} value={request.id}>{request.id} ({request.status})</option>)}</select>
             <select name="status">{WORK_REQUEST_STATUSES.map((status) => <option key={status} value={status}>{status.replaceAll('_', ' ')}</option>)}</select>
             <Button disabled={isLoading}>{isLoading ? 'Updating...' : 'Update'}</Button>
             {msg ? <p className="text-xs text-red-700">{msg}</p> : null}
@@ -86,7 +89,7 @@ export function VehicleWorkflowActions({ vehicleId, invoices, jobs, workRequests
       <Modal open={open === 'payment'} onClose={() => setOpen(null)} title="Update payment status">
         <form onSubmit={(event) => { event.preventDefault(); const formData = new FormData(event.currentTarget); void on(() => updateInvoicePaymentStatus({ invoiceId: String(formData.get('invoiceId')), paymentStatus: String(formData.get('paymentStatus')) as 'unpaid' | 'partial' | 'paid' })); }}>
           <ModalFormShell>
-            <select name="invoiceId">{invoices.map((invoice) => <option key={invoice.id} value={invoice.id}>{invoice.id}</option>)}</select>
+            <select name="invoiceId">{unpaidInvoices.map((invoice) => { const ref = invoice.invoiceNumber || `#${invoice.id.slice(0, 8).toUpperCase()}`; const amount = new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format((invoice.totalCents ?? 0) / 100); return <option key={invoice.id} value={invoice.id}>{ref} · {amount} unpaid</option>; })}</select>
             <select name="paymentStatus"><option value="unpaid">Unpaid</option><option value="partial">Partial</option><option value="paid">Paid</option></select>
             <Button disabled={isLoading}>{isLoading ? 'Updating...' : 'Update'}</Button>
             {msg ? <p className="text-xs text-red-700">{msg}</p> : null}

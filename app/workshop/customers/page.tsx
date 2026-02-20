@@ -30,10 +30,10 @@ export default async function WorkshopCustomersPage() {
           {(customers ?? []).map((customer) => {
             const avatar = customer.customer_users?.[0]?.profiles?.[0]?.avatar_url;
             return (
-              <div key={customer.id} className="flex items-center justify-between rounded-2xl border border-black/10 p-3 hover:bg-stone-50">
-                <div className="flex items-center gap-3">
-                  {avatar ? <img src={avatar} alt={customer.name} className="h-10 w-10 rounded-full object-cover" /> : <div className="flex h-10 w-10 items-center justify-center rounded-full bg-black text-xs font-semibold text-white">{initials(customer.name)}</div>}
-                  <p className="text-sm font-medium text-brand-black">{customer.name}</p>
+              <div key={customer.id} className="flex items-center justify-between rounded-xl border border-black/10 px-2.5 py-1.5 hover:bg-stone-50">
+                <div className="flex items-center gap-2">
+                  {avatar ? <img src={avatar} alt={customer.name} className="h-7 w-7 rounded-full object-cover" /> : <div className="flex h-7 w-7 items-center justify-center rounded-full bg-black text-[10px] font-semibold text-white">{initials(customer.name)}</div>}
+                  <p className="text-xs font-medium text-brand-black">{customer.name}</p>
                 </div>
                 <Button asChild size="sm" variant="outline"><Link href={`/workshop/customers/${customer.id}`}>Open</Link></Button>
               </div>

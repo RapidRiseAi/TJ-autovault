@@ -142,7 +142,7 @@ export default async function WorkshopDashboardPage() {
             <div className="pr-4">
               <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 text-neutral-900"><UserRound className="h-5 w-5" /></div>
               <p className="text-3xl font-bold text-neutral-900">{customerRows.length}</p>
-              <p className="text-xs text-gray-500">Customers</p>
+              <p className="text-[11px] text-gray-500">Customers</p>
             </div>
             <div className="pl-4">
               <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 text-neutral-900"><Car className="h-5 w-5" /></div>
@@ -227,16 +227,16 @@ export default async function WorkshopDashboardPage() {
               const avatar = profileInfo?.avatar_url;
 
               return (
-                <div key={customer.id} className="flex h-full items-center justify-between gap-3 border-b border-neutral-200/80 py-2.5 last:border-b-0">
-                  <div className="flex min-w-0 items-center gap-2.5">
+                <div key={customer.id} className="flex h-full items-center justify-between gap-2 border-b border-neutral-200/80 py-1.5 last:border-b-0">
+                  <div className="flex min-w-0 items-center gap-2">
                     {avatar ? (
-                      <img src={avatar} alt={customerName} className="h-9 w-9 rounded-full border border-black/10 object-cover" />
+                      <img src={avatar} alt={customerName} className="h-7 w-7 rounded-full border border-black/10 object-cover" />
                     ) : (
-                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-neutral-100 text-[11px] font-semibold text-black/80">{initials(customerName)}</div>
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-neutral-100 text-[10px] font-semibold text-black/80">{initials(customerName)}</div>
                     )}
                     <div className="min-w-0">
-                      <p className="truncate text-[13px] font-semibold leading-tight text-brand-black">{customerName}</p>
-                      <p className="truncate text-xs leading-tight text-gray-400">{businessName}</p>
+                      <p className="truncate text-xs font-semibold leading-tight text-brand-black">{customerName}</p>
+                      <p className="truncate text-[11px] leading-tight text-gray-400">{businessName}</p>
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1.5">
