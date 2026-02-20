@@ -6,17 +6,14 @@ import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/server';
 import { HeroHeader } from '@/components/layout/hero-header';
 import { ProfileSettingsForm } from '@/components/customer/profile-settings-form';
+import type { ProfileUpdateState } from '@/lib/customer/profile-types';
+import { buildProfileUpdatePatch } from '@/lib/customer/profile-update';
 import {
   ALLOWED_AVATAR_MIME_TYPES,
   AVATAR_MAX_SIZE_BYTES,
   mapProfileUpdateError,
   validateAvatarFile
 } from '@/lib/customer/avatar-upload';
-
-export type ProfileUpdateState = {
-  status: 'idle' | 'success' | 'error';
-  message: string;
-};
 
 const initialProfileUpdateState: ProfileUpdateState = {
   status: 'idle',
@@ -48,7 +45,6 @@ async function updateProfile(
     const companyName = (formData.get('company_name')?.toString() ?? '').trim();
     const billingAddress = (formData.get('billing_address')?.toString() ?? '').trim();
 
-    const avatarPath = (formData.get('avatar_path')?.toString() ?? '').trim();
     const avatarUrlFromDirectUpload = (formData.get('avatar_url')?.toString() ?? '').trim();
 
     // Guardrail: if a file still reaches the action, reject unsupported/oversized uploads clearly.
@@ -60,30 +56,15 @@ async function updateProfile(
       }
     }
 
-    const profilePatch: {
-      display_name: string;
-      full_name: string;
-      phone: string;
-      preferred_contact_method: string;
-      billing_name: string;
-      company_name: string;
-      billing_address: string;
-      avatar_url?: string;
-      avatar_path?: string;
-    } = {
-      display_name: fullName,
-      full_name: fullName,
+    const profilePatch = buildProfileUpdatePatch({
+      fullName,
       phone,
-      preferred_contact_method: preferredContactMethod,
-      billing_name: billingName,
-      company_name: companyName,
-      billing_address: billingAddress
-    };
-
-    if (avatarUrlFromDirectUpload && avatarPath) {
-      profilePatch.avatar_url = avatarUrlFromDirectUpload;
-      profilePatch.avatar_path = avatarPath;
-    }
+      preferredContactMethod,
+      billingName,
+      companyName,
+      billingAddress,
+      avatarUrl: avatarUrlFromDirectUpload || undefined
+    });
 
     const { error } = await supabase.from('profiles').update(profilePatch).eq('id', user.id);
 
