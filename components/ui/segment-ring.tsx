@@ -60,6 +60,7 @@ export function SegmentRing({
       ? positiveSegments
           .map((segment) => ({
             tone: segment.tone,
+            color: segment.color,
             ratio: Math.min(segment.value / ringTotal, 1)
           }))
           .filter((segment) => segment.ratio > 0)
