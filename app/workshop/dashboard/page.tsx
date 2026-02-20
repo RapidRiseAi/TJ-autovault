@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { AlertTriangle, Car, CircleDollarSign, UserRound } from 'lucide-react';
+import { AlertTriangle, Car, CheckCircle2, UserRound } from 'lucide-react';
 import { HeroHeader } from '@/components/layout/hero-header';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/server';
@@ -20,6 +20,13 @@ type CustomerRow = {
       avatar_url: string | null;
     }>;
   }>;
+};
+
+type InvoiceRow = {
+  id: string;
+  total_cents: number | null;
+  payment_status: string | null;
+  invoice_number?: string | null;
 };
 
 function initials(name: string) {
@@ -61,8 +68,7 @@ export default async function WorkshopDashboardPage() {
   const [
     { count: vehicles },
     { count: openRequests },
-    { count: unpaidInvoices },
-    { count: totalInvoices },
+    unpaidInvoicesResult,
     customerResult,
     { data: pendingVehicles }
   ] = await Promise.all([
@@ -74,10 +80,11 @@ export default async function WorkshopDashboardPage() {
       .in('status', ['requested', 'waiting_for_deposit', 'waiting_for_parts', 'scheduled', 'in_progress']),
     supabase
       .from('invoices')
-      .select('id', { count: 'exact', head: true })
+      .select('id,total_cents,payment_status,invoice_number')
       .eq('workshop_account_id', workshopId)
-      .neq('payment_status', 'paid'),
-    supabase.from('invoices').select('id', { count: 'exact', head: true }).eq('workshop_account_id', workshopId),
+      .neq('payment_status', 'paid')
+      .order('total_cents', { ascending: false })
+      .limit(200),
     supabase
       .from('customer_accounts')
       .select('id,name,created_at,customer_users(profiles(display_name,full_name,avatar_url))')
@@ -96,9 +103,25 @@ export default async function WorkshopDashboardPage() {
   const customersError = customerResult.error;
   const totalVehicles = vehicles ?? 0;
   const openRequestCount = openRequests ?? 0;
-  const totalInvoiceCount = totalInvoices ?? 0;
-  const unpaidInvoiceCount = unpaidInvoices ?? 0;
-  const unpaidPct = totalInvoiceCount > 0 ? Math.round((unpaidInvoiceCount / totalInvoiceCount) * 100) : null;
+  const unpaidInvoices = (unpaidInvoicesResult.data ?? []) as InvoiceRow[];
+  const invoiceBreakdown = unpaidInvoices
+    .map((invoice) => ({
+      id: invoice.id,
+      reference: invoice.invoice_number || `#${invoice.id.slice(0, 8).toUpperCase()}`,
+      outstandingCents: Math.max(invoice.total_cents ?? 0, 0)
+    }))
+    .filter((invoice) => invoice.outstandingCents > 0);
+  const totalOutstandingCents = invoiceBreakdown.reduce((sum, invoice) => sum + invoice.outstandingCents, 0);
+  const unpaidInvoiceCount = invoiceBreakdown.length;
+  const redScale = ['#ef4444', '#dc2626', '#b91c1c', '#991b1b', '#7f1d1d'];
+  const outstandingSegments = invoiceBreakdown.map((invoice, index) => ({
+    value: invoice.outstandingCents,
+    tone: 'negative' as const,
+    color: redScale[index % redScale.length]
+  }));
+  const topOutstandingInvoices = [...invoiceBreakdown]
+    .sort((a, b) => b.outstandingCents - a.outstandingCents)
+    .slice(0, 3);
 
   return (
     <main className="space-y-7 pb-2">
@@ -148,22 +171,35 @@ export default async function WorkshopDashboardPage() {
         </article>
 
         <article className="flex items-center justify-between gap-4 rounded-2xl border border-neutral-200 bg-white p-5 shadow-[0_14px_30px_rgba(17,17,17,0.08)]">
-          <div>
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">Unpaid invoices</p>
-            <p className="text-3xl font-bold text-neutral-900">{unpaidInvoiceCount}</p>
-            <p className="text-sm text-gray-500">Outstanding of {totalInvoiceCount} total</p>
+          <div className="space-y-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">Outstanding invoices</p>
+            <p className="text-3xl font-bold text-neutral-900">
+              {new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(totalOutstandingCents / 100)}
+            </p>
+            <p className="text-sm text-gray-500">{unpaidInvoiceCount > 0 ? `${unpaidInvoiceCount} unpaid invoices` : 'No outstanding invoices'}</p>
+            {topOutstandingInvoices.length ? (
+              <ul className="space-y-1 pt-1 text-xs text-gray-500">
+                {topOutstandingInvoices.map((invoice) => (
+                  <li key={invoice.id} className="truncate">
+                    Invoice {invoice.reference} • {new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(invoice.outstandingCents / 100)}
+                  </li>
+                ))}
+                {unpaidInvoiceCount > 3 ? <li>+{unpaidInvoiceCount - 3} more</li> : null}
+              </ul>
+            ) : null}
           </div>
-          {unpaidPct !== null && totalInvoiceCount > 0 ? (
+          {unpaidInvoiceCount > 0 && totalOutstandingCents > 0 ? (
             <SegmentRing
-              size={96}
-              centerLabel={`${unpaidPct}%`}
-              subLabel="Outstanding"
-              total={Math.max(totalInvoiceCount, 1)}
-              segments={[{ value: unpaidInvoiceCount, tone: 'negative' }]}
+              size={102}
+              centerLabel={new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 }).format(totalOutstandingCents / 100)}
+              subLabel="Total outstanding"
+              segments={outstandingSegments}
+              total={totalOutstandingCents}
             />
           ) : (
-            <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-neutral-100 text-neutral-700">
-              <CircleDollarSign className="h-6 w-6" />
+            <div className="flex h-[102px] w-[102px] flex-col items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700">
+              <CheckCircle2 className="h-7 w-7" />
+              <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.16em]">Paid</p>
             </div>
           )}
         </article>
@@ -191,24 +227,21 @@ export default async function WorkshopDashboardPage() {
               const avatar = profileInfo?.avatar_url;
 
               return (
-                <div
-                  key={customer.id}
-                  className="flex h-full items-center justify-between gap-4 rounded-xl border border-neutral-200 bg-white p-4 transition hover:-translate-y-px hover:shadow-[0_12px_24px_rgba(17,17,17,0.1)]"
-                >
-                  <div className="flex min-w-0 items-center gap-3">
+                <div key={customer.id} className="flex h-full items-center justify-between gap-3 border-b border-neutral-200/80 py-2.5 last:border-b-0">
+                  <div className="flex min-w-0 items-center gap-2.5">
                     {avatar ? (
-                      <img src={avatar} alt={customerName} className="h-11 w-11 rounded-full border border-black/10 object-cover" />
+                      <img src={avatar} alt={customerName} className="h-9 w-9 rounded-full border border-black/10 object-cover" />
                     ) : (
-                      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-neutral-100 text-xs font-semibold text-black/80">{initials(customerName)}</div>
+                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-neutral-100 text-[11px] font-semibold text-black/80">{initials(customerName)}</div>
                     )}
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-brand-black">{customerName}</p>
-                      <p className="truncate text-xs text-gray-500">{businessName}</p>
+                      <p className="truncate text-[13px] font-semibold leading-tight text-brand-black">{customerName}</p>
+                      <p className="truncate text-xs leading-tight text-gray-400">{businessName}</p>
                     </div>
                   </div>
-                  <div className="flex shrink-0 flex-col items-end gap-2">
+                  <div className="flex shrink-0 flex-col items-end gap-1.5">
                     <p className="text-xs text-gray-500">{formatDate(customer.created_at)}</p>
-                    <Button asChild size="sm" className="min-w-16">
+                    <Button asChild size="sm" className="min-h-0 min-w-14 border border-brand-red/30 px-3 py-1 text-xs shadow-none">
                       <Link href={`/workshop/customers/${customer.id}`}>Open</Link>
                     </Button>
                   </div>

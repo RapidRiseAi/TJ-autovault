@@ -10,6 +10,7 @@ export type RingSegmentTone = 'negative' | 'neutral' | 'positive';
 export type RingSegment = {
   value: number;
   tone: RingSegmentTone;
+  color?: string;
 };
 
 function toneToColor(tone: RingSegmentTone) {
@@ -100,7 +101,7 @@ export function SegmentRing({
                 cy={size / 2}
                 r={radius}
                 fill="none"
-                stroke={toneToColor(segment.tone)}
+                stroke={segment.color ?? toneToColor(segment.tone)}
                 strokeWidth={ringStrokeWidth}
                 strokeLinecap="round"
                 strokeDasharray={strokeDasharray}
