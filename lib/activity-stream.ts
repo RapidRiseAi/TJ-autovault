@@ -54,6 +54,19 @@ function toDownloadHref(doc?: DocumentItem) {
   return `/api/uploads/download?bucket=${encodeURIComponent(doc.storage_bucket ?? '')}&path=${encodeURIComponent(doc.storage_path)}`;
 }
 
+function attachmentDownloadHref(metadata?: Record<string, unknown> | null) {
+  const attachment = metadata?.attachment;
+  const attachmentBucket = typeof (attachment as Record<string, unknown> | undefined)?.bucket === 'string'
+    ? (attachment as Record<string, string>).bucket
+    : null;
+  const attachmentPath = typeof (attachment as Record<string, unknown> | undefined)?.path === 'string'
+    ? (attachment as Record<string, string>).path
+    : null;
+
+  if (!attachmentBucket || !attachmentPath) return undefined;
+  return `/api/uploads/download?bucket=${encodeURIComponent(attachmentBucket)}&path=${encodeURIComponent(attachmentPath)}`;
+}
+
 export function buildActivityStream(timelineRows: TimelineEventItem[], docs: DocumentItem[]): ActivityItem[] {
   const docIds = new Set(docs.map((doc) => doc.id));
   const docsByInvoiceId = new Map<string, DocumentItem>();
@@ -77,7 +90,11 @@ export function buildActivityStream(timelineRows: TimelineEventItem[], docs: Doc
       description: event.description,
       importance: event.importance,
       actorLabel: event.actorLabel,
-      downloadHref: category === 'invoices' && invoiceId ? toDownloadHref(docsByInvoiceId.get(invoiceId)) : undefined
+      downloadHref:
+        attachmentDownloadHref(event.metadata) ??
+        (category === 'invoices' && invoiceId
+          ? toDownloadHref(docsByInvoiceId.get(invoiceId))
+          : undefined)
     };
   });
 
@@ -96,9 +113,9 @@ export function buildActivityStream(timelineRows: TimelineEventItem[], docs: Doc
   }));
 
   const filteredTimelineItems = timelineItems.filter((item) => {
-    const event = timelineRows.find((row) => row.id === item.id);
-    if (!event || event.event_type !== 'doc_uploaded') return true;
-    const metadataDocId = typeof event.metadata?.doc_id === 'string' ? event.metadata.doc_id : null;
+    const eventRow = timelineRows.find((row) => row.id === item.id);
+    if (!eventRow || eventRow.event_type !== 'doc_uploaded') return true;
+    const metadataDocId = typeof eventRow.metadata?.doc_id === 'string' ? eventRow.metadata.doc_id : null;
     return !metadataDocId || !docIds.has(metadataDocId);
   });
 
