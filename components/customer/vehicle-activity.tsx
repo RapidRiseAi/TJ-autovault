@@ -2,10 +2,13 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { FileText, ReceiptText, Wrench, CircleDollarSign, Sparkles, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { importanceBadgeClass } from '@/lib/timeline';
 import type { ActivityItem } from '@/lib/activity-stream';
+import { createCustomerTimelineLog, requestTimelineItemDeletion, reviewTimelineItemDeletion } from '@/lib/actions/timeline';
 
 function iconForCategory(category: ActivityItem['category']) {
   if (category === 'requests') return Wrench;
@@ -16,9 +19,26 @@ function iconForCategory(category: ActivityItem['category']) {
   return ShieldCheck;
 }
 
-export function WorldTimeline({ activities }: { activities: ActivityItem[] }) {
+type DeletionRequest = {
+  id: string;
+  target_kind: 'timeline' | 'document';
+  target_id: string;
+  requested_by_role: 'customer' | 'workshop';
+  reason: string | null;
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+};
+
+export function WorldTimeline({ activities, vehicleId, viewerRole, deletionRequests = [], enableCustomerLog = false }: { activities: ActivityItem[]; vehicleId?: string; viewerRole?: 'customer' | 'workshop'; deletionRequests?: DeletionRequest[]; enableCustomerLog?: boolean }) {
+  const router = useRouter();
   const [filter, setFilter] = useState<'all' | ActivityItem['category']>('all');
   const [visibleCount, setVisibleCount] = useState(12);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [selectedActivity, setSelectedActivity] = useState<ActivityItem | null>(null);
+  const [deletionReason, setDeletionReason] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+  const [logTitle, setLogTitle] = useState('');
+  const [logDetails, setLogDetails] = useState('');
+  const [logMessage, setLogMessage] = useState('');
 
   const filtered = useMemo(() => {
     if (filter === 'all') return activities;
@@ -26,6 +46,42 @@ export function WorldTimeline({ activities }: { activities: ActivityItem[] }) {
   }, [activities, filter]);
 
   const visible = filtered.slice(0, visibleCount);
+  const pendingRequests = deletionRequests.filter((request) => request.status === 'pending');
+
+  async function submitDeletionRequest() {
+    if (!vehicleId || !selectedActivity || !deletionReason.trim()) return;
+    const result = await requestTimelineItemDeletion({
+      vehicleId,
+      targetKind: selectedActivity.kind,
+      targetId: selectedActivity.targetId,
+      reason: deletionReason.trim()
+    });
+    if (!result.ok) {
+      setDeleteError(result.error);
+      return;
+    }
+    setIsDeleteModalOpen(false);
+    setDeletionReason('');
+    setDeleteError('');
+    router.refresh();
+  }
+
+  async function reviewDeletion(requestId: string, approve: boolean) {
+    if (!vehicleId) return;
+    await reviewTimelineItemDeletion({ vehicleId, requestId, approve });
+    router.refresh();
+  }
+
+  async function submitCustomerLog() {
+    if (!vehicleId || !logTitle.trim()) return;
+    const result = await createCustomerTimelineLog({ vehicleId, title: logTitle, details: logDetails });
+    setLogMessage(result.ok ? 'Log added.' : result.error);
+    if (result.ok) {
+      setLogTitle('');
+      setLogDetails('');
+      router.refresh();
+    }
+  }
 
   if (activities.length === 0) {
     return <p className="rounded border border-dashed p-6 text-sm text-gray-600">No timeline activity for this vehicle yet.</p>;
@@ -43,6 +99,19 @@ export function WorldTimeline({ activities }: { activities: ActivityItem[] }) {
 
   return (
     <div className="space-y-4">
+      {enableCustomerLog ? (
+        <div className="rounded-xl border p-3">
+          <p className="text-sm font-semibold">Add personal service/DIY log</p>
+          <p className="mb-2 text-xs text-gray-500">Record work done by yourself or another workshop to keep the history accurate.</p>
+          <input value={logTitle} onChange={(event) => setLogTitle(event.target.value)} placeholder="Example: Replaced front brake pads at home" className="mb-2 w-full rounded border p-2 text-sm" />
+          <textarea value={logDetails} onChange={(event) => setLogDetails(event.target.value)} rows={2} placeholder="Optional details" className="w-full rounded border p-2 text-sm" />
+          <div className="mt-2 flex items-center gap-2">
+            <Button size="sm" onClick={() => void submitCustomerLog()}>Add log</Button>
+            {logMessage ? <span className="text-xs text-gray-600">{logMessage}</span> : null}
+          </div>
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap gap-2">
         {chips.map((chip) => (
           <Button key={chip.key} size="sm" variant={filter === chip.key ? 'primary' : 'secondary'} onClick={() => { setFilter(chip.key); setVisibleCount(12); }}>
@@ -74,6 +143,25 @@ export function WorldTimeline({ activities }: { activities: ActivityItem[] }) {
                       <Button asChild size="sm" variant="outline"><Link href={activity.downloadHref} download>Download</Link></Button>
                     </div>
                   ) : null}
+                  {vehicleId && viewerRole ? (
+                    <div className="mt-3 space-y-2">
+                      {(() => {
+                        const pendingRequest = pendingRequests.find((request) => request.target_kind === activity.kind && request.target_id === activity.targetId);
+                        if (!pendingRequest) {
+                          return <Button size="sm" variant="outline" onClick={() => { setSelectedActivity(activity); setIsDeleteModalOpen(true); }}>Request deletion</Button>;
+                        }
+                        if (pendingRequest.requested_by_role === viewerRole) {
+                          return <p className="text-xs text-amber-700">Deletion request pending approval from the other party.</p>;
+                        }
+                        return (
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="outline" onClick={() => void reviewDeletion(pendingRequest.id, true)}>Approve deletion</Button>
+                            <Button size="sm" variant="outline" onClick={() => void reviewDeletion(pendingRequest.id, false)}>Reject</Button>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  ) : null}
                 </article>
               </div>
             );
@@ -85,6 +173,19 @@ export function WorldTimeline({ activities }: { activities: ActivityItem[] }) {
         <div className="flex justify-center"><Button variant="secondary" onClick={() => setVisibleCount((prev) => prev + 12)}>Load more</Button></div>
       ) : null}
       {filtered.length === 0 ? <p className="text-sm text-gray-500">No events for this filter.</p> : null}
+
+      <ConfirmModal
+        open={isDeleteModalOpen}
+        onClose={() => { setIsDeleteModalOpen(false); setDeleteError(''); }}
+        title="Request deletion"
+        description="Deleting an item requires approval from the other party."
+        onConfirm={() => void submitDeletionRequest()}
+        confirmLabel="Send request"
+      >
+        <p className="text-xs text-gray-600">Item: {selectedActivity?.title ?? 'Unknown item'}</p>
+        <textarea value={deletionReason} onChange={(event) => setDeletionReason(event.target.value)} rows={3} className="w-full rounded border p-2 text-sm" placeholder="Reason for deletion request" />
+        {deleteError ? <p className="text-xs text-red-700">{deleteError}</p> : null}
+      </ConfirmModal>
     </div>
   );
 }
@@ -121,6 +222,6 @@ export function RecentActivitySnippet({
   );
 }
 
-export function HorizontalTimeline({ activities }: { activities: ActivityItem[] }) {
-  return <WorldTimeline activities={activities} />;
+export function HorizontalTimeline({ activities, vehicleId, viewerRole, deletionRequests }: { activities: ActivityItem[]; vehicleId?: string; viewerRole?: 'customer' | 'workshop'; deletionRequests?: DeletionRequest[] }) {
+  return <WorldTimeline activities={activities} vehicleId={vehicleId} viewerRole={viewerRole} deletionRequests={deletionRequests} />;
 }

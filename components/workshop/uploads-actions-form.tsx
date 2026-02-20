@@ -41,6 +41,9 @@ export function UploadsActionsForm({ vehicleId, onSuccess }: { vehicleId: string
     event.preventDefault();
     if (!file) return;
 
+    const confirmed = window.confirm(`Are you sure you want to upload "${file.name}" (${documentType.replaceAll('_', ' ')}) to the customer timeline?`);
+    if (!confirmed) return;
+
     setIsSubmitting(true);
     setError(null);
 

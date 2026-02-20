@@ -24,6 +24,7 @@ export type DocumentItem = {
 export type ActivityItem = {
   id: string;
   kind: 'timeline' | 'document';
+  targetId: string;
   category: 'requests' | 'quotes' | 'invoices' | 'uploads' | 'recommendations' | 'system';
   createdAt: string | null;
   title: string;
@@ -68,6 +69,7 @@ export function buildActivityStream(timelineRows: TimelineEventItem[], docs: Doc
     return {
       id: event.id,
       kind: 'timeline',
+      targetId: event.id,
       category,
       createdAt: event.created_at,
       title: event.title,
@@ -82,6 +84,7 @@ export function buildActivityStream(timelineRows: TimelineEventItem[], docs: Doc
   const docItems: ActivityItem[] = docs.map((doc) => ({
     id: `doc-${doc.id}`,
     kind: 'document',
+    targetId: doc.id,
     category: doc.document_type === 'invoice' ? 'invoices' : 'uploads',
     createdAt: doc.created_at,
     title: doc.subject ?? doc.original_name ?? 'Document uploaded',
