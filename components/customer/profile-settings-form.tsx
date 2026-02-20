@@ -2,7 +2,7 @@
 
 import { useActionState, useMemo, useState } from 'react';
 import { useFormStatus } from 'react-dom';
-import type { ProfileUpdateState } from '@/app/customer/profile/page';
+import type { ProfileUpdateState } from '@/lib/customer/profile-types';
 import { createClient as createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 
@@ -44,7 +44,6 @@ export function ProfileSettingsForm({
 }) {
   const [previewUrl, setPreviewUrl] = useState(defaults.avatar_url);
   const [avatarError, setAvatarError] = useState<string | null>(null);
-  const [uploadedAvatarPath, setUploadedAvatarPath] = useState('');
   const [uploadedAvatarUrl, setUploadedAvatarUrl] = useState('');
 
   const [state, formAction] = useActionState(action, initialState);
@@ -114,9 +113,7 @@ export function ProfileSettingsForm({
             return;
           }
 
-          setUploadedAvatarPath(signPayload.path);
           setUploadedAvatarUrl(signPayload.publicUrl);
-          formData.set('avatar_path', signPayload.path);
           formData.set('avatar_url', signPayload.publicUrl);
 
           // Prevent the raw file from being part of the server action payload.
@@ -127,7 +124,6 @@ export function ProfileSettingsForm({
       }}
       className="space-y-8"
     >
-      <input type="hidden" name="avatar_path" value={uploadedAvatarPath} />
       <input type="hidden" name="avatar_url" value={uploadedAvatarUrl} />
 
       <section className="grid gap-4 md:grid-cols-[120px_minmax(0,1fr)] md:items-start">
