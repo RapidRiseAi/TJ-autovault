@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { canAccessProfileAvatar, extractAvatarOwnerId } from '@/lib/uploads/avatar-access';
+
 
 export async function GET(request: NextRequest) {
   const bucket = request.nextUrl.searchParams.get('bucket');
@@ -13,11 +15,11 @@ export async function GET(request: NextRequest) {
   const user = (await supabase.auth.getUser()).data.user;
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-
   if (bucket === 'profile-avatars') {
-    // Avatar paths are scoped to profiles/{auth.uid()}/... and can only be downloaded by the owner.
-    const ownerId = pathParam.split('/')[1];
-    if (!ownerId || ownerId !== user.id) return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    const ownerId = extractAvatarOwnerId(pathParam);
+    if (!ownerId || !(await canAccessProfileAvatar(supabase, user.id, ownerId))) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
 
     const { data: signed, error } = await supabase.storage.from(bucket).createSignedUrl(pathParam, 60);
     if (error || !signed?.signedUrl) return NextResponse.json({ error: error?.message ?? 'Could not sign download URL' }, { status: 400 });
