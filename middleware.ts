@@ -8,6 +8,11 @@ type CookieToSet = { name: string; value: string; options?: CookieOptions };
 export async function middleware(request: NextRequest) {
   const response = NextResponse.next({ request });
 
+  // Let Next.js server-action internals proceed without middleware side-effects.
+  if (request.headers.has('next-action')) {
+    return response;
+  }
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
