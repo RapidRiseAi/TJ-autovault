@@ -44,7 +44,7 @@ export default async function VehicleTimelinePage({ params }: { params: Promise<
     );
   }
 
-  const [{ data: timeline }, { data: documents }] = await Promise.all([
+  const [{ data: timeline }, { data: documents }, { data: deletionRequests }] = await Promise.all([
     supabase
       .from('vehicle_timeline_events')
       .select('*')
@@ -58,6 +58,12 @@ export default async function VehicleTimelinePage({ params }: { params: Promise<
       .eq('vehicle_id', vehicleId)
       .eq('customer_account_id', customerAccountId)
       .order('created_at', { ascending: false })
+      .limit(300),
+    supabase
+      .from('timeline_deletion_requests')
+      .select('id,target_kind,target_id,requested_by_role,reason,status')
+      .eq('vehicle_id', vehicleId)
+      .order('requested_at', { ascending: false })
       .limit(300)
   ]);
 
@@ -75,7 +81,7 @@ export default async function VehicleTimelinePage({ params }: { params: Promise<
 
       <Card>
         <h2 className="mb-3 text-lg font-semibold">Activity</h2>
-        <WorldTimeline activities={activity} />
+        <WorldTimeline activities={activity} vehicleId={vehicleId} viewerRole="customer" deletionRequests={deletionRequests ?? []} enableCustomerLog />
       </Card>
     </main>
   );

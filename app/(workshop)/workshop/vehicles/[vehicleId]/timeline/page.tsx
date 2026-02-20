@@ -32,7 +32,7 @@ export default async function WorkshopVehicleTimelinePage({ params }: { params: 
 
   const workshopId = profile.workshop_account_id;
 
-  const [{ data: vehicle }, { data: timeline, error: timelineError }, { data: documents, error: documentsError }] = await Promise.all([
+  const [{ data: vehicle }, { data: timeline, error: timelineError }, { data: documents, error: documentsError }, { data: deletionRequests }] = await Promise.all([
     supabase
       .from('vehicles')
       .select('id,registration_number')
@@ -52,6 +52,12 @@ export default async function WorkshopVehicleTimelinePage({ params }: { params: 
       .eq('vehicle_id', vehicleId)
       .eq('workshop_account_id', workshopId)
       .order('created_at', { ascending: false })
+      .limit(300),
+    supabase
+      .from('timeline_deletion_requests')
+      .select('id,target_kind,target_id,requested_by_role,reason,status')
+      .eq('vehicle_id', vehicleId)
+      .order('requested_at', { ascending: false })
       .limit(300)
   ]);
 
@@ -106,7 +112,7 @@ export default async function WorkshopVehicleTimelinePage({ params }: { params: 
 
       <Card>
         <h2 className="mb-3 text-lg font-semibold">Activity</h2>
-        <HorizontalTimeline activities={activity} />
+        <HorizontalTimeline activities={activity} vehicleId={vehicleId} viewerRole="workshop" deletionRequests={deletionRequests ?? []} />
       </Card>
     </main>
   );

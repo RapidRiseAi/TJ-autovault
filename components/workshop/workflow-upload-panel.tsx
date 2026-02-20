@@ -71,6 +71,14 @@ export function WorkflowUploadPanel({ vehicleId }: { vehicleId: string }) {
 
   async function onUploadFiles(files: FileList | null) {
     if (!files?.length) return;
+    const fileSummary = Array.from(files)
+      .map((file) => file.name)
+      .join(', ');
+    const confirmed = window.confirm(
+      `Are you sure you want to upload ${fileSummary} as ${documentType.replaceAll('_', ' ')} to the customer/workshop shared timeline?`
+    );
+    if (!confirmed) return;
+
     setIsUploading(true);
     setError(null);
     try {

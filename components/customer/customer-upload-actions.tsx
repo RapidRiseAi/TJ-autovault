@@ -87,6 +87,14 @@ export function CustomerUploadActions({ vehicleId }: { vehicleId: string }) {
 
   async function onChoose(file: File | null, type: 'report' | 'vehicle_photo') {
     if (!file) return;
+    const receiver = 'your workshop';
+    const confirmed = window.confirm(
+      `Are you sure you want to upload "${file.name}" as ${
+        type === 'vehicle_photo' ? 'a vehicle photo' : 'a report'
+      } to ${receiver}?`
+    );
+    if (!confirmed) return;
+
     setSelectedFileName(file.name);
     setResult(null);
     setActiveType(type);
