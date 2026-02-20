@@ -32,8 +32,10 @@ async function updateProfile(formData: FormData) {
 
   let avatarUrl: string | undefined;
   const avatar = formData.get('avatar');
+  const isFileUpload =
+    typeof File !== 'undefined' && avatar instanceof File && avatar.size > 0;
 
-  if (avatar instanceof File && avatar.size > 0) {
+  if (isFileUpload) {
     const ext = avatar.type.split('/')[1] ?? 'jpg';
     const filePath = `profiles/${user.id}-${Date.now()}.${ext}`;
     const { data: uploaded } = await supabase.storage
