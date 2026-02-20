@@ -18,6 +18,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { SegmentRing, type RingSegment } from '@/components/ui/segment-ring';
 import { RingChart } from '@/components/ui/ring-chart';
+import { LogSomethingModal } from '@/components/customer/log-something-modal';
 
 type Vehicle = {
   id: string;
@@ -138,6 +139,7 @@ export function CustomerVehicleDetailView({
     | 'problem'
     | 'mileage'
     | 'upload'
+    | 'log'
     | 'quotes'
     | 'recommendations'
     | null
@@ -319,6 +321,14 @@ export function CustomerVehicleDetailView({
               className="bg-white text-black hover:bg-gray-100"
             >
               <Link href={timelineHref}>View timeline</Link>
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="border-white/30 bg-white/10 text-white hover:bg-white/20"
+              onClick={() => setOpenModal('log')}
+            >
+              Log something
             </Button>
             <Button
               asChild
@@ -548,6 +558,13 @@ export function CustomerVehicleDetailView({
           <Button
             variant="secondary"
             className="justify-start"
+            onClick={() => setOpenModal('log')}
+          >
+            Log something
+          </Button>
+          <Button
+            variant="secondary"
+            className="justify-start"
             onClick={() => setOpenModal('upload')}
           >
             Upload actions
@@ -697,6 +714,11 @@ export function CustomerVehicleDetailView({
       >
         <MileageForm vehicleId={vehicle.id} currentMileage={vehicle.odometer_km ?? 0} />
       </Modal>
+      <LogSomethingModal
+        vehicleId={vehicle.id}
+        open={openModal === 'log'}
+        onClose={() => setOpenModal(null)}
+      />
       <Modal
         open={openModal === 'upload'}
         onClose={() => setOpenModal(null)}

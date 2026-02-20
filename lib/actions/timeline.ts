@@ -63,6 +63,14 @@ export async function createCustomerTimelineLog(input: {
   vehicleId: string;
   title: string;
   details?: string;
+  attachment?: {
+    documentId: string;
+    bucket: string;
+    path: string;
+    originalName: string;
+    contentType: string;
+    size: number;
+  };
 }): Promise<ActionResult> {
   const supabase = await createClient();
   const user = (await supabase.auth.getUser()).data.user;
@@ -79,16 +87,30 @@ export async function createCustomerTimelineLog(input: {
     return { ok: false, error: 'Vehicle not found.' };
   }
 
-  const { data: customerUser } = await supabase
+  const [{ data: customerUser }, { data: profile }] = await Promise.all([
+    supabase
     .from('customer_users')
     .select('profile_id')
     .eq('profile_id', user.id)
     .eq('customer_account_id', vehicle.current_customer_account_id)
-    .maybeSingle();
+    .maybeSingle(),
+    supabase.from('profiles').select('display_name').eq('id', user.id).maybeSingle()
+  ]);
 
   if (!customerUser) {
     return { ok: false, error: 'You do not have permission for this vehicle.' };
   }
+
+  const attachment = input.attachment
+    ? {
+        doc_id: input.attachment.documentId,
+        bucket: input.attachment.bucket,
+        path: input.attachment.path,
+        original_name: input.attachment.originalName,
+        content_type: input.attachment.contentType,
+        size_bytes: input.attachment.size
+      }
+    : null;
 
   const { error } = await supabase.from('vehicle_timeline_events').insert({
     workshop_account_id: vehicle.workshop_account_id,
@@ -99,7 +121,11 @@ export async function createCustomerTimelineLog(input: {
     event_type: 'note',
     title: input.title.trim(),
     description: input.details?.trim() || null,
-    metadata: { source: 'customer_diy_log' },
+    metadata: {
+      source: 'customer_diy_log',
+      customer_display_name: profile?.display_name ?? null,
+      attachment
+    },
     importance: 'info'
   });
 
