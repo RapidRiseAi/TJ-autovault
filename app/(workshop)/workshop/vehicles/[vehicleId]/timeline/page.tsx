@@ -7,8 +7,9 @@ import { createClient } from '@/lib/supabase/server';
 import { HorizontalTimeline } from '@/components/customer/vehicle-activity';
 import { buildActivityStream } from '@/lib/activity-stream';
 
-export default async function WorkshopVehicleTimelinePage({ params }: { params: Promise<{ vehicleId: string }> }) {
+export default async function WorkshopVehicleTimelinePage({ params, searchParams }: { params: Promise<{ vehicleId: string }>; searchParams: Promise<{ deletionRequest?: string }> }) {
   const { vehicleId } = await params;
+  const { deletionRequest } = await searchParams;
   const supabase = await createClient();
   const user = (await supabase.auth.getUser()).data.user;
   if (!user) redirect('/login');
@@ -125,7 +126,7 @@ export default async function WorkshopVehicleTimelinePage({ params }: { params: 
 
       <Card>
         <h2 className="mb-3 text-lg font-semibold">Activity</h2>
-        <HorizontalTimeline activities={activity} vehicleId={vehicleId} viewerRole="workshop" deletionRequests={deletionRequests ?? []} />
+        <HorizontalTimeline activities={activity} vehicleId={vehicleId} viewerRole="workshop" deletionRequests={deletionRequests ?? []} highlightedDeletionRequestId={deletionRequest} />
       </Card>
     </main>
   );

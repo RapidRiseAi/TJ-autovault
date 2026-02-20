@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "node tests/rls-sanity.test.mjs",
+    "test": "node tests/rls-sanity.test.mjs && node tests/timeline-feature.test.mjs",
     "format": "prettier --write .",
     "db:seed": "psql \"$SUPABASE_DB_URL\" -f supabase/seed/seed.sql"
   },

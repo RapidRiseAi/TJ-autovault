@@ -9,8 +9,9 @@ import { WorldTimeline } from '@/components/customer/vehicle-activity';
 import { buildActivityStream } from '@/lib/activity-stream';
 import { PageHeader } from '@/components/layout/page-header';
 
-export default async function VehicleTimelinePage({ params }: { params: Promise<{ vehicleId: string }> }) {
+export default async function VehicleTimelinePage({ params, searchParams }: { params: Promise<{ vehicleId: string }>; searchParams: Promise<{ deletionRequest?: string }> }) {
   const { vehicleId } = await params;
+  const { deletionRequest } = await searchParams;
   const supabase = await createClient();
   const context = await getCustomerContextOrCreate();
 
@@ -91,7 +92,7 @@ export default async function VehicleTimelinePage({ params }: { params: Promise<
 
       <Card>
         <h2 className="mb-3 text-lg font-semibold">Activity</h2>
-        <WorldTimeline activities={activity} vehicleId={vehicleId} viewerRole="customer" deletionRequests={deletionRequests ?? []} enableCustomerLog />
+        <WorldTimeline activities={activity} vehicleId={vehicleId} viewerRole="customer" deletionRequests={deletionRequests ?? []} highlightedDeletionRequestId={deletionRequest} />
       </Card>
     </main>
   );
