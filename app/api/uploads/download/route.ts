@@ -5,11 +5,24 @@ export async function GET(request: NextRequest) {
   const bucket = request.nextUrl.searchParams.get('bucket');
   const pathParam = request.nextUrl.searchParams.get('path');
   if (!bucket || !pathParam) return NextResponse.json({ error: 'Missing path' }, { status: 400 });
-  if (bucket !== 'vehicle-images' && bucket !== 'vehicle-files') return NextResponse.json({ error: 'Invalid file path' }, { status: 400 });
+  if (bucket !== 'vehicle-images' && bucket !== 'vehicle-files' && bucket !== 'profile-avatars') {
+    return NextResponse.json({ error: 'Invalid file path' }, { status: 400 });
+  }
 
   const supabase = await createClient();
   const user = (await supabase.auth.getUser()).data.user;
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+
+  if (bucket === 'profile-avatars') {
+    // Avatar paths are scoped to profiles/{auth.uid()}/... and can only be downloaded by the owner.
+    const ownerId = pathParam.split('/')[1];
+    if (!ownerId || ownerId !== user.id) return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+
+    const { data: signed, error } = await supabase.storage.from(bucket).createSignedUrl(pathParam, 60);
+    if (error || !signed?.signedUrl) return NextResponse.json({ error: error?.message ?? 'Could not sign download URL' }, { status: 400 });
+    return NextResponse.redirect(signed.signedUrl);
+  }
 
   const { data: doc } = await supabase.from('vehicle_documents').select('customer_account_id').eq('storage_bucket', bucket).eq('storage_path', pathParam).maybeSingle();
   if (!doc) return NextResponse.json({ error: 'Not found' }, { status: 404 });

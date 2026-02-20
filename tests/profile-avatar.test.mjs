@@ -2,13 +2,20 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
+  AVATAR_BUCKET,
   AVATAR_MAX_SIZE_BYTES,
+  buildAvatarReadUrl,
   buildAvatarStoragePath,
   mapProfileUpdateError,
   validateAvatarFile
 } from '../lib/customer/avatar-upload.ts';
 import { buildProfileUpdatePatch } from '../lib/customer/profile-update.ts';
 import { shouldBypassMiddlewareForRequest } from '../lib/auth/middleware-guards.ts';
+
+
+test('avatar uploads use the dedicated private profile bucket', () => {
+  assert.equal(AVATAR_BUCKET, 'profile-avatars');
+});
 
 test('validateAvatarFile rejects oversized avatars with friendly message', () => {
   const message = validateAvatarFile({
@@ -37,6 +44,15 @@ test('buildAvatarStoragePath creates profile-scoped path', () => {
   assert.match(path, /\.png$/);
 });
 
+
+test('buildAvatarReadUrl points to authenticated download endpoint', () => {
+  const url = buildAvatarReadUrl('profiles/00000000-0000-0000-0000-000000000000/avatar.png');
+
+  assert.match(url, /^\/api\/uploads\/download\?/);
+  assert.match(url, /bucket=profile-avatars/);
+  assert.match(url, /path=profiles%2F00000000-0000-0000-0000-000000000000%2Favatar\.png/);
+});
+
 test('mapProfileUpdateError maps body limit errors to user-facing guidance', () => {
   const message = mapProfileUpdateError(new Error('Body exceeded 1 MB limit'));
 
@@ -63,6 +79,18 @@ test('customer profile enhancement migration grants avatar_url updates and does 
 
   assert.match(migration, /grant update \([^)]*avatar_url[^)]*\)/i);
   assert.doesNotMatch(migration, /avatar_path/i);
+});
+
+
+test('profile avatar bucket migration defines dedicated bucket and auth.uid ownership policies', () => {
+  const migration = readFileSync('supabase/migrations/202602190002_profile_avatar_bucket_rls.sql', 'utf8');
+
+  assert.match(migration, /insert into storage\.buckets[\s\S]*'profile-avatars'/i);
+  assert.match(migration, /create policy "profile avatars self upload"[\s\S]*for insert[\s\S]*bucket_id = 'profile-avatars'/i);
+  assert.match(migration, /create policy "profile avatars self upload"[\s\S]*split_part\(name, '\/', 1\) = 'profiles'/i);
+  assert.match(migration, /create policy "profile avatars self upload"[\s\S]*split_part\(name, '\/', 2\)::uuid = auth\.uid\(\)/i);
+  assert.match(migration, /create policy "profile avatars self read"[\s\S]*for select[\s\S]*bucket_id = 'profile-avatars'/i);
+  assert.match(migration, /create policy "profile avatars self read"[\s\S]*split_part\(name, '\/', 2\)::uuid = auth\.uid\(\)/i);
 });
 
 test('middleware bypass helper preserves next-action pass-through behavior', () => {

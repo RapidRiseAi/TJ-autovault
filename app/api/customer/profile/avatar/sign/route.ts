@@ -4,6 +4,7 @@ import {
   ALLOWED_AVATAR_MIME_TYPES,
   AVATAR_BUCKET,
   AVATAR_MAX_SIZE_BYTES,
+  buildAvatarReadUrl,
   buildAvatarStoragePath
 } from '@/lib/customer/avatar-upload';
 import { createClient } from '@/lib/supabase/server';
@@ -44,12 +45,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error?.message ?? 'Could not create avatar upload URL.' }, { status: 400 });
   }
 
-  const { data: publicUrlData } = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(path);
-
   return NextResponse.json({
     bucket: AVATAR_BUCKET,
     path,
     token: data.token,
-    publicUrl: publicUrlData.publicUrl
+    // Avatar bucket is private; clients read through the authenticated download route.
+    publicUrl: buildAvatarReadUrl(path)
   });
 }
