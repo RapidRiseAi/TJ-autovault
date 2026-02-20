@@ -54,7 +54,7 @@ export default async function VehicleTimelinePage({ params }: { params: Promise<
       .limit(300),
     supabase
       .from('vehicle_documents')
-      .select('id,created_at,document_type,original_name,subject,storage_bucket,storage_path,importance')
+      .select('id,created_at,document_type,original_name,subject,storage_bucket,storage_path,importance,invoice_id')
       .eq('vehicle_id', vehicleId)
       .eq('customer_account_id', customerAccountId)
       .order('created_at', { ascending: false })
@@ -71,7 +71,7 @@ export default async function VehicleTimelinePage({ params }: { params: Promise<
 
   return (
     <main className="space-y-4">
-      <PageHeader title="Full timeline" subtitle={`${vehicle.registration_number} · Unified activity stream`} actions={<Button asChild variant="secondary" size="sm"><Link href={customerVehicle(vehicleId)}>Back to vehicle</Link></Button>} />
+      <PageHeader title="Full timeline" subtitle={`${vehicle.registration_number} · Unified activity stream`} actions={<div className="flex gap-2"><Button asChild variant="secondary" size="sm"><Link href={`/customer/vehicles/${vehicleId}/documents`}>Upload document</Link></Button><Button asChild variant="secondary" size="sm"><Link href={customerVehicle(vehicleId)}>Back to vehicle</Link></Button></div>} />
 
       <Card>
         <h2 className="mb-3 text-lg font-semibold">Activity</h2>

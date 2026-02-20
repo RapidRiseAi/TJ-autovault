@@ -18,6 +18,7 @@ export type DocumentItem = {
   storage_bucket: string | null;
   storage_path: string | null;
   importance: string | null;
+  invoice_id?: string | null;
 };
 
 export type ActivityItem = {
@@ -47,33 +48,48 @@ function mapCategory(eventType?: string | null): ActivityItem['category'] {
   return 'system';
 }
 
+function toDownloadHref(doc?: DocumentItem) {
+  if (!doc?.storage_path) return undefined;
+  return `/api/uploads/download?bucket=${encodeURIComponent(doc.storage_bucket ?? '')}&path=${encodeURIComponent(doc.storage_path)}`;
+}
+
 export function buildActivityStream(timelineRows: TimelineEventItem[], docs: DocumentItem[]): ActivityItem[] {
   const docIds = new Set(docs.map((doc) => doc.id));
-  const timelineItems: ActivityItem[] = timelineRows.map((event) => ({
-    id: event.id,
-    kind: 'timeline',
-    category: mapCategory(event.event_type),
-    createdAt: event.created_at,
-    title: event.title,
-    subtitle: event.event_type.replaceAll('_', ' '),
-    description: event.description,
-    importance: event.importance,
-    actorLabel: event.actorLabel
-  }));
+  const docsByInvoiceId = new Map<string, DocumentItem>();
+
+  docs.forEach((doc) => {
+    if (doc.invoice_id) docsByInvoiceId.set(doc.invoice_id, doc);
+  });
+
+  const timelineItems: ActivityItem[] = timelineRows.map((event) => {
+    const category = mapCategory(event.event_type);
+    const invoiceId = typeof event.metadata?.invoice_id === 'string' ? event.metadata.invoice_id : undefined;
+
+    return {
+      id: event.id,
+      kind: 'timeline',
+      category,
+      createdAt: event.created_at,
+      title: event.title,
+      subtitle: event.event_type.replaceAll('_', ' '),
+      description: event.description,
+      importance: event.importance,
+      actorLabel: event.actorLabel,
+      downloadHref: category === 'invoices' && invoiceId ? toDownloadHref(docsByInvoiceId.get(invoiceId)) : undefined
+    };
+  });
 
   const docItems: ActivityItem[] = docs.map((doc) => ({
     id: `doc-${doc.id}`,
     kind: 'document',
-    category: 'uploads',
+    category: doc.document_type === 'invoice' ? 'invoices' : 'uploads',
     createdAt: doc.created_at,
     title: doc.subject ?? doc.original_name ?? 'Document uploaded',
     subtitle: `Uploaded ${labelDocumentType(doc.document_type)}`,
     description: doc.original_name,
     importance: doc.importance,
     actorLabel: 'Document upload',
-    downloadHref: doc.storage_path
-      ? `/api/uploads/download?bucket=${encodeURIComponent(doc.storage_bucket ?? '')}&path=${encodeURIComponent(doc.storage_path)}`
-      : undefined
+    downloadHref: toDownloadHref(doc)
   }));
 
   const filteredTimelineItems = timelineItems.filter((item) => {

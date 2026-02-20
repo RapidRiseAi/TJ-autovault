@@ -55,7 +55,13 @@ export function RequestForm({ vehicleId }: { vehicleId: string }) {
   );
 }
 
-export function MileageForm({ vehicleId }: { vehicleId: string }) {
+export function MileageForm({
+  vehicleId,
+  currentMileage
+}: {
+  vehicleId: string;
+  currentMileage: number;
+}) {
   const [msg, setMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -74,7 +80,8 @@ export function MileageForm({ vehicleId }: { vehicleId: string }) {
       <input
         name="odometerKm"
         type="number"
-        min={0}
+        min={currentMileage}
+        defaultValue={currentMileage}
         required
         className="w-full rounded border p-2"
       />

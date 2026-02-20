@@ -48,7 +48,7 @@ export default async function WorkshopVehicleTimelinePage({ params }: { params: 
       .limit(300),
     supabase
       .from('vehicle_documents')
-      .select('id,created_at,document_type,original_name,subject,storage_bucket,storage_path,importance')
+      .select('id,created_at,document_type,original_name,subject,storage_bucket,storage_path,importance,invoice_id')
       .eq('vehicle_id', vehicleId)
       .eq('workshop_account_id', workshopId)
       .order('created_at', { ascending: false })
@@ -93,9 +93,14 @@ export default async function WorkshopVehicleTimelinePage({ params }: { params: 
             <h1 className="text-2xl font-bold">Full timeline</h1>
             <p className="text-sm text-gray-600">{vehicle.registration_number} · Unified activity stream</p>
           </div>
-          <Button asChild variant="outline" size="sm">
-            <Link href={`/workshop/vehicles/${vehicleId}`}>Back to vehicle</Link>
-          </Button>
+          <div className="flex gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/workshop/vehicles/${vehicleId}/documents`}>Upload document</Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/workshop/vehicles/${vehicleId}`}>Back to vehicle</Link>
+            </Button>
+          </div>
         </div>
       </Card>
 

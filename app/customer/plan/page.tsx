@@ -7,9 +7,9 @@ export default function CustomerPlanPage() {
       <PageHeader title="Billing & plan" subtitle="Plan upgrades and payments are coming soon." />
       <div className="grid gap-3 md:grid-cols-3">
         {[
-          { tier: 'Basic', price: 'R100 / month', limit: '1 vehicle' },
-          { tier: 'Pro', price: 'R700 / month', limit: '10 vehicles' },
-          { tier: 'Business', price: 'R1200 / month', limit: '20 vehicles' }
+          { tier: 'Plan 1', price: 'R200 / month', limit: '1 to 3 cars · 250MB storage' },
+          { tier: 'Plan 2', price: 'R500 / month', limit: 'Up to 10 cars · 1GB storage' },
+          { tier: 'Plan 3', price: 'R1000 / month', limit: 'Unlimited cars · 10GB storage' }
         ].map((plan) => (
           <Card key={plan.tier}>
             <p className="text-xs uppercase text-gray-500">{plan.tier}</p>

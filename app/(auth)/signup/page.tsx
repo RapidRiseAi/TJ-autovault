@@ -6,9 +6,9 @@ import { SignupPlanSelector } from '@/components/auth/signup-plan-selector';
 import { AuthShell } from '@/components/auth/auth-shell';
 
 const plans = [
-  { key: 'basic', title: 'Basic', popular: false },
-  { key: 'pro', title: 'Pro', popular: true },
-  { key: 'business', title: 'Business', popular: false }
+  { key: 'basic', title: 'Plan 1', popular: false },
+  { key: 'pro', title: 'Plan 2', popular: true },
+  { key: 'business', title: 'Plan 3', popular: false }
 ] as const;
 
 export default async function SignupPage({

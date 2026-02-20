@@ -15,7 +15,7 @@ type ActionResponse = { ok: boolean; error?: string; message?: string };
 
 type Mode = 'recommendation' | 'mileage' | 'request' | 'payment' | 'job' | null;
 
-export function VehicleWorkflowActions({ vehicleId, invoices, jobs, workRequests }: { vehicleId: string; invoices: Array<{ id: string; invoiceNumber?: string | null; paymentStatus?: string | null; totalCents?: number | null }>; jobs: Array<{ id: string }>; workRequests: Array<{ id: string; status: string }>; compact?: boolean; }) {
+export function VehicleWorkflowActions({ vehicleId, invoices, jobs, workRequests, currentMileage }: { vehicleId: string; invoices: Array<{ id: string; invoiceNumber?: string | null; paymentStatus?: string | null; totalCents?: number | null }>; jobs: Array<{ id: string }>; workRequests: Array<{ id: string; status: string }>; currentMileage: number; compact?: boolean; }) {
   const [open, setOpen] = useState<Mode>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
@@ -66,8 +66,8 @@ export function VehicleWorkflowActions({ vehicleId, invoices, jobs, workRequests
       <Modal open={open === 'mileage'} onClose={() => setOpen(null)} title="Update mileage">
         <form onSubmit={(event) => { event.preventDefault(); const formData = new FormData(event.currentTarget); void on(() => updateVehicleServiceReminders({ vehicleId, odometerKm: Number(formData.get('odometerKm') || 0), nextServiceKm: Number(formData.get('nextServiceKm') || 0), nextServiceDate: String(formData.get('nextServiceDate') || '') })); }}>
           <ModalFormShell>
-            <input name="odometerKm" type="number" placeholder="Odometer km" />
-            <input name="nextServiceKm" type="number" placeholder="Next service km" />
+            <input name="odometerKm" type="number" min={currentMileage} defaultValue={currentMileage} placeholder="Odometer km" />
+            <input name="nextServiceKm" type="number" min={currentMileage} defaultValue={currentMileage} placeholder="Next service km" />
             <input type="date" name="nextServiceDate" />
             <Button disabled={isLoading}>{isLoading ? 'Saving...' : 'Save'}</Button>
             {msg ? <p className="text-xs text-red-700">{msg}</p> : null}

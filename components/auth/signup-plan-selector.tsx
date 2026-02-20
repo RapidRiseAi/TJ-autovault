@@ -4,14 +4,14 @@ import { useState } from 'react';
 
 type Plan = {
   key: 'basic' | 'pro' | 'business';
-  title: 'Basic' | 'Pro' | 'Business';
+  title: 'Plan 1' | 'Plan 2' | 'Plan 3';
   popular: boolean;
 };
 
 const planBenefits: Record<Plan['key'], string[]> = {
-  basic: ['Timeline history', 'Document vault', 'Status updates'],
-  pro: ['Timeline history', 'Document vault', 'Priority status updates'],
-  business: ['Timeline history', 'Document vault', 'Multi-vehicle status updates']
+  basic: ['1 to 3 cars', '250MB storage', 'R200/month'],
+  pro: ['Up to 10 cars', '1GB storage', 'R500/month'],
+  business: ['Unlimited cars', '10GB storage', 'R1000/month']
 };
 
 export function SignupPlanSelector({ plans }: { plans: readonly Plan[] }) {
