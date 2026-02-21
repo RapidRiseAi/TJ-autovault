@@ -38,10 +38,11 @@ async function appendVehicleTimeline(args: {
   });
 }
 
-export async function startJobCard(input: { vehicleId: string; title: string; beforePhotoPath: string; technicianIds: string[] }): Promise<Result> {
+export async function startJobCard(input: { vehicleId: string; title: string; quoteId?: string; beforePhotoPaths: string[]; technicianIds: string[] }): Promise<Result> {
   const ctx = await getWorkshopContext();
   if (!ctx) return { ok: false, error: 'Unauthorized' };
-  if (!input.beforePhotoPath?.trim()) return { ok: false, error: 'At least one before photo is required.' };
+  const beforePhotoPaths = input.beforePhotoPaths.map((path) => path.trim()).filter(Boolean);
+  if (!beforePhotoPaths.length) return { ok: false, error: 'At least one before photo is required.' };
 
   const { data: vehicle } = await ctx.supabase.from('vehicles').select('id,current_customer_account_id').eq('id', input.vehicleId).eq('workshop_account_id', ctx.profile.workshop_account_id).maybeSingle();
   if (!vehicle) return { ok: false, error: 'Vehicle not found.' };
@@ -61,7 +62,9 @@ export async function startJobCard(input: { vehicleId: string; title: string; be
   }).select('id').single();
   if (error || !job) return { ok: false, error: error?.message ?? 'Could not start job.' };
 
-  await ctx.supabase.from('job_card_photos').insert({ job_card_id: job.id, kind: 'before', storage_path: input.beforePhotoPath.trim(), uploaded_by: ctx.profile.id });
+  await ctx.supabase.from('job_card_photos').insert(
+    beforePhotoPaths.map((path) => ({ job_card_id: job.id, kind: 'before', storage_path: path, uploaded_by: ctx.profile.id }))
+  );
 
   if (input.technicianIds.length) {
     await ctx.supabase.from('job_card_assignments').insert(
@@ -72,7 +75,7 @@ export async function startJobCard(input: { vehicleId: string; title: string; be
   await ctx.supabase.from('job_card_events').insert({
     job_card_id: job.id,
     event_type: 'job_started',
-    payload: { title: input.title },
+    payload: { title: input.title, quoteId: input.quoteId ?? null },
     created_by: ctx.profile.id
   });
 
@@ -155,17 +158,20 @@ export async function addJobCardEvent(input: { jobId: string; eventType: string;
   return { ok: true };
 }
 
-export async function completeJobCard(input: { jobId: string; endNote: string; afterPhotoPath: string }): Promise<Result> {
+export async function completeJobCard(input: { jobId: string; endNote: string; afterPhotoPaths: string[] }): Promise<Result> {
   const ctx = await getWorkshopContext();
   if (!ctx) return { ok: false, error: 'Unauthorized' };
   if (!input.endNote.trim()) return { ok: false, error: 'End note is required' };
-  if (!input.afterPhotoPath.trim()) return { ok: false, error: 'At least one after photo is required' };
+  const afterPhotoPaths = input.afterPhotoPaths.map((path) => path.trim()).filter(Boolean);
+  if (!afterPhotoPaths.length) return { ok: false, error: 'At least one after photo is required' };
 
   const { data: job } = await ctx.supabase.from('job_cards').select('id,vehicle_id,is_locked,vehicles(current_customer_account_id)').eq('id', input.jobId).eq('workshop_id', ctx.profile.workshop_account_id).maybeSingle();
   if (!job) return { ok: false, error: 'Job not found' };
   if (job.is_locked) return { ok: false, error: 'Job is closed and locked.' };
 
-  await ctx.supabase.from('job_card_photos').insert({ job_card_id: input.jobId, kind: 'after', storage_path: input.afterPhotoPath.trim(), uploaded_by: ctx.profile.id });
+  await ctx.supabase.from('job_card_photos').insert(
+    afterPhotoPaths.map((path) => ({ job_card_id: input.jobId, kind: 'after', storage_path: path, uploaded_by: ctx.profile.id }))
+  );
 
   const now = new Date().toISOString();
   await ctx.supabase.from('job_cards').update({ status: 'completed', completed_at: now, last_updated_at: now, customer_summary: input.endNote }).eq('id', input.jobId);

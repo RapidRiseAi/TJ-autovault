@@ -23,11 +23,48 @@ export function JobCardDetailClient(props: {
   checklist: Array<{ id: string; label: string; is_required: boolean; is_done: boolean; done_at: string | null }>;
 }) {
   const [tab, setTab] = useState<Tab>('overview');
+  const [isUploading, setIsUploading] = useState(false);
   const tabs: Tab[] = ['overview', 'photos', 'updates', 'internal', 'parts', 'approvals', 'checklist'];
 
   async function doAction(run: () => Promise<{ ok: boolean }>) {
     const result = await run();
     if (result.ok) window.location.reload();
+  }
+
+  async function uploadPhotoFiles(files: File[], kind: 'before' | 'after') {
+    const selectedFiles = files.filter((file) => file.type.startsWith('image/'));
+    if (!selectedFiles.length) return [] as string[];
+
+    setIsUploading(true);
+    try {
+      const paths: string[] = [];
+      for (const file of selectedFiles) {
+        const signResponse = await fetch('/api/uploads/sign', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            vehicleId: props.vehicleId,
+            fileName: file.name,
+            contentType: file.type,
+            kind: 'image',
+            documentType: kind === 'before' ? 'before_photos' : 'after_photos'
+          })
+        });
+        if (!signResponse.ok) throw new Error('Could not sign upload');
+
+        const signedPayload = (await signResponse.json()) as { bucket: string; path: string; token: string };
+        const uploadResponse = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/upload/sign/${signedPayload.bucket}/${signedPayload.path}?token=${signedPayload.token}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': file.type },
+          body: file
+        });
+        if (!uploadResponse.ok) throw new Error('Could not upload photo');
+        paths.push(signedPayload.path);
+      }
+      return paths;
+    } finally {
+      setIsUploading(false);
+    }
   }
 
   return (
@@ -52,14 +89,14 @@ export function JobCardDetailClient(props: {
             <input name="note" placeholder="Approval note" className="rounded-lg border border-neutral-300 px-2 py-1 text-xs" />
             <Button size="sm" variant="secondary" disabled={props.isLocked}>Request approval</Button>
           </form>
-          <form onSubmit={(e) => { e.preventDefault(); const path = String(new FormData(e.currentTarget).get('path') || ''); void doAction(() => addJobCardEvent({ jobId: props.jobId, eventType: 'photo_uploaded', note: path })); }} className="flex gap-2">
-            <input name="path" placeholder="Photo path" className="rounded-lg border border-neutral-300 px-2 py-1 text-xs" />
-            <Button size="sm" variant="secondary" disabled={props.isLocked}>Upload photos</Button>
+          <form onSubmit={(e) => { e.preventDefault(); const form = new FormData(e.currentTarget); const files = form.getAll('photos').filter((value): value is File => value instanceof File); void doAction(async () => { const paths = await uploadPhotoFiles(files, 'before'); if (!paths.length) return { ok: false }; await addJobCardEvent({ jobId: props.jobId, eventType: 'photo_uploaded', note: `${paths.length} photo(s) uploaded` }); return { ok: true }; }); }} className="flex gap-2">
+            <input name="photos" type="file" accept="image/*" multiple className="rounded-lg border border-neutral-300 px-2 py-1 text-xs" />
+            <Button size="sm" variant="secondary" disabled={props.isLocked || isUploading}>{isUploading ? 'Uploading…' : 'Upload photos'}</Button>
           </form>
-          <form onSubmit={(e) => { e.preventDefault(); const form = new FormData(e.currentTarget); void doAction(() => completeJobCard({ jobId: props.jobId, endNote: String(form.get('endNote') || ''), afterPhotoPath: String(form.get('afterPhotoPath') || '') })); }} className="flex gap-2">
+          <form onSubmit={(e) => { e.preventDefault(); const form = new FormData(e.currentTarget); const files = form.getAll('afterPhotos').filter((value): value is File => value instanceof File); void doAction(async () => { const uploadedPaths = await uploadPhotoFiles(files, 'after'); return completeJobCard({ jobId: props.jobId, endNote: String(form.get('endNote') || ''), afterPhotoPaths: uploadedPaths }); }); }} className="flex gap-2">
             <input name="endNote" placeholder="Completion note" className="rounded-lg border border-neutral-300 px-2 py-1 text-xs" />
-            <input name="afterPhotoPath" placeholder="After photo path" className="rounded-lg border border-neutral-300 px-2 py-1 text-xs" />
-            <Button size="sm" disabled={props.isLocked}>Complete job</Button>
+            <input name="afterPhotos" type="file" accept="image/*" multiple className="rounded-lg border border-neutral-300 px-2 py-1 text-xs" />
+            <Button size="sm" disabled={props.isLocked || isUploading}>{isUploading ? 'Uploading…' : 'Complete job'}</Button>
           </form>
           {props.isManager ? <Button size="sm" variant="outline" disabled={props.isLocked} onClick={() => void doAction(() => closeJobCard({ jobId: props.jobId }))}>Close job</Button> : null}
         </div>
