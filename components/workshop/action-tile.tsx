@@ -23,10 +23,10 @@ export function ActionTile({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        'group relative flex w-full items-center justify-between gap-3 overflow-hidden rounded-xl border bg-white p-4 text-left shadow-[0_6px_14px_rgba(17,17,17,0.05)] transition duration-150 hover:-translate-y-px hover:border-neutral-300 hover:shadow-[0_10px_22px_rgba(17,17,17,0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-red/35 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
+        'group relative flex w-full items-center justify-between gap-3 overflow-hidden rounded-xl border bg-neutral-50/70 p-4 text-left shadow-[0_10px_24px_rgba(17,17,17,0.09)] transition duration-150 hover:-translate-y-0.5 hover:border-neutral-400 hover:bg-white hover:shadow-[0_14px_30px_rgba(17,17,17,0.12)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-red/35 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
         primary
-          ? 'border-brand-red/30 bg-gradient-to-r from-red-50/80 to-white'
-          : 'border-neutral-200'
+          ? 'border-brand-red/40 bg-gradient-to-r from-red-50 to-white'
+          : 'border-neutral-300'
       )}
     >
       {primary ? <span className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-brand-red/65" aria-hidden /> : null}

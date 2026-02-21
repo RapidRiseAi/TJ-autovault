@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Upload } from 'lucide-react';
 import { Modal } from '@/components/ui/modal';
@@ -8,7 +8,7 @@ import { VehicleWorkflowActions } from '@/components/workshop/vehicle-workflow-a
 import { UploadsActionsForm } from '@/components/workshop/uploads-actions-form';
 import { ActionTile } from '@/components/workshop/action-tile';
 
-export function WorkshopVehicleActionsPanel({ vehicleId, invoices, jobs, workRequests, currentMileage, uploadDestinationLabel, initialUploadMode, initialUploadSubject }: { vehicleId: string; invoices: Array<{ id: string; invoiceNumber?: string | null; paymentStatus?: string | null; totalCents?: number | null }>; jobs: Array<{ id: string }>; workRequests: Array<{ id: string; status: string }>; currentMileage: number; uploadDestinationLabel: string; initialUploadMode?: 'quote' | 'invoice' | 'inspection_report' | 'warning'; initialUploadSubject?: string; }) {
+export function WorkshopVehicleActionsPanel({ vehicleId, invoices, jobs, workRequests, currentMileage, uploadDestinationLabel, initialUploadMode, initialUploadSubject, prependTiles }: { vehicleId: string; invoices: Array<{ id: string; invoiceNumber?: string | null; paymentStatus?: string | null; totalCents?: number | null }>; jobs: Array<{ id: string }>; workRequests: Array<{ id: string; status: string }>; currentMileage: number; uploadDestinationLabel: string; initialUploadMode?: 'quote' | 'invoice' | 'inspection_report' | 'warning'; initialUploadSubject?: string; prependTiles?: ReactNode; }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -26,7 +26,8 @@ export function WorkshopVehicleActionsPanel({ vehicleId, invoices, jobs, workReq
 
   return (
     <>
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2">
+        {prependTiles}
         <ActionTile
           title="Upload document"
           description="Attach reports, invoices, quotes, or photos for this vehicle."

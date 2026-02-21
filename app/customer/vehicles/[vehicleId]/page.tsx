@@ -8,6 +8,7 @@ import {
   customerVehicleTimeline
 } from '@/lib/routes';
 import { createClient } from '@/lib/supabase/server';
+import { formatJobCardStatus, jobProgressIndex } from '@/lib/job-cards';
 import { getCustomerContextOrCreate } from '@/lib/customer/get-customer-context-or-create';
 
 function VehicleAccessErrorPanel() {
@@ -54,7 +55,9 @@ export default async function VehicleDetailPage({
     { data: requests },
     { data: recommendations },
     { data: docs },
-    { data: customerVehiclesForMessage }
+    { data: customerVehiclesForMessage },
+    { data: activeJob },
+    { data: latestJobUpdate }
   ] = await Promise.all([
     supabase
       .from('quotes')
@@ -92,8 +95,24 @@ export default async function VehicleDetailPage({
       .from('vehicles')
       .select('id,registration_number')
       .eq('current_customer_account_id', customerAccountId)
-      .order('registration_number', { ascending: true })
+      .order('registration_number', { ascending: true }),
+    supabase
+      .from('job_cards')
+      .select('id,status,title,last_updated_at')
+      .eq('vehicle_id', vehicleId)
+      .in('status', ['not_started', 'in_progress', 'waiting_parts', 'waiting_approval', 'quality_check', 'ready', 'completed'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('job_card_updates')
+      .select('id,message,created_at,job_card_id')
+      .order('created_at', { ascending: false })
+      .limit(50)
   ]);
+
+
+  const latestUpdate = (latestJobUpdate ?? []).find((row) => row.job_card_id === activeJob?.id) ?? null;
 
   const attachments = (docs ?? []).map((d) => ({
     id: d.id,
@@ -108,6 +127,27 @@ export default async function VehicleDetailPage({
 
   return (
     <main className="space-y-4">
+
+      {activeJob ? (
+        <Card className="rounded-2xl border border-neutral-200 bg-white p-4">
+          <p className="text-xs uppercase tracking-[0.14em] text-gray-500">Job status</p>
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <div>
+              <p className="text-lg font-semibold text-black">{formatJobCardStatus(activeJob.status)}</p>
+              <p className="text-xs text-gray-500">{activeJob.title}</p>
+            </div>
+            <Button asChild size="sm"><Link href={`/customer/jobs/${activeJob.id}`}>Open job details</Link></Button>
+          </div>
+          <div className="mt-3 grid grid-cols-5 gap-2">
+            {['Not started', 'In progress', 'Waiting', 'Quality check', 'Completed'].map((step, index) => (
+              <div key={step} className={`rounded-lg px-2 py-1 text-center text-[11px] ${index <= jobProgressIndex(activeJob.status) ? 'bg-black text-white' : 'bg-neutral-100 text-gray-500'}`}>{step}</div>
+            ))}
+          </div>
+          <p className="mt-3 text-xs text-gray-600">{latestUpdate?.message ?? 'No customer update yet.'}</p>
+          <p className="text-[11px] text-gray-400">{latestUpdate?.created_at ? new Date(latestUpdate.created_at).toLocaleString() : ''}</p>
+        </Card>
+      ) : null}
+
       <CustomerVehicleDetailView
         vehicle={vehicle}
         timeline={[]}
