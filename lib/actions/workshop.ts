@@ -8,6 +8,10 @@ import { z } from 'zod';
 
 type Result = { ok: true; message?: string; vehicleId?: string } | { ok: false; error: string };
 
+function isMissingNotesColumnError(error: { code?: string; message?: string } | null) {
+  return error?.code === 'PGRST204' && error.message?.includes("'notes' column");
+}
+
 async function getWorkshopContext() {
   const supabase = await createClient();
   const {
@@ -61,7 +65,7 @@ export async function createWorkshopCustomerVehicle(input: unknown): Promise<Res
 
   if (!customer) return { ok: false, error: 'Customer account not found' };
 
-  const { data: vehicle, error } = await ctx.supabase
+  let { data: vehicle, error } = await ctx.supabase
     .from('vehicles')
     .insert({
       workshop_account_id: ctx.profile.workshop_account_id,
@@ -76,6 +80,23 @@ export async function createWorkshopCustomerVehicle(input: unknown): Promise<Res
     })
     .select('id')
     .single();
+
+  if (isMissingNotesColumnError(error)) {
+    ({ data: vehicle, error } = await ctx.supabase
+      .from('vehicles')
+      .insert({
+        workshop_account_id: ctx.profile.workshop_account_id,
+        current_customer_account_id: payload.customerAccountId,
+        registration_number: payload.registrationNumber,
+        make: payload.make,
+        model: payload.model,
+        year: payload.year,
+        vin: payload.vin || null,
+        odometer_km: payload.currentMileage
+      })
+      .select('id')
+      .single());
+  }
 
   if (error || !vehicle) {
     return { ok: false, error: error?.message ?? 'Could not create vehicle' };
@@ -100,7 +121,7 @@ export async function updateWorkshopVehicleInfo(input: unknown): Promise<Result>
 
   const payload = parsed.data;
 
-  const { data: vehicle, error } = await ctx.supabase
+  let { data: vehicle, error } = await ctx.supabase
     .from('vehicles')
     .update({
       registration_number: payload.registrationNumber,
@@ -115,6 +136,23 @@ export async function updateWorkshopVehicleInfo(input: unknown): Promise<Result>
     .eq('workshop_account_id', ctx.profile.workshop_account_id)
     .select('id,current_customer_account_id')
     .maybeSingle();
+
+  if (isMissingNotesColumnError(error)) {
+    ({ data: vehicle, error } = await ctx.supabase
+      .from('vehicles')
+      .update({
+        registration_number: payload.registrationNumber,
+        make: payload.make,
+        model: payload.model,
+        year: payload.year,
+        vin: payload.vin || null,
+        odometer_km: payload.currentMileage
+      })
+      .eq('id', payload.vehicleId)
+      .eq('workshop_account_id', ctx.profile.workshop_account_id)
+      .select('id,current_customer_account_id')
+      .maybeSingle());
+  }
 
   if (error || !vehicle) {
     return { ok: false, error: error?.message ?? 'Could not update vehicle' };

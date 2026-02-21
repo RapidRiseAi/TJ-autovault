@@ -32,6 +32,13 @@ const INITIAL_FORM = {
   notes: ''
 };
 
+
+
+function getVehicleDisplayName(vehicle: Pick<Vehicle, 'make' | 'model' | 'registration_number'>) {
+  const name = [vehicle.make, vehicle.model].filter(Boolean).join(' ').trim();
+  return name || vehicle.registration_number;
+}
+
 export function CustomerVehicleManager({ customerAccountId, vehicles }: { customerAccountId: string; vehicles: Vehicle[] }) {
   const router = useRouter();
   const { pushToast } = useToast();
@@ -104,6 +111,7 @@ export function CustomerVehicleManager({ customerAccountId, vehicles }: { custom
     router.refresh();
   }
 
+
   return (
     <>
       <div className="mb-3 flex items-center justify-between">
@@ -120,7 +128,7 @@ export function CustomerVehicleManager({ customerAccountId, vehicles }: { custom
                 <div className="flex items-center gap-3">
                   {vehicle.primary_image_path ? <img src={`/api/uploads/download?bucket=vehicle-images&path=${encodeURIComponent(vehicle.primary_image_path)}`} alt={vehicle.registration_number} className="h-12 w-12 rounded-xl object-cover" /> : <div className="h-12 w-12 rounded-xl bg-stone-100" />}
                   <div>
-                    <p className="text-sm font-semibold">{vehicle.make || vehicle.model ? `${vehicle.make ?? ''} ${vehicle.model ?? ''}`.trim() : vehicle.registration_number}</p>
+                    <p className="text-sm font-semibold">{getVehicleDisplayName(vehicle)}</p>
                     <p className="text-xs text-gray-500">{vehicle.registration_number}</p>
                     <span className="rounded-full border px-2 py-0.5 text-[10px] uppercase">{pending ? 'pending' : vehicle.status ?? 'active'}</span>
                   </div>
