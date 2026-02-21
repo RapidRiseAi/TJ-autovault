@@ -9,7 +9,17 @@ import { z } from 'zod';
 type Result = { ok: true; message?: string; vehicleId?: string } | { ok: false; error: string };
 
 function isMissingNotesColumnError(error: { code?: string; message?: string } | null) {
-  return error?.code === 'PGRST204' && error.message?.includes("'notes' column");
+  if (!error) return false;
+
+  const combined = `${error.code ?? ''} ${error.message ?? ''}`.toLowerCase();
+  const mentionsNotesColumn = combined.includes('notes') && combined.includes('column');
+  const mentionsSchemaCache = combined.includes('schema cache') || combined.includes('postgrest');
+
+  return (
+    (error.code === 'PGRST204' && mentionsNotesColumn) ||
+    (mentionsNotesColumn && mentionsSchemaCache) ||
+    combined.includes("could not find the 'notes' column")
+  );
 }
 
 async function getWorkshopContext() {
@@ -78,7 +88,7 @@ export async function createWorkshopCustomerVehicle(input: unknown): Promise<Res
       odometer_km: payload.currentMileage,
       notes: payload.notes || null
     })
-    .select('id')
+    .select('id,current_customer_account_id')
     .single();
 
   if (isMissingNotesColumnError(error)) {
@@ -94,12 +104,36 @@ export async function createWorkshopCustomerVehicle(input: unknown): Promise<Res
         vin: payload.vin || null,
         odometer_km: payload.currentMileage
       })
-      .select('id')
+      .select('id,current_customer_account_id')
       .single());
   }
 
   if (error || !vehicle) {
     return { ok: false, error: error?.message ?? 'Could not create vehicle' };
+  }
+
+  if (!vehicle.current_customer_account_id) {
+    const { data: linkedVehicle, error: linkError } = await ctx.supabase
+      .from('vehicles')
+      .update({ current_customer_account_id: payload.customerAccountId })
+      .eq('id', vehicle.id)
+      .eq('workshop_account_id', ctx.profile.workshop_account_id)
+      .select('id,current_customer_account_id')
+      .maybeSingle();
+
+    if (linkError) {
+      return {
+        ok: false,
+        error: `Vehicle was created but could not be linked to customer account. Please retry linking from the vehicle page. (${linkError.message})`
+      };
+    }
+
+    if (!linkedVehicle?.current_customer_account_id) {
+      return {
+        ok: false,
+        error: 'Vehicle was created but is still not linked to this customer account. Please open the vehicle and link it manually.'
+      };
+    }
   }
 
   revalidatePath('/workshop/dashboard');
