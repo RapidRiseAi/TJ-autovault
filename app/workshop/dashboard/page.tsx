@@ -208,7 +208,7 @@ export default async function WorkshopDashboardPage() {
             <SegmentRing
               size={102}
               centerLabel={new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 }).format(totalOutstandingCents / 100)}
-              subLabel="Total outstanding"
+              subLabel={`${unpaidInvoiceCount} unpaid`}
               segments={outstandingSegments}
               total={totalOutstandingCents}
             />
@@ -235,7 +235,7 @@ export default async function WorkshopDashboardPage() {
           />
         ) : null}
         {!customersError ? (
-          <div className="grid gap-3 md:grid-cols-1 xl:grid-cols-2">
+          <div className="grid gap-3 md:grid-cols-2">
             {customerRows.map((customer) => {
               const profileInfo = selectBestCustomerProfile(customer.customer_users);
               const customerName = getCustomerDisplayName(profileInfo, customer.name);
@@ -243,12 +243,12 @@ export default async function WorkshopDashboardPage() {
               const avatar = getAvatarSrc(profileInfo?.avatar_url);
 
               return (
-                <div key={customer.id} className="flex h-full items-center justify-between gap-2 border-b border-neutral-200/80 py-1.5 last:border-b-0">
-                  <div className="flex min-w-0 items-center gap-2">
+                <div key={customer.id} className="flex h-full items-center justify-between gap-2 rounded-xl border border-neutral-200/80 bg-white px-3 py-2">
+                  <div className="flex min-w-0 items-center gap-2.5">
                     {avatar ? (
-                      <img src={avatar} alt={customerName} className="h-7 w-7 rounded-full border border-black/10 object-cover" />
+                      <img src={avatar} alt={customerName} className="h-8 w-8 rounded-full border border-black/10 object-cover" />
                     ) : (
-                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-neutral-100 text-[10px] font-semibold text-black/80">{getInitials(customerName)}</div>
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-neutral-100 text-[10px] font-semibold text-black/80">{getInitials(customerName)}</div>
                     )}
                     <div className="min-w-0">
                       <p className="truncate text-xs font-semibold leading-tight text-brand-black">{customerName}</p>
@@ -257,7 +257,7 @@ export default async function WorkshopDashboardPage() {
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1.5">
                     <p className="text-xs text-gray-500">{formatDate(customer.created_at)}</p>
-                    <Button asChild size="sm" className="min-h-0 min-w-14 border border-brand-red/30 px-3 py-1 text-xs shadow-none">
+                    <Button asChild size="sm" className="min-h-0 min-w-12 border border-brand-red/30 px-2.5 py-0.5 text-[11px] shadow-none">
                       <Link href={`/workshop/customers/${customer.id}`}>Open</Link>
                     </Button>
                   </div>

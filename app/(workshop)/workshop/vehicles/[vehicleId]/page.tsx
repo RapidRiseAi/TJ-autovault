@@ -13,6 +13,7 @@ import { createClient } from '@/lib/supabase/server';
 import { HeroHeader } from '@/components/layout/hero-header';
 import { VerifyVehicleButton } from '@/components/workshop/verify-vehicle-button';
 import { WorkshopVehicleActionsPanel } from '@/components/workshop/workshop-vehicle-actions-panel';
+import { VehicleJobCardPanel } from '@/components/workshop/vehicle-job-card-panel';
 import { SectionCard } from '@/components/ui/section-card';
 import { SendMessageModal } from '@/components/messages/send-message-modal';
 
@@ -61,7 +62,7 @@ export default async function WorkshopVehiclePage({
   if (!profile?.workshop_account_id || (profile.role !== 'admin' && profile.role !== 'technician')) redirect('/customer/dashboard');
 
   const workshopId = profile.workshop_account_id;
-  const [vehicleResult, jobsResult, invoicesResult, docsResult, workRequestsResult, customersResult, recommendationsResult] = await Promise.all([
+  const [vehicleResult, jobsResult, invoicesResult, docsResult, workRequestsResult, customersResult, recommendationsResult, activeJobResult, techniciansResult] = await Promise.all([
     supabase
       .from('vehicles')
       .select('id,registration_number,make,model,year,odometer_km,workshop_account_id,primary_image_path,status,current_customer_account_id')
@@ -78,7 +79,21 @@ export default async function WorkshopVehiclePage({
       .select('id,title,status,description,created_at')
       .eq('vehicle_id', vehicleId)
       .eq('workshop_account_id', workshopId)
+      .order('created_at', { ascending: false }),
+
+    supabase
+      .from('job_cards')
+      .select('id,title,status,started_at,last_updated_at,job_card_assignments(id,technician_user_id,profiles(display_name,full_name,avatar_url))')
+      .eq('vehicle_id', vehicleId)
+      .eq('workshop_id', workshopId)
+      .in('status', ['not_started', 'in_progress', 'waiting_parts', 'waiting_approval', 'quality_check', 'ready'])
       .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('workshop_users')
+      .select('profile_id,profiles(display_name,full_name)')
+      .eq('workshop_account_id', workshopId),
   ]);
 
   const vehicle = vehicleResult.data;
@@ -102,6 +117,20 @@ export default async function WorkshopVehiclePage({
   const openRequests = (workRequestsResult.data ?? []).filter((x) => !['completed', 'delivered', 'cancelled'].includes(x.status)).length;
   const attentionReports = (docsResult.data ?? []).filter((x) => (x.importance ?? '').toLowerCase() === 'high' || (x.importance ?? '').toLowerCase() === 'urgent').length;
   const pendingVerification = (vehicle.status ?? '').toLowerCase().includes('pending');
+  const activeJobRaw = activeJobResult.data;
+  const activeJob = activeJobRaw ? {
+    id: activeJobRaw.id,
+    title: activeJobRaw.title,
+    status: activeJobRaw.status,
+    started_at: activeJobRaw.started_at,
+    last_updated_at: activeJobRaw.last_updated_at,
+    assignments: (activeJobRaw.job_card_assignments ?? []).map((assignment: { id: string; profiles: { display_name: string | null; full_name: string | null; avatar_url: string | null }[] | null }) => ({
+      id: assignment.id,
+      name: assignment.profiles?.[0]?.display_name ?? assignment.profiles?.[0]?.full_name ?? 'Technician',
+      avatarUrl: assignment.profiles?.[0]?.avatar_url ?? null
+    }))
+  } : null;
+  const technicians = (techniciansResult.data ?? []).map((row: { profile_id: string; profiles: { display_name: string | null; full_name: string | null }[] | null }) => ({ id: row.profile_id, name: row.profiles?.[0]?.display_name ?? row.profiles?.[0]?.full_name ?? 'Technician' }));
   const unpaidInvoiceCount = invoices.filter((x) => x.payment_status !== 'paid').length;
   const recommendations = recommendationsResult.data ?? [];
   const approvedRecommendations = recommendations.filter((recommendation) => (recommendation.status ?? '').toLowerCase() === 'approved');
@@ -117,6 +146,16 @@ export default async function WorkshopVehiclePage({
         actions={<><SendMessageModal vehicles={[{ id: vehicle.id, registration_number: vehicle.registration_number }]} defaultVehicleId={vehicle.id} customers={(customersResult.data ?? []).map((customer) => ({ id: customer.id, name: customer.name }))} defaultCustomerId={vehicle.current_customer_account_id} /><Button asChild size="sm" variant="secondary"><Link href={`/workshop/vehicles/${vehicle.id}/timeline`}>View full timeline</Link></Button><Button asChild size="sm" variant="secondary"><Link href={`/workshop/vehicles/${vehicle.id}/documents`}>View documents</Link></Button>{pendingVerification ? <VerifyVehicleButton vehicleId={vehicle.id} /> : null}</>}
       />
 
+
+      {activeJob ? (
+        <VehicleJobCardPanel
+          vehicleId={vehicle.id}
+          activeJob={activeJob}
+          technicians={technicians}
+          canClose={profile.role === 'admin'}
+        />
+      ) : null}
+
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile label="Revenue collected" value={money(paidTotal)} subtext="Paid invoices" icon={<BadgeDollarSign className="h-4 w-4" />} />
         <StatTile label="Outstanding balance" value={money(unpaidTotal)} subtext="Unpaid invoices" icon={<ReceiptText className="h-4 w-4" />} badge={unpaidInvoiceCount > 0 ? `${unpaidInvoiceCount} unpaid` : undefined} />
@@ -130,7 +169,7 @@ export default async function WorkshopVehiclePage({
           <p className="text-sm text-gray-500">Run common workshop updates without leaving this page.</p>
         </div>
         <div className="rounded-2xl border border-neutral-200 bg-white/80 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]">
-          <WorkshopVehicleActionsPanel vehicleId={vehicle.id} invoices={(invoicesResult.data ?? []).map((invoice) => ({ id: invoice.id, invoiceNumber: invoice.invoice_number, paymentStatus: invoice.payment_status, totalCents: invoice.total_cents }))} jobs={(jobsResult.data ?? []).map((job) => ({ id: job.id }))} workRequests={(workRequestsResult.data ?? []).map((request) => ({ id: request.id, status: request.status }))} currentMileage={vehicle.odometer_km ?? 0} uploadDestinationLabel={uploadDestinationLabel} initialUploadMode={selectedApprovedRecommendation ? 'quote' : undefined} initialUploadSubject={selectedApprovedRecommendation?.title ?? undefined} />
+          <WorkshopVehicleActionsPanel prependTiles={!activeJob ? <VehicleJobCardPanel vehicleId={vehicle.id} activeJob={null} technicians={technicians} canClose={profile.role === 'admin'} /> : null} vehicleId={vehicle.id} invoices={(invoicesResult.data ?? []).map((invoice) => ({ id: invoice.id, invoiceNumber: invoice.invoice_number, paymentStatus: invoice.payment_status, totalCents: invoice.total_cents }))} jobs={(jobsResult.data ?? []).map((job) => ({ id: job.id }))} workRequests={(workRequestsResult.data ?? []).map((request) => ({ id: request.id, status: request.status }))} currentMileage={vehicle.odometer_km ?? 0} uploadDestinationLabel={uploadDestinationLabel} initialUploadMode={selectedApprovedRecommendation ? 'quote' : undefined} initialUploadSubject={selectedApprovedRecommendation?.title ?? undefined} />
         </div>
       </SectionCard>
 
