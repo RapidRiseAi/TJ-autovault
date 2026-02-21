@@ -1,14 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Upload } from 'lucide-react';
 import { Modal } from '@/components/ui/modal';
 import { VehicleWorkflowActions } from '@/components/workshop/vehicle-workflow-actions';
 import { UploadsActionsForm } from '@/components/workshop/uploads-actions-form';
 import { ActionTile } from '@/components/workshop/action-tile';
 
-export function WorkshopVehicleActionsPanel({ vehicleId, invoices, jobs, workRequests, currentMileage, uploadDestinationLabel }: { vehicleId: string; invoices: Array<{ id: string; invoiceNumber?: string | null; paymentStatus?: string | null; totalCents?: number | null }>; jobs: Array<{ id: string }>; workRequests: Array<{ id: string; status: string }>; currentMileage: number; uploadDestinationLabel: string }) {
-  const [uploadOpen, setUploadOpen] = useState(false);
+export function WorkshopVehicleActionsPanel({ vehicleId, invoices, jobs, workRequests, currentMileage, uploadDestinationLabel, initialUploadMode, initialUploadSubject }: { vehicleId: string; invoices: Array<{ id: string; invoiceNumber?: string | null; paymentStatus?: string | null; totalCents?: number | null }>; jobs: Array<{ id: string }>; workRequests: Array<{ id: string; status: string }>; currentMileage: number; uploadDestinationLabel: string; initialUploadMode?: 'quote' | 'invoice' | 'inspection_report' | 'warning'; initialUploadSubject?: string; }) {
+  const [uploadOpen, setUploadOpen] = useState(Boolean(initialUploadMode));
+
+  useEffect(() => {
+    if (initialUploadMode) setUploadOpen(true);
+  }, [initialUploadMode]);
 
   return (
     <>
@@ -23,7 +27,7 @@ export function WorkshopVehicleActionsPanel({ vehicleId, invoices, jobs, workReq
       </div>
       <VehicleWorkflowActions vehicleId={vehicleId} invoices={invoices} jobs={jobs} workRequests={workRequests} currentMileage={currentMileage} />
       <Modal open={uploadOpen} onClose={() => setUploadOpen(false)} title="Upload document">
-        <UploadsActionsForm vehicleId={vehicleId} destinationLabel={uploadDestinationLabel} onSuccess={() => setUploadOpen(false)} />
+        <UploadsActionsForm vehicleId={vehicleId} destinationLabel={uploadDestinationLabel} onSuccess={() => setUploadOpen(false)} initialDocumentType={initialUploadMode} initialSubject={initialUploadSubject} />
       </Modal>
     </>
   );
