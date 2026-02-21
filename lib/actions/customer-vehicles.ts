@@ -259,11 +259,11 @@ export async function decideRecommendation(input: {
     .from('recommendations')
     .update({
       status: input.decision,
-      status_text: input.decision === 'approved' ? 'acknowledged' : 'open'
+      status_text: input.decision
     })
     .eq('id', input.recommendationId)
     .eq('customer_account_id', account.id)
-    .select('vehicle_id')
+    .select('id,vehicle_id,title,workshop_account_id,customer_account_id')
     .single();
 
   if (error || !data)
@@ -271,6 +271,37 @@ export async function decideRecommendation(input: {
       ok: false,
       error: error?.message ?? 'Failed to update recommendation.'
     };
+  await supabase.from('vehicle_timeline_events').insert({
+    workshop_account_id: data.workshop_account_id,
+    customer_account_id: data.customer_account_id,
+    vehicle_id: data.vehicle_id,
+    actor_profile_id: null,
+    actor_role: 'customer',
+    event_type: `recommendation_${input.decision}`,
+    title: `Recommendation ${input.decision}`,
+    description: data.title,
+    importance: input.decision === 'approved' ? 'info' : 'warning',
+    metadata: { recommendation_id: data.id }
+  });
+
+  await supabase.rpc('push_notification_to_workshop', {
+    p_workshop_account_id: data.workshop_account_id,
+    p_kind: 'recommendation',
+    p_title:
+      input.decision === 'approved'
+        ? 'Recommendation approved'
+        : 'Recommendation declined',
+    p_body: `Customer ${input.decision} recommendation: ${data.title ?? 'Recommendation'}`,
+    p_href: `/workshop/vehicles/${data.vehicle_id}`,
+    p_data: {
+      recommendation_id: data.id,
+      vehicle_id: data.vehicle_id,
+      status: input.decision
+    }
+  });
+
+  revalidatePath(`/workshop/vehicles/${data.vehicle_id}`);
+  revalidatePath(`/workshop/vehicles/${data.vehicle_id}/timeline`);
   revalidatePath(customerVehicle(data.vehicle_id));
   return { ok: true, message: `Recommendation ${input.decision}.` };
 }

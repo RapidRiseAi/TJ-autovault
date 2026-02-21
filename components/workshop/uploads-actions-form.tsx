@@ -15,11 +15,12 @@ const DOCUMENT_TYPES = [
 type DocType = (typeof DOCUMENT_TYPES)[number]['value'];
 type Urgency = 'info' | 'low' | 'medium' | 'high' | 'critical';
 
-export function UploadsActionsForm({ vehicleId, onSuccess, destinationLabel = 'customer timeline' }: { vehicleId: string; onSuccess?: () => void; destinationLabel?: string }) {
+export function UploadsActionsForm({ vehicleId, onSuccess, destinationLabel = 'customer timeline', initialDocumentType, initialSubject }: { vehicleId: string; onSuccess?: () => void; destinationLabel?: string; initialDocumentType?: DocType; initialSubject?: string }) {
   const router = useRouter();
   const { pushToast } = useToast();
-  const [documentType, setDocumentType] = useState<DocType>('inspection_report');
-  const [subject, setSubject] = useState('Inspection report');
+  const initialType = initialDocumentType ?? 'inspection_report';
+  const [documentType, setDocumentType] = useState<DocType>(initialType);
+  const [subject, setSubject] = useState(initialSubject ?? DOCUMENT_TYPES.find((entry) => entry.value === initialType)?.defaultSubject ?? 'Inspection report');
   const [body, setBody] = useState('');
   const [urgency, setUrgency] = useState<Urgency>('info');
   const [amount, setAmount] = useState('');
