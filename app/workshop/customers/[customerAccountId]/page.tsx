@@ -37,7 +37,14 @@ async function loadCustomerVehicles({
     return { vehicles: (withNotes.data ?? []) as CustomerVehicleRow[], error: null };
   }
 
-  if (withNotes.error.code === 'PGRST204' && withNotes.error.message.includes("'notes' column")) {
+  const missingNotesColumn =
+    withNotes.error.code === 'PGRST204' ||
+    withNotes.error.code === '42703' ||
+    withNotes.error.message.includes("'notes' column") ||
+    withNotes.error.message.includes('vehicles.notes') ||
+    withNotes.error.message.toLowerCase().includes('notes does not exist');
+
+  if (missingNotesColumn) {
     const withoutNotes = await supabase
       .from('vehicles')
       .select('id,registration_number,make,model,year,vin,odometer_km,status,primary_image_path')
