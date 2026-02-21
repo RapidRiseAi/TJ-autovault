@@ -14,6 +14,7 @@ export function VehicleJobCardPanel({
   vehicleId,
   activeJob,
   technicians,
+  approvedQuotes,
   canClose
 }: {
   vehicleId: string;
@@ -26,6 +27,7 @@ export function VehicleJobCardPanel({
     assignments: Array<{ id: string; name: string; avatarUrl: string | null }>;
   };
   technicians: Array<{ id: string; name: string }>;
+  approvedQuotes: Array<{ id: string; quoteNumber: string | null; totalCents: number; createdAt: string }>;
   canClose: boolean;
 }) {
   const [startOpen, setStartOpen] = useState(false);
@@ -45,12 +47,34 @@ export function VehicleJobCardPanel({
     pushToast({ title: 'Could not save', description: result.error, tone: 'error' });
   }
 
+  async function uploadBeforePhotos(files: File[]) {
+    const imageFiles = files.filter((file) => file.type.startsWith('image/'));
+    const paths: string[] = [];
+    for (const file of imageFiles) {
+      const signResponse = await fetch('/api/uploads/sign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vehicleId, fileName: file.name, contentType: file.type, kind: 'image', documentType: 'before_photos' })
+      });
+      if (!signResponse.ok) throw new Error('Could not sign upload');
+      const signedPayload = (await signResponse.json()) as { bucket: string; path: string; token: string };
+      const uploadResponse = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/upload/sign/${signedPayload.bucket}/${signedPayload.path}?token=${signedPayload.token}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type },
+        body: file
+      });
+      if (!uploadResponse.ok) throw new Error('Could not upload file');
+      paths.push(signedPayload.path);
+    }
+    return paths;
+  }
+
   if (!activeJob) {
     return (
       <>
         <ActionTile
           title="Start job"
-          description="Create a new job card with required before photos and technician assignment."
+          description="Create a new job card from an approved quote and upload before photos."
           icon={<PlayCircle className="h-4 w-4" />}
           primary
           onClick={() => setStartOpen(true)}
@@ -61,18 +85,37 @@ export function VehicleJobCardPanel({
             onSubmit={(event) => {
               event.preventDefault();
               const formData = new FormData(event.currentTarget);
-              const title = String(formData.get('title') || 'Service job');
-              const beforePhotoPath = String(formData.get('beforePhotoPath') || '');
+              const quoteId = String(formData.get('quoteId') || '');
+              const selectedQuote = approvedQuotes.find((quote) => quote.id === quoteId);
+              const photoFiles = formData.getAll('beforePhotos').filter((value): value is File => value instanceof File);
               const technicianIds = formData.getAll('technicianIds').map(String);
-              void run(() => startJobCard({ vehicleId, title, beforePhotoPath, technicianIds }), () => setStartOpen(false));
+
+              void run(async () => {
+                if (!selectedQuote) return { ok: false, error: 'Please choose an approved quote.' };
+                const beforePhotoPaths = await uploadBeforePhotos(photoFiles);
+                const quoteLabel = selectedQuote.quoteNumber?.trim() || selectedQuote.id.slice(0, 8).toUpperCase();
+                return startJobCard({
+                  vehicleId,
+                  quoteId: selectedQuote.id,
+                  title: `Quote ${quoteLabel}`,
+                  beforePhotoPaths,
+                  technicianIds
+                });
+              }, () => setStartOpen(false));
             }}
           >
-            <input name="title" required className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm" placeholder="Job title" />
-            <input name="beforePhotoPath" required className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm" placeholder="Before photo storage path" />
+            <select name="quoteId" required className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm" defaultValue={approvedQuotes[0]?.id ?? ''}>
+              {approvedQuotes.length ? approvedQuotes.map((quote) => (
+                <option key={quote.id} value={quote.id}>
+                  {(quote.quoteNumber ?? `#${quote.id.slice(0, 8).toUpperCase()}`)} • R {(quote.totalCents / 100).toFixed(2)}
+                </option>
+              )) : <option value="">No approved quotes without sent invoices</option>}
+            </select>
+            <input name="beforePhotos" type="file" accept="image/*" multiple required className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm" />
             <select name="technicianIds" multiple className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm" defaultValue={[]}>
               {technicians.map((tech) => <option key={tech.id} value={tech.id}>{tech.name}</option>)}
             </select>
-            <Button disabled={isSaving}>{isSaving ? 'Starting…' : 'Start job'}</Button>
+            <Button disabled={isSaving || !approvedQuotes.length}>{isSaving ? 'Starting…' : 'Start job'}</Button>
           </form>
         </Modal>
       </>

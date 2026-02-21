@@ -62,7 +62,7 @@ export default async function WorkshopVehiclePage({
   if (!profile?.workshop_account_id || (profile.role !== 'admin' && profile.role !== 'technician')) redirect('/customer/dashboard');
 
   const workshopId = profile.workshop_account_id;
-  const [vehicleResult, jobsResult, invoicesResult, docsResult, workRequestsResult, customersResult, recommendationsResult, activeJobResult, techniciansResult] = await Promise.all([
+  const [vehicleResult, jobsResult, invoicesResult, docsResult, workRequestsResult, customersResult, recommendationsResult, quotesResult, activeJobResult, techniciansResult] = await Promise.all([
     supabase
       .from('vehicles')
       .select('id,registration_number,make,model,year,odometer_km,workshop_account_id,primary_image_path,status,current_customer_account_id')
@@ -79,6 +79,13 @@ export default async function WorkshopVehiclePage({
       .select('id,title,status,description,created_at')
       .eq('vehicle_id', vehicleId)
       .eq('workshop_account_id', workshopId)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('quotes')
+      .select('id,quote_number,total_cents,status,created_at,invoices:invoices!left(id,status)')
+      .eq('vehicle_id', vehicleId)
+      .eq('workshop_account_id', workshopId)
+      .eq('status', 'approved')
       .order('created_at', { ascending: false }),
 
     supabase
@@ -135,6 +142,14 @@ export default async function WorkshopVehiclePage({
   const recommendations = recommendationsResult.data ?? [];
   const approvedRecommendations = recommendations.filter((recommendation) => (recommendation.status ?? '').toLowerCase() === 'approved');
   const selectedApprovedRecommendation = approvedRecommendations.find((recommendation) => recommendation.id === quoteRecommendationId) ?? null;
+  const approvedQuotes = (quotesResult.data ?? [])
+    .filter((quote: { invoices: Array<{ status: string | null }> | null }) => !(quote.invoices ?? []).some((invoice) => (invoice.status ?? '').toLowerCase() !== 'draft'))
+    .map((quote: { id: string; quote_number: string | null; total_cents: number | null; created_at: string }) => ({
+      id: quote.id,
+      quoteNumber: quote.quote_number,
+      totalCents: quote.total_cents ?? 0,
+      createdAt: quote.created_at
+    }));
 
   return (
     <main className="space-y-4">
@@ -152,6 +167,7 @@ export default async function WorkshopVehiclePage({
           vehicleId={vehicle.id}
           activeJob={activeJob}
           technicians={technicians}
+          approvedQuotes={approvedQuotes}
           canClose={profile.role === 'admin'}
         />
       ) : null}
@@ -169,7 +185,7 @@ export default async function WorkshopVehiclePage({
           <p className="text-sm text-gray-500">Run common workshop updates without leaving this page.</p>
         </div>
         <div className="rounded-2xl border border-neutral-200 bg-white/80 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]">
-          <WorkshopVehicleActionsPanel prependTiles={!activeJob ? <VehicleJobCardPanel vehicleId={vehicle.id} activeJob={null} technicians={technicians} canClose={profile.role === 'admin'} /> : null} vehicleId={vehicle.id} invoices={(invoicesResult.data ?? []).map((invoice) => ({ id: invoice.id, invoiceNumber: invoice.invoice_number, paymentStatus: invoice.payment_status, totalCents: invoice.total_cents }))} jobs={(jobsResult.data ?? []).map((job) => ({ id: job.id }))} workRequests={(workRequestsResult.data ?? []).map((request) => ({ id: request.id, status: request.status }))} currentMileage={vehicle.odometer_km ?? 0} uploadDestinationLabel={uploadDestinationLabel} initialUploadMode={selectedApprovedRecommendation ? 'quote' : undefined} initialUploadSubject={selectedApprovedRecommendation?.title ?? undefined} />
+          <WorkshopVehicleActionsPanel prependTiles={!activeJob ? <VehicleJobCardPanel vehicleId={vehicle.id} activeJob={null} technicians={technicians} approvedQuotes={approvedQuotes} canClose={profile.role === 'admin'} /> : null} vehicleId={vehicle.id} invoices={(invoicesResult.data ?? []).map((invoice) => ({ id: invoice.id, invoiceNumber: invoice.invoice_number, paymentStatus: invoice.payment_status, totalCents: invoice.total_cents }))} jobs={(jobsResult.data ?? []).map((job) => ({ id: job.id }))} workRequests={(workRequestsResult.data ?? []).map((request) => ({ id: request.id, status: request.status }))} currentMileage={vehicle.odometer_km ?? 0} uploadDestinationLabel={uploadDestinationLabel} initialUploadMode={selectedApprovedRecommendation ? 'quote' : undefined} initialUploadSubject={selectedApprovedRecommendation?.title ?? undefined} />
         </div>
       </SectionCard>
 
