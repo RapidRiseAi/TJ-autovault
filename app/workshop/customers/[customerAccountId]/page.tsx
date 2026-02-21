@@ -1,18 +1,9 @@
-import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { PageHeader } from '@/components/layout/page-header';
 import { Card } from '@/components/ui/card';
 import { createClient } from '@/lib/supabase/server';
-import { Button } from '@/components/ui/button';
-import { VerifyVehicleButton } from '@/components/workshop/verify-vehicle-button';
 import { SendMessageModal } from '@/components/messages/send-message-modal';
-
-function statusTone(status: string | null) {
-  const normalized = (status ?? 'pending').toLowerCase();
-  if (normalized.includes('pending')) return 'border-amber-200 bg-amber-50 text-amber-700';
-  if (normalized.includes('verified') || normalized.includes('active')) return 'border-emerald-200 bg-emerald-50 text-emerald-700';
-  return 'border-black/10 bg-gray-50 text-gray-700';
-}
+import { CustomerVehicleManager } from '@/components/workshop/customer-vehicle-manager';
 
 export default async function WorkshopCustomerPage({ params }: { params: Promise<{ customerAccountId: string }> }) {
   const { customerAccountId } = await params;
@@ -35,7 +26,7 @@ export default async function WorkshopCustomerPage({ params }: { params: Promise
   const customerDisplayName = customer.customer_users?.[0]?.profiles?.[0]?.display_name || customer.name;
 
   const [{ data: vehicles }, { count: unpaidInvoices }, { count: pendingQuotes }, { count: activeJobs }] = await Promise.all([
-    supabase.from('vehicles').select('id,registration_number,status,primary_image_path').eq('current_customer_account_id', customerAccountId).eq('workshop_account_id', workshopId),
+    supabase.from('vehicles').select('id,registration_number,make,model,year,vin,odometer_km,status,notes,primary_image_path').eq('current_customer_account_id', customerAccountId).eq('workshop_account_id', workshopId),
     supabase.from('invoices').select('id', { count: 'exact', head: true }).eq('customer_account_id', customerAccountId).neq('payment_status', 'paid'),
     supabase.from('quotes').select('id', { count: 'exact', head: true }).eq('customer_account_id', customerAccountId).in('status', ['sent', 'pending']),
     supabase.from('service_jobs').select('id', { count: 'exact', head: true }).eq('customer_account_id', customerAccountId).in('status', ['open', 'awaiting_approval', 'in_progress'])
@@ -56,29 +47,7 @@ export default async function WorkshopCustomerPage({ params }: { params: Promise
       </div>
 
       <Card className="rounded-3xl">
-        <h2 className="mb-3 text-base font-semibold">Vehicles</h2>
-        {!vehicles?.length ? <p className="text-sm text-gray-500">No vehicles linked to this customer.</p> : (
-          <div className="space-y-2">
-            {vehicles.map((vehicle) => {
-              const pending = (vehicle.status ?? '').toLowerCase().includes('pending');
-              return (
-                <div key={vehicle.id} className="flex items-center justify-between rounded-2xl border border-black/10 p-3">
-                  <div className="flex items-center gap-3">
-                    {vehicle.primary_image_path ? <img src={`/api/uploads/download?bucket=vehicle-images&path=${encodeURIComponent(vehicle.primary_image_path)}`} alt={vehicle.registration_number} className="h-12 w-12 rounded-xl object-cover" /> : <div className="h-12 w-12 rounded-xl bg-stone-100" />}
-                    <div>
-                      <p className="text-sm font-semibold">{vehicle.registration_number}</p>
-                      <span className={`rounded-full border px-2 py-0.5 text-[10px] uppercase ${statusTone(vehicle.status)}`}>{vehicle.status ?? 'pending'}</span>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    {pending ? <VerifyVehicleButton vehicleId={vehicle.id} /> : null}
-                    <Button asChild size="sm" variant="outline"><Link href={`/workshop/vehicles/${vehicle.id}`}>Open vehicle</Link></Button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+        <CustomerVehicleManager customerAccountId={customer.id} vehicles={vehicles ?? []} />
       </Card>
     </main>
   );

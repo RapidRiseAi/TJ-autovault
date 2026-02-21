@@ -280,8 +280,8 @@ export default async function WorkshopDashboardPage() {
             {customerVehicles.map((vehicle) => (
               <div key={vehicle.id} className="flex items-center justify-between rounded-xl border border-neutral-200 p-3">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-brand-black">{vehicle.registration_number}</p>
-                  <p className="truncate text-xs text-gray-500">{vehicle.make ?? ''} {vehicle.model ?? ''}</p>
+                  <p className="truncate text-sm font-semibold text-brand-black">{vehicle.make || vehicle.model ? `${vehicle.make ?? ''} ${vehicle.model ?? ''}`.trim() : vehicle.registration_number}</p>
+                  <p className="truncate text-xs text-gray-500">{vehicle.registration_number}</p>
                   <p className="truncate text-xs text-gray-400">{vehicle.current_customer_account_id ? customerNameById.get(vehicle.current_customer_account_id) ?? 'Customer unavailable' : 'Customer unavailable'}</p>
                 </div>
                 <div className="flex items-center gap-2">

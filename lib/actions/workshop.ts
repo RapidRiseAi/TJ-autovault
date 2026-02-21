@@ -3,8 +3,10 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { WORK_REQUEST_STATUSES, type WorkRequestStatus } from '@/lib/work-request-statuses';
+import { addVehicleSchema } from '@/lib/validation/vehicle';
+import { z } from 'zod';
 
-type Result = { ok: true; message?: string } | { ok: false; error: string };
+type Result = { ok: true; message?: string; vehicleId?: string } | { ok: false; error: string };
 
 async function getWorkshopContext() {
   const supabase = await createClient();
@@ -30,6 +32,102 @@ async function getVehicleContext(ctx: NonNullable<Awaited<ReturnType<typeof getW
     .eq('id', vehicleId)
     .eq('workshop_account_id', ctx.profile.workshop_account_id)
     .maybeSingle();
+}
+
+const workshopVehicleSchema = addVehicleSchema.extend({
+  customerAccountId: z.string().uuid()
+});
+
+const workshopVehicleUpdateSchema = addVehicleSchema.extend({
+  vehicleId: z.string().uuid()
+});
+
+export async function createWorkshopCustomerVehicle(input: unknown): Promise<Result> {
+  const ctx = await getWorkshopContext();
+  if (!ctx) return { ok: false, error: 'Unauthorized' };
+
+  const parsed = workshopVehicleSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid vehicle data' };
+  }
+
+  const payload = parsed.data;
+  const { data: customer } = await ctx.supabase
+    .from('customer_accounts')
+    .select('id')
+    .eq('id', payload.customerAccountId)
+    .eq('workshop_account_id', ctx.profile.workshop_account_id)
+    .maybeSingle();
+
+  if (!customer) return { ok: false, error: 'Customer account not found' };
+
+  const { data: vehicle, error } = await ctx.supabase
+    .from('vehicles')
+    .insert({
+      workshop_account_id: ctx.profile.workshop_account_id,
+      current_customer_account_id: payload.customerAccountId,
+      registration_number: payload.registrationNumber,
+      make: payload.make,
+      model: payload.model,
+      year: payload.year,
+      vin: payload.vin || null,
+      odometer_km: payload.currentMileage,
+      notes: payload.notes || null
+    })
+    .select('id')
+    .single();
+
+  if (error || !vehicle) {
+    return { ok: false, error: error?.message ?? 'Could not create vehicle' };
+  }
+
+  revalidatePath('/workshop/dashboard');
+  revalidatePath('/workshop/customers');
+  revalidatePath(`/workshop/customers/${payload.customerAccountId}`);
+  revalidatePath(`/workshop/vehicles/${vehicle.id}`);
+  revalidatePath('/customer/dashboard');
+  return { ok: true, message: 'Vehicle added.', vehicleId: vehicle.id };
+}
+
+export async function updateWorkshopVehicleInfo(input: unknown): Promise<Result> {
+  const ctx = await getWorkshopContext();
+  if (!ctx) return { ok: false, error: 'Unauthorized' };
+
+  const parsed = workshopVehicleUpdateSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid vehicle data' };
+  }
+
+  const payload = parsed.data;
+
+  const { data: vehicle, error } = await ctx.supabase
+    .from('vehicles')
+    .update({
+      registration_number: payload.registrationNumber,
+      make: payload.make,
+      model: payload.model,
+      year: payload.year,
+      vin: payload.vin || null,
+      odometer_km: payload.currentMileage,
+      notes: payload.notes || null
+    })
+    .eq('id', payload.vehicleId)
+    .eq('workshop_account_id', ctx.profile.workshop_account_id)
+    .select('id,current_customer_account_id')
+    .maybeSingle();
+
+  if (error || !vehicle) {
+    return { ok: false, error: error?.message ?? 'Could not update vehicle' };
+  }
+
+  revalidatePath('/workshop/dashboard');
+  revalidatePath('/workshop/customers');
+  revalidatePath(`/workshop/vehicles/${payload.vehicleId}`);
+  revalidatePath(`/customer/vehicles/${payload.vehicleId}`);
+  if (vehicle.current_customer_account_id) {
+    revalidatePath(`/workshop/customers/${vehicle.current_customer_account_id}`);
+  }
+  return { ok: true, message: 'Vehicle updated.' };
 }
 
 export async function createQuote(input: { vehicleId: string; totalCents: number; notes?: string }): Promise<Result> {
