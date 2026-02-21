@@ -128,10 +128,11 @@ export function WorldTimeline({ activities, vehicleId, viewerRole, deletionReque
                   <p className="mt-1 text-xs text-gray-500">{activity.subtitle}</p>
                   <p className="mt-1 text-xs text-gray-500">{activity.createdAt ? new Date(activity.createdAt).toLocaleString() : 'Unknown date'} · {activity.actorLabel}</p>
                   {activity.description ? <p className="mt-2 text-sm text-gray-700">{activity.description}</p> : null}
-                  {activity.downloadHref ? (
-                    <div className="mt-3 flex gap-2">
-                      <Button asChild size="sm" variant="outline"><Link href={activity.downloadHref}>Preview</Link></Button>
-                      <Button asChild size="sm" variant="outline"><Link href={activity.downloadHref} download>Download</Link></Button>
+                  {activity.downloadHref || activity.actionHref ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {activity.downloadHref ? <Button asChild size="sm" variant="outline"><Link href={activity.downloadHref}>Preview</Link></Button> : null}
+                      {activity.downloadHref ? <Button asChild size="sm" variant="outline"><Link href={activity.downloadHref} download>Download</Link></Button> : null}
+                      {activity.actionHref ? <Button asChild size="sm"><Link href={activity.actionHref}>{activity.actionLabel ?? 'Open details'}</Link></Button> : null}
                     </div>
                   ) : null}
                   {vehicleId && viewerRole ? (

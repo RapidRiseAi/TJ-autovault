@@ -6,6 +6,16 @@ import { JOB_CARD_STATUSES, MAJOR_JOB_TIMELINE_STATUSES, type JobCardStatus } fr
 
 type Result = { ok: true; jobId?: string; message?: string } | { ok: false; error: string };
 
+function resolveVehicleCustomerAccountId(value: unknown): string | null {
+  if (!value) return null;
+  if (Array.isArray(value)) {
+    const accountId = (value[0] as { current_customer_account_id?: unknown } | undefined)?.current_customer_account_id;
+    return typeof accountId === 'string' ? accountId : null;
+  }
+  const accountId = (value as { current_customer_account_id?: unknown }).current_customer_account_id;
+  return typeof accountId === 'string' ? accountId : null;
+}
+
 async function getWorkshopContext() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -114,7 +124,7 @@ export async function updateJobCardStatus(input: { jobId: string; status: JobCar
       workshopId: ctx.profile.workshop_account_id,
       vehicleId: job.vehicle_id,
       actorId: ctx.profile.id,
-      customerAccountId: ((job.vehicles as Array<{ current_customer_account_id: string | null }> | null)?.[0]?.current_customer_account_id ?? null),
+      customerAccountId: resolveVehicleCustomerAccountId(job.vehicles),
       eventType: 'job_status_waiting',
       title: `Job waiting: ${input.status.replaceAll('_', ' ')}`,
       metadata: { job_card_id: input.jobId, status: input.status }
@@ -131,9 +141,10 @@ export async function addJobCardEvent(input: { jobId: string; eventType: string;
   const ctx = await getWorkshopContext();
   if (!ctx) return { ok: false, error: 'Unauthorized' };
 
-  const { data: job } = await ctx.supabase.from('job_cards').select('id,vehicle_id,is_locked').eq('id', input.jobId).eq('workshop_id', ctx.profile.workshop_account_id).maybeSingle();
+  const { data: job } = await ctx.supabase.from('job_cards').select('id,vehicle_id,title,is_locked,vehicles(current_customer_account_id)').eq('id', input.jobId).eq('workshop_id', ctx.profile.workshop_account_id).maybeSingle();
   if (!job) return { ok: false, error: 'Job not found' };
   if (job.is_locked) return { ok: false, error: 'Job is closed and locked.' };
+  const customerAccountId = resolveVehicleCustomerAccountId(job.vehicles);
 
   await ctx.supabase.from('job_card_events').insert({
     job_card_id: input.jobId,
@@ -148,6 +159,41 @@ export async function addJobCardEvent(input: { jobId: string; eventType: string;
       message: input.note,
       created_by: ctx.profile.id
     });
+
+    if (customerAccountId) {
+      await ctx.supabase.rpc('push_notification', {
+        p_workshop_account_id: ctx.profile.workshop_account_id,
+        p_to_customer_account_id: customerAccountId,
+        p_kind: 'job',
+        p_title: input.eventType === 'approval_requested' ? 'Approval requested for your vehicle' : 'Job card update',
+        p_body: input.note || 'There is an update on your open job card.',
+        p_href: `/customer/jobs/${input.jobId}`,
+        p_data: { job_card_id: input.jobId, event_type: input.eventType }
+      });
+    }
+  }
+
+  if (input.eventType === 'approval_requested') {
+    await ctx.supabase.from('job_card_approvals').insert({
+      job_card_id: input.jobId,
+      title: 'Approval required',
+      description: input.note || null,
+      status: 'pending',
+      requested_by: ctx.profile.id
+    });
+
+    if (customerAccountId) {
+      await appendVehicleTimeline({
+        supabase: ctx.supabase,
+        workshopId: ctx.profile.workshop_account_id,
+        vehicleId: job.vehicle_id,
+        actorId: ctx.profile.id,
+        customerAccountId,
+        eventType: 'job_approval_requested',
+        title: `Approval requested: ${job.title}`,
+        metadata: { job_card_id: input.jobId }
+      });
+    }
   }
 
   await ctx.supabase.from('job_cards').update({ last_updated_at: new Date().toISOString() }).eq('id', input.jobId);
@@ -183,7 +229,7 @@ export async function completeJobCard(input: { jobId: string; endNote: string; a
     workshopId: ctx.profile.workshop_account_id,
     vehicleId: job.vehicle_id,
     actorId: ctx.profile.id,
-    customerAccountId: ((job.vehicles as Array<{ current_customer_account_id: string | null }> | null)?.[0]?.current_customer_account_id ?? null),
+    customerAccountId: resolveVehicleCustomerAccountId(job.vehicles),
     eventType: 'job_completed',
     title: 'Job completed',
     metadata: { job_card_id: input.jobId }
@@ -220,7 +266,7 @@ export async function closeJobCard(input: { jobId: string; summary?: string }): 
     workshopId: ctx.profile.workshop_account_id,
     vehicleId: job.vehicle_id,
     actorId: ctx.profile.id,
-    customerAccountId: ((job.vehicles as Array<{ current_customer_account_id: string | null }> | null)?.[0]?.current_customer_account_id ?? null),
+    customerAccountId: resolveVehicleCustomerAccountId(job.vehicles),
     eventType: 'job_closed',
     title: 'Job card closed',
     metadata: { job_card_id: input.jobId }

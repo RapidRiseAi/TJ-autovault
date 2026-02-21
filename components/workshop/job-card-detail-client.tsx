@@ -98,7 +98,7 @@ export function JobCardDetailClient(props: {
             <input name="afterPhotos" type="file" accept="image/*" multiple className="rounded-lg border border-neutral-300 px-2 py-1 text-xs" />
             <Button size="sm" disabled={props.isLocked || isUploading}>{isUploading ? 'Uploading…' : 'Complete job'}</Button>
           </form>
-          {props.isManager ? <Button size="sm" variant="outline" disabled={props.isLocked} onClick={() => void doAction(() => closeJobCard({ jobId: props.jobId }))}>Close job</Button> : null}
+          {props.isManager ? <Button size="sm" variant="outline" disabled={props.isLocked} onClick={() => void doAction(async () => { const result = await closeJobCard({ jobId: props.jobId }); if (result.ok && window.confirm('Job card closed. Send invoice now? Click Cancel to send later.')) { window.location.href = `/workshop/vehicles/${props.vehicleId}/documents`; } return result; })}>Close job</Button> : null}
         </div>
       </div>
       <div className="flex flex-wrap gap-2">

@@ -153,7 +153,7 @@ export function VehicleJobCardPanel({
           <input name="note" placeholder="Approval request" className="rounded-lg border border-neutral-300 px-2 py-1 text-xs" />
           <Button size="sm" variant="secondary" type="submit">Request approval</Button>
         </form>
-        {canClose ? <Button size="sm" variant="outline" onClick={() => void run(() => closeJobCard({ jobId: activeJob.id }))}>Close job</Button> : null}
+        {canClose ? <Button size="sm" variant="outline" onClick={() => void run(() => closeJobCard({ jobId: activeJob.id }), () => { if (window.confirm('Job card closed. Send invoice now? Click Cancel to send later.')) { window.location.href = `/workshop/vehicles/${vehicleId}/documents`; } })}>Close job</Button> : null}
       </div>
       <Link href={`/workshop/jobs/${activeJob.id}`} className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-gray-600 hover:text-black">View full internal timeline <ArrowRight className="h-3.5 w-3.5" /></Link>
     </div>

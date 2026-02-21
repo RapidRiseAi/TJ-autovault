@@ -4,6 +4,16 @@ import { createClient } from '@/lib/supabase/server';
 import { getCustomerContextOrCreate } from '@/lib/customer/get-customer-context-or-create';
 import { formatJobCardStatus, jobProgressIndex } from '@/lib/job-cards';
 
+function resolveVehicleCustomerAccountId(value: unknown): string | null {
+  if (!value) return null;
+  if (Array.isArray(value)) {
+    const accountId = (value[0] as { current_customer_account_id?: unknown } | undefined)?.current_customer_account_id;
+    return typeof accountId === 'string' ? accountId : null;
+  }
+  const accountId = (value as { current_customer_account_id?: unknown }).current_customer_account_id;
+  return typeof accountId === 'string' ? accountId : null;
+}
+
 export default async function CustomerJobCardPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
@@ -22,7 +32,7 @@ export default async function CustomerJobCardPage({ params }: { params: Promise<
     supabase.from('job_card_approvals').select('id,title,description,estimate_amount,status,requested_at').eq('job_card_id', id).order('requested_at', { ascending: false })
   ]);
 
-  if (!job || (job.vehicles as Array<{ current_customer_account_id: string | null }> | null)?.[0]?.current_customer_account_id !== customerAccountId) {
+  if (!job || resolveVehicleCustomerAccountId(job.vehicles) !== customerAccountId) {
     return <main><Card><h1 className="text-lg font-semibold">Job unavailable</h1></Card></main>;
   }
 
