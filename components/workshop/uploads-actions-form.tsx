@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Modal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast-provider';
@@ -34,6 +34,13 @@ export function UploadsActionsForm({ vehicleId, onSuccess, destinationLabel = 'c
   const isQuoteOrInvoice = documentType === 'quote' || documentType === 'invoice';
   const isInvoice = documentType === 'invoice';
   const isWarning = documentType === 'warning';
+
+
+  useEffect(() => {
+    if (!initialDocumentType) return;
+    setDocumentType(initialDocumentType);
+    setSubject(initialSubject ?? DOCUMENT_TYPES.find((entry) => entry.value === initialDocumentType)?.defaultSubject ?? '');
+  }, [initialDocumentType, initialSubject]);
 
   const disableSubmit = useMemo(
     () => isSubmitting || !file || !subject.trim() || (isQuoteOrInvoice && (!amount || !referenceNumber.trim())) || (isWarning && !body.trim()),

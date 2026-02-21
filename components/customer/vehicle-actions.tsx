@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import {
   createWorkRequest,
@@ -122,6 +123,7 @@ export function QuoteDecisionButtons({
   createdAt: string | null;
   quoteRef: string;
 }) {
+  const router = useRouter();
   const [msg, setMsg] = useState('');
   const [declineReason, setDeclineReason] = useState('');
   const [approveModalOpen, setApproveModalOpen] = useState(false);
@@ -153,6 +155,7 @@ export function QuoteDecisionButtons({
       setApproveModalOpen(false);
       setDeclineModalOpen(false);
       setDeclineReason('');
+      router.refresh();
       return;
     }
 
@@ -236,6 +239,7 @@ export function RecommendationDecisionButtons({
 }: {
   recommendationId: string;
 }) {
+  const router = useRouter();
   const [msg, setMsg] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -253,6 +257,7 @@ export function RecommendationDecisionButtons({
           });
           setIsLoading(false);
           setMsg(result.ok ? 'Approved' : result.error);
+          if (result.ok) router.refresh();
         }}
       >
         Approve
@@ -269,6 +274,7 @@ export function RecommendationDecisionButtons({
           });
           setIsLoading(false);
           setMsg(result.ok ? 'Declined' : result.error);
+          if (result.ok) router.refresh();
         }}
       >
         Decline

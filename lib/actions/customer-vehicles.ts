@@ -255,11 +255,13 @@ export async function decideRecommendation(input: {
   if (!context) return { ok: false, error: 'Please sign in.' };
   const account = context.customer_account;
 
+  const user = (await supabase.auth.getUser()).data.user;
+
   const { data, error } = await supabase
     .from('recommendations')
     .update({
       status: input.decision,
-      status_text: input.decision
+      status_text: 'done'
     })
     .eq('id', input.recommendationId)
     .eq('customer_account_id', account.id)
@@ -275,13 +277,17 @@ export async function decideRecommendation(input: {
     workshop_account_id: data.workshop_account_id,
     customer_account_id: data.customer_account_id,
     vehicle_id: data.vehicle_id,
-    actor_profile_id: null,
+    actor_profile_id: user?.id ?? null,
     actor_role: 'customer',
-    event_type: `recommendation_${input.decision}`,
+    event_type: 'recommendation_status_changed',
     title: `Recommendation ${input.decision}`,
-    description: data.title,
+    description: `Customer ${input.decision} recommendation: ${data.title ?? 'Recommendation'}`,
     importance: input.decision === 'approved' ? 'info' : 'warning',
-    metadata: { recommendation_id: data.id }
+    metadata: {
+      recommendation_id: data.id,
+      status: input.decision,
+      recommendation_title: data.title
+    }
   });
 
   await supabase.rpc('push_notification_to_workshop', {
@@ -302,7 +308,9 @@ export async function decideRecommendation(input: {
 
   revalidatePath(`/workshop/vehicles/${data.vehicle_id}`);
   revalidatePath(`/workshop/vehicles/${data.vehicle_id}/timeline`);
+  revalidatePath('/workshop/notifications');
   revalidatePath(customerVehicle(data.vehicle_id));
+  revalidatePath(customerDashboard());
   return { ok: true, message: `Recommendation ${input.decision}.` };
 }
 
