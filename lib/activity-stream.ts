@@ -33,6 +33,8 @@ export type ActivityItem = {
   actorLabel: string;
   subtitle: string;
   downloadHref?: string;
+  actionHref?: string;
+  actionLabel?: string;
 };
 
 function labelDocumentType(type?: string | null) {
@@ -78,6 +80,7 @@ export function buildActivityStream(timelineRows: TimelineEventItem[], docs: Doc
   const timelineItems: ActivityItem[] = timelineRows.map((event) => {
     const category = mapCategory(event.event_type);
     const invoiceId = typeof event.metadata?.invoice_id === 'string' ? event.metadata.invoice_id : undefined;
+    const jobCardId = typeof event.metadata?.job_card_id === 'string' ? event.metadata.job_card_id : undefined;
 
     return {
       id: event.id,
@@ -94,7 +97,9 @@ export function buildActivityStream(timelineRows: TimelineEventItem[], docs: Doc
         attachmentDownloadHref(event.metadata) ??
         (category === 'invoices' && invoiceId
           ? toDownloadHref(docsByInvoiceId.get(invoiceId))
-          : undefined)
+          : undefined),
+      actionHref: jobCardId ? `/customer/jobs/${jobCardId}` : undefined,
+      actionLabel: jobCardId ? 'Open job card' : undefined
     };
   });
 
