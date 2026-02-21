@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { WORK_REQUEST_STATUSES, type WorkRequestStatus } from '@/lib/work-request-statuses';
 import { addVehicleSchema } from '@/lib/validation/vehicle';
 import { z } from 'zod';
@@ -142,6 +143,48 @@ export async function createWorkshopCustomerVehicle(input: unknown): Promise<Res
   revalidatePath(`/workshop/vehicles/${vehicle.id}`);
   revalidatePath('/customer/dashboard');
   return { ok: true, message: 'Vehicle added.', vehicleId: vehicle.id };
+}
+
+export async function deleteWorkshopVehicle(input: { vehicleId: string; customerAccountId?: string }): Promise<Result> {
+  const ctx = await getWorkshopContext();
+  if (!ctx) return { ok: false, error: 'Unauthorized' };
+
+  const parsed = z.object({ vehicleId: z.string().uuid(), customerAccountId: z.string().uuid().optional() }).safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid vehicle id' };
+  }
+
+  const payload = parsed.data;
+  const admin = createAdminClient();
+
+  const { data: vehicle, error: vehicleError } = await admin
+    .from('vehicles')
+    .select('id,current_customer_account_id,workshop_account_id')
+    .eq('id', payload.vehicleId)
+    .eq('workshop_account_id', ctx.profile.workshop_account_id)
+    .maybeSingle();
+
+  if (vehicleError || !vehicle) {
+    return { ok: false, error: vehicleError?.message ?? 'Vehicle not found' };
+  }
+
+  const { error: deleteError } = await admin.from('vehicles').delete().eq('id', payload.vehicleId).eq('workshop_account_id', ctx.profile.workshop_account_id);
+  if (deleteError) {
+    return { ok: false, error: deleteError.message };
+  }
+
+  revalidatePath('/workshop/dashboard');
+  revalidatePath('/workshop/customers');
+  revalidatePath(`/workshop/vehicles/${payload.vehicleId}`);
+  if (payload.customerAccountId) {
+    revalidatePath(`/workshop/customers/${payload.customerAccountId}`);
+  }
+  if (vehicle.current_customer_account_id) {
+    revalidatePath(`/customer/vehicles/${payload.vehicleId}`);
+  }
+  revalidatePath('/customer/dashboard');
+
+  return { ok: true, message: 'Vehicle deleted.' };
 }
 
 export async function updateWorkshopVehicleInfo(input: unknown): Promise<Result> {
