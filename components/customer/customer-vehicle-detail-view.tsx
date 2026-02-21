@@ -216,7 +216,7 @@ export function CustomerVehicleDetailView({
       recommendation.status ??
       ''
     ).toLowerCase();
-    return normalized !== 'closed' && normalized !== 'done';
+    return normalized === 'open' || normalized === 'acknowledged';
   });
 
   const recommendationBuckets = useMemo(() => {
@@ -669,12 +669,12 @@ export function CustomerVehicleDetailView({
         title="Recommendations"
       >
         <div className="space-y-3">
-          {safeRecommendations.length === 0 ? (
+          {openRecommendations.length === 0 ? (
             <p className="text-sm text-gray-600">
-              No recommendations available.
+              No actionable recommendations available.
             </p>
           ) : null}
-          {safeRecommendations.map((recommendation) => (
+          {openRecommendations.map((recommendation) => (
             <div
               key={recommendation.id}
               className="rounded-2xl border border-black/10 p-4 text-sm"
