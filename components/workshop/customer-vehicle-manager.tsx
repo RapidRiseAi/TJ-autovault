@@ -156,6 +156,8 @@ export function CustomerVehicleManager({ customerAccountId, vehicles }: { custom
 }
 
 function VehicleForm({ values, setValues, onSubmit, isLoading, cta }: { values: typeof INITIAL_FORM; setValues: (value: typeof INITIAL_FORM) => void; onSubmit: () => Promise<void>; isLoading: boolean; cta: string; }) {
+  const hasMake = values.make.trim().length > 0;
+
   return (
     <form
       className="space-y-2"
@@ -164,10 +166,10 @@ function VehicleForm({ values, setValues, onSubmit, isLoading, cta }: { values: 
         void onSubmit();
       }}
     >
-      <input className="w-full rounded border p-2 uppercase" placeholder="Registration" required minLength={4} maxLength={12} value={values.registrationNumber} onChange={(event) => setValues({ ...values, registrationNumber: event.target.value })} />
+      <input className="w-full rounded border p-2 uppercase" placeholder="Registration / Plate number" required minLength={4} maxLength={12} value={values.registrationNumber} onChange={(event) => setValues({ ...values, registrationNumber: event.target.value })} />
       <div className="grid grid-cols-2 gap-2">
-        <input className="w-full rounded border p-2" placeholder="Make" required value={values.make} onChange={(event) => setValues({ ...values, make: event.target.value })} />
-        <input className="w-full rounded border p-2" placeholder="Model" required value={values.model} onChange={(event) => setValues({ ...values, model: event.target.value })} />
+        <input className="w-full rounded border p-2" placeholder="Search and select make" required value={values.make} onChange={(event) => setValues({ ...values, make: event.target.value })} />
+        <input className="w-full rounded border p-2" placeholder={hasMake ? 'Search and select model' : 'Select make first'} required value={values.model} onChange={(event) => setValues({ ...values, model: event.target.value })} />
       </div>
       <div className="grid grid-cols-3 gap-2">
         <input className="w-full rounded border p-2" type="number" placeholder="Year" min={1900} max={new Date().getFullYear() + 1} value={values.year} onChange={(event) => setValues({ ...values, year: event.target.value })} />
