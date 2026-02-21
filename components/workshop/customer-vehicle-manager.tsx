@@ -1,12 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useRef, useState, type RefObject } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast-provider';
-import { createWorkshopCustomerVehicle, updateWorkshopVehicleInfo } from '@/lib/actions/workshop';
+import { createWorkshopCustomerVehicle, deleteWorkshopVehicle, updateWorkshopVehicleInfo } from '@/lib/actions/workshop';
 import { VerifyVehicleButton } from '@/components/workshop/verify-vehicle-button';
 import { VEHICLE_MAKES, VEHICLE_MODELS_BY_MAKE } from '@/lib/vehicle-makes-models';
 
@@ -68,6 +68,8 @@ export function CustomerVehicleManager({ customerAccountId, vehicles }: { custom
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [formValues, setFormValues] = useState(INITIAL_FORM);
+  const [vehiclePhoto, setVehiclePhoto] = useState<File | null>(null);
+  const photoRef = useRef<HTMLInputElement>(null);
 
   function setFromVehicle(vehicle: Vehicle) {
     setFormValues({
@@ -104,9 +106,30 @@ export function CustomerVehicleManager({ customerAccountId, vehicles }: { custom
       return;
     }
 
+    if (result.vehicleId && vehiclePhoto) {
+      const signResponse = await fetch('/api/uploads/sign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vehicleId: result.vehicleId, fileName: vehiclePhoto.name, contentType: vehiclePhoto.type, kind: 'image', documentType: 'vehicle_photo' })
+      });
+
+      if (signResponse.ok) {
+        const signedPayload = (await signResponse.json()) as { bucket: string; path: string; token: string; docType: string };
+        await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/upload/sign/${signedPayload.bucket}/${signedPayload.path}?token=${signedPayload.token}`, {
+          method: 'PUT', headers: { 'Content-Type': vehiclePhoto.type, 'x-upsert': 'true' }, body: vehiclePhoto
+        });
+        await fetch('/api/uploads/complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ vehicleId: result.vehicleId, bucket: signedPayload.bucket, path: signedPayload.path, contentType: vehiclePhoto.type, size: vehiclePhoto.size, originalName: vehiclePhoto.name, docType: signedPayload.docType, subject: 'Vehicle photo updated', urgency: 'info' })
+        });
+      }
+    }
+
     pushToast({ title: 'Vehicle added', tone: 'success' });
     setAddOpen(false);
     setFormValues(INITIAL_FORM);
+    setVehiclePhoto(null);
     router.refresh();
   }
 
@@ -139,6 +162,23 @@ export function CustomerVehicleManager({ customerAccountId, vehicles }: { custom
     router.refresh();
   }
 
+  async function handleDelete(vehicle: Vehicle) {
+    const confirmed = window.confirm(`Delete ${vehicle.registration_number}? This cannot be undone.`);
+    if (!confirmed) return;
+
+    setIsLoading(true);
+    const result = await deleteWorkshopVehicle({ vehicleId: vehicle.id, customerAccountId });
+    setIsLoading(false);
+
+    if (!result.ok) {
+      pushToast({ title: 'Could not delete vehicle', description: result.error, tone: 'error' });
+      return;
+    }
+
+    pushToast({ title: 'Vehicle deleted', tone: 'success' });
+    router.refresh();
+  }
+
 
   return (
     <>
@@ -164,6 +204,7 @@ export function CustomerVehicleManager({ customerAccountId, vehicles }: { custom
                 <div className="flex gap-2">
                   {pending ? <VerifyVehicleButton vehicleId={vehicle.id} /> : null}
                   <Button size="sm" variant="outline" onClick={() => { setEditingVehicle(vehicle); setFromVehicle(vehicle); }}>Edit</Button>
+                  <Button size="sm" variant="destructive" onClick={() => void handleDelete(vehicle)} disabled={isLoading}>Delete</Button>
                   <Button asChild size="sm" variant="outline"><Link href={`/workshop/vehicles/${vehicle.id}`}>Open vehicle</Link></Button>
                 </div>
               </div>
@@ -173,7 +214,7 @@ export function CustomerVehicleManager({ customerAccountId, vehicles }: { custom
       )}
 
       <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Add vehicle for customer">
-        <VehicleForm values={formValues} setValues={setFormValues} onSubmit={submitCreate} isLoading={isLoading} cta="Add vehicle" />
+        <VehicleForm values={formValues} setValues={setFormValues} onSubmit={submitCreate} isLoading={isLoading} cta="Add vehicle" vehiclePhoto={vehiclePhoto} setVehiclePhoto={setVehiclePhoto} photoRef={photoRef} />
       </Modal>
 
       <Modal open={Boolean(editingVehicle)} onClose={() => setEditingVehicle(null)} title="Edit vehicle details">
@@ -183,7 +224,7 @@ export function CustomerVehicleManager({ customerAccountId, vehicles }: { custom
   );
 }
 
-function VehicleForm({ values, setValues, onSubmit, isLoading, cta }: { values: typeof INITIAL_FORM; setValues: (value: typeof INITIAL_FORM) => void; onSubmit: () => Promise<void>; isLoading: boolean; cta: string; }) {
+function VehicleForm({ values, setValues, onSubmit, isLoading, cta, vehiclePhoto, setVehiclePhoto, photoRef }: { values: typeof INITIAL_FORM; setValues: (value: typeof INITIAL_FORM) => void; onSubmit: () => Promise<void>; isLoading: boolean; cta: string; vehiclePhoto?: File | null; setVehiclePhoto?: (file: File | null) => void; photoRef?: RefObject<HTMLInputElement | null>; }) {
   const normalizedMake = normalizeFromOptions(values.make, VEHICLE_MAKES);
   const hasMake = normalizedMake.length > 0;
   const modelOptions = !normalizedMake || normalizedMake === 'Other'
@@ -244,6 +285,16 @@ function VehicleForm({ values, setValues, onSubmit, isLoading, cta }: { values: 
         <input className="w-full rounded border p-2" type="number" placeholder="Mileage km" min={0} value={values.currentMileage} onChange={(event) => setValues({ ...values, currentMileage: event.target.value })} />
       </div>
       <textarea className="w-full rounded border p-2" placeholder="Notes" maxLength={500} value={values.notes} onChange={(event) => setValues({ ...values, notes: event.target.value })} />
+      {setVehiclePhoto && photoRef ? (
+        <div>
+          <label className="mb-1 block text-sm font-medium">Vehicle photo (optional)</label>
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={() => photoRef.current?.click()} className="rounded border px-3 py-2 text-sm">Choose image</button>
+            <span className="text-xs text-gray-600">{vehiclePhoto?.name ?? 'No file selected'}</span>
+          </div>
+          <input ref={photoRef} type="file" accept="image/*" className="hidden" onChange={(event) => setVehiclePhoto(event.target.files?.[0] ?? null)} />
+        </div>
+      ) : null}
       <Button disabled={isLoading}>{isLoading ? 'Saving...' : cta}</Button>
     </form>
   );
