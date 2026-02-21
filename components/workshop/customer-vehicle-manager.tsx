@@ -8,6 +8,7 @@ import { Modal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast-provider';
 import { createWorkshopCustomerVehicle, updateWorkshopVehicleInfo } from '@/lib/actions/workshop';
 import { VerifyVehicleButton } from '@/components/workshop/verify-vehicle-button';
+import { VEHICLE_MAKES, VEHICLE_MODELS_BY_MAKE } from '@/lib/vehicle-makes-models';
 
 type Vehicle = {
   id: string;
@@ -26,6 +27,8 @@ const INITIAL_FORM = {
   registrationNumber: '',
   make: '',
   model: '',
+  manualMake: '',
+  manualModel: '',
   year: '',
   vin: '',
   currentMileage: '',
@@ -37,6 +40,25 @@ const INITIAL_FORM = {
 function getVehicleDisplayName(vehicle: Pick<Vehicle, 'make' | 'model' | 'registration_number'>) {
   const name = [vehicle.make, vehicle.model].filter(Boolean).join(' ').trim();
   return name || vehicle.registration_number;
+}
+
+function normalizeFromOptions(value: string, options: string[]) {
+  return options.find((entry) => entry.toLowerCase() === value.trim().toLowerCase()) ?? value.trim();
+}
+
+function resolveMakeAndModel(values: typeof INITIAL_FORM) {
+  const normalizedMake = normalizeFromOptions(values.make, VEHICLE_MAKES);
+  const modelOptions = !normalizedMake || normalizedMake === 'Other'
+    ? ['Other']
+    : VEHICLE_MODELS_BY_MAKE[normalizedMake] ?? ['Other'];
+  const normalizedModel = normalizeFromOptions(values.model, modelOptions);
+
+  const make = normalizedMake === 'Other' ? values.manualMake.trim() : normalizedMake;
+  const model = normalizedModel === 'Other' || normalizedMake === 'Other'
+    ? values.manualModel.trim()
+    : normalizedModel;
+
+  return { make, model };
 }
 
 export function CustomerVehicleManager({ customerAccountId, vehicles }: { customerAccountId: string; vehicles: Vehicle[] }) {
@@ -52,6 +74,8 @@ export function CustomerVehicleManager({ customerAccountId, vehicles }: { custom
       registrationNumber: vehicle.registration_number,
       make: vehicle.make ?? '',
       model: vehicle.model ?? '',
+      manualMake: '',
+      manualModel: '',
       year: vehicle.year ? String(vehicle.year) : '',
       vin: vehicle.vin ?? '',
       currentMileage: vehicle.odometer_km != null ? String(vehicle.odometer_km) : '',
@@ -60,12 +84,14 @@ export function CustomerVehicleManager({ customerAccountId, vehicles }: { custom
   }
 
   async function submitCreate() {
+    const { make, model } = resolveMakeAndModel(formValues);
+
     setIsLoading(true);
     const result = await createWorkshopCustomerVehicle({
       customerAccountId,
       registrationNumber: formValues.registrationNumber,
-      make: formValues.make,
-      model: formValues.model,
+      make,
+      model,
       year: formValues.year ? Number(formValues.year) : null,
       vin: formValues.vin,
       currentMileage: formValues.currentMileage ? Number(formValues.currentMileage) : null,
@@ -87,12 +113,14 @@ export function CustomerVehicleManager({ customerAccountId, vehicles }: { custom
   async function submitUpdate() {
     if (!editingVehicle) return;
 
+    const { make, model } = resolveMakeAndModel(formValues);
+
     setIsLoading(true);
     const result = await updateWorkshopVehicleInfo({
       vehicleId: editingVehicle.id,
       registrationNumber: formValues.registrationNumber,
-      make: formValues.make,
-      model: formValues.model,
+      make,
+      model,
       year: formValues.year ? Number(formValues.year) : null,
       vin: formValues.vin,
       currentMileage: formValues.currentMileage ? Number(formValues.currentMileage) : null,
@@ -156,7 +184,11 @@ export function CustomerVehicleManager({ customerAccountId, vehicles }: { custom
 }
 
 function VehicleForm({ values, setValues, onSubmit, isLoading, cta }: { values: typeof INITIAL_FORM; setValues: (value: typeof INITIAL_FORM) => void; onSubmit: () => Promise<void>; isLoading: boolean; cta: string; }) {
-  const hasMake = values.make.trim().length > 0;
+  const normalizedMake = normalizeFromOptions(values.make, VEHICLE_MAKES);
+  const hasMake = normalizedMake.length > 0;
+  const modelOptions = !normalizedMake || normalizedMake === 'Other'
+    ? ['Other']
+    : VEHICLE_MODELS_BY_MAKE[normalizedMake] ?? ['Other'];
 
   return (
     <form
@@ -168,8 +200,43 @@ function VehicleForm({ values, setValues, onSubmit, isLoading, cta }: { values: 
     >
       <input className="w-full rounded border p-2 uppercase" placeholder="Registration / Plate number" required minLength={4} maxLength={12} value={values.registrationNumber} onChange={(event) => setValues({ ...values, registrationNumber: event.target.value })} />
       <div className="grid grid-cols-2 gap-2">
-        <input className="w-full rounded border p-2" placeholder="Search and select make" required value={values.make} onChange={(event) => setValues({ ...values, make: event.target.value })} />
-        <input className="w-full rounded border p-2" placeholder={hasMake ? 'Search and select model' : 'Select make first'} required value={values.model} onChange={(event) => setValues({ ...values, model: event.target.value })} />
+        <div>
+          <input
+            list="workshop-vehicle-makes"
+            className="w-full rounded border p-2"
+            placeholder="Search and select make"
+            required
+            value={values.make}
+            onChange={(event) => setValues({ ...values, make: event.target.value, model: '', manualMake: '', manualModel: '' })}
+          />
+          <datalist id="workshop-vehicle-makes">
+            {VEHICLE_MAKES.map((entry) => (
+              <option key={entry} value={entry} />
+            ))}
+          </datalist>
+          {normalizedMake === 'Other' ? (
+            <input className="mt-2 w-full rounded border p-2" placeholder="Enter make" required value={values.manualMake} onChange={(event) => setValues({ ...values, manualMake: event.target.value })} />
+          ) : null}
+        </div>
+        <div>
+          <input
+            list="workshop-vehicle-models"
+            className="w-full rounded border p-2"
+            placeholder={hasMake ? 'Search and select model' : 'Select make first'}
+            required
+            disabled={!hasMake}
+            value={values.model}
+            onChange={(event) => setValues({ ...values, model: event.target.value, manualModel: '' })}
+          />
+          <datalist id="workshop-vehicle-models">
+            {modelOptions.map((entry) => (
+              <option key={entry} value={entry} />
+            ))}
+          </datalist>
+          {values.model.trim() === 'Other' || normalizedMake === 'Other' ? (
+            <input className="mt-2 w-full rounded border p-2" placeholder="Enter model" required value={values.manualModel} onChange={(event) => setValues({ ...values, manualModel: event.target.value })} />
+          ) : null}
+        </div>
       </div>
       <div className="grid grid-cols-3 gap-2">
         <input className="w-full rounded border p-2" type="number" placeholder="Year" min={1900} max={new Date().getFullYear() + 1} value={values.year} onChange={(event) => setValues({ ...values, year: event.target.value })} />

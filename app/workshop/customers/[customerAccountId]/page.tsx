@@ -26,7 +26,7 @@ async function loadCustomerVehicles({
   supabase: Awaited<ReturnType<typeof createClient>>;
   customerAccountId: string;
   workshopId: string;
-}) {
+}): Promise<{ vehicles: CustomerVehicleRow[]; error: string | null }> {
   const withNotes = await supabase
     .from('vehicles')
     .select('id,registration_number,make,model,year,vin,odometer_km,status,notes,primary_image_path')
@@ -34,7 +34,7 @@ async function loadCustomerVehicles({
     .eq('workshop_account_id', workshopId);
 
   if (!withNotes.error) {
-    return (withNotes.data ?? []) as CustomerVehicleRow[];
+    return { vehicles: (withNotes.data ?? []) as CustomerVehicleRow[], error: null };
   }
 
   if (withNotes.error.code === 'PGRST204' && withNotes.error.message.includes("'notes' column")) {
@@ -45,11 +45,16 @@ async function loadCustomerVehicles({
       .eq('workshop_account_id', workshopId);
 
     if (!withoutNotes.error) {
-      return (withoutNotes.data ?? []).map((vehicle) => ({ ...vehicle, notes: null })) as CustomerVehicleRow[];
+      return {
+        vehicles: (withoutNotes.data ?? []).map((vehicle) => ({ ...vehicle, notes: null })) as CustomerVehicleRow[],
+        error: null
+      };
     }
+
+    return { vehicles: [], error: withoutNotes.error.message };
   }
 
-  return [];
+  return { vehicles: [], error: withNotes.error.message };
 }
 
 export default async function WorkshopCustomerPage({ params }: { params: Promise<{ customerAccountId: string }> }) {
@@ -72,7 +77,7 @@ export default async function WorkshopCustomerPage({ params }: { params: Promise
 
   const customerDisplayName = customer.customer_users?.[0]?.profiles?.[0]?.display_name || customer.name;
 
-  const [vehicles, { count: unpaidInvoices }, { count: pendingQuotes }, { count: activeJobs }] = await Promise.all([
+  const [{ vehicles, error: vehiclesError }, { count: unpaidInvoices }, { count: pendingQuotes }, { count: activeJobs }] = await Promise.all([
     loadCustomerVehicles({ supabase, customerAccountId, workshopId }),
     supabase.from('invoices').select('id', { count: 'exact', head: true }).eq('customer_account_id', customerAccountId).neq('payment_status', 'paid'),
     supabase.from('quotes').select('id', { count: 'exact', head: true }).eq('customer_account_id', customerAccountId).in('status', ['sent', 'pending']),
@@ -94,6 +99,7 @@ export default async function WorkshopCustomerPage({ params }: { params: Promise
       </div>
 
       <Card className="rounded-3xl">
+        {vehiclesError ? <p className="px-6 pt-6 text-sm text-red-700">Could not load linked vehicles: {vehiclesError}</p> : null}
         <CustomerVehicleManager customerAccountId={customer.id} vehicles={vehicles} />
       </Card>
     </main>
