@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Modal } from '@/components/ui/modal';
 import { addJobCardEvent, closeJobCard, completeJobCard, updateJobCardStatus } from '@/lib/actions/job-cards';
 import { formatJobCardStatus, JOB_CARD_STATUSES } from '@/lib/job-cards';
 
@@ -24,11 +25,12 @@ export function JobCardDetailClient(props: {
 }) {
   const [tab, setTab] = useState<Tab>('overview');
   const [isUploading, setIsUploading] = useState(false);
+  const [invoicePromptOpen, setInvoicePromptOpen] = useState(false);
   const tabs: Tab[] = ['overview', 'photos', 'updates', 'internal', 'parts', 'approvals', 'checklist'];
 
-  async function doAction(run: () => Promise<{ ok: boolean }>) {
+  async function doAction(run: () => Promise<{ ok: boolean }>, options?: { reloadOnSuccess?: boolean }) {
     const result = await run();
-    if (result.ok) window.location.reload();
+    if (result.ok && (options?.reloadOnSuccess ?? true)) window.location.reload();
   }
 
   async function uploadPhotoFiles(files: File[], kind: 'before' | 'after') {
@@ -98,7 +100,7 @@ export function JobCardDetailClient(props: {
             <input name="afterPhotos" type="file" accept="image/*" multiple className="rounded-lg border border-neutral-300 px-2 py-1 text-xs" />
             <Button size="sm" disabled={props.isLocked || isUploading}>{isUploading ? 'Uploading…' : 'Complete job'}</Button>
           </form>
-          {props.isManager ? <Button size="sm" variant="outline" disabled={props.isLocked} onClick={() => void doAction(async () => { const result = await closeJobCard({ jobId: props.jobId }); if (result.ok && window.confirm('Job card closed. Send invoice now? Click Cancel to send later.')) { window.location.href = `/workshop/vehicles/${props.vehicleId}/documents`; } return result; })}>Close job</Button> : null}
+          {props.isManager ? <Button size="sm" variant="outline" disabled={props.isLocked} onClick={() => void doAction(async () => { const result = await closeJobCard({ jobId: props.jobId }); if (result.ok) setInvoicePromptOpen(true); return result; }, { reloadOnSuccess: false })}>Close job</Button> : null}
         </div>
       </div>
       <div className="flex flex-wrap gap-2">
@@ -113,6 +115,13 @@ export function JobCardDetailClient(props: {
         {tab === 'approvals' ? <div className="space-y-2">{props.approvals.length ? props.approvals.map((approval) => <p key={approval.id}>{approval.title} - {approval.status}</p>) : <p>No approvals yet.</p>}</div> : null}
         {tab === 'checklist' ? <div className="space-y-2">{props.checklist.length ? props.checklist.map((item) => <p key={item.id}>{item.is_done ? '✅' : '⬜'} {item.label}</p>) : <p>No checklist yet.</p>}</div> : null}
       </div>
+      <Modal open={invoicePromptOpen} onClose={() => setInvoicePromptOpen(false)} title="Upload invoice now?">
+        <p className="text-sm text-gray-600">The job card has been closed. You can upload the invoice now or do it later.</p>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button variant="secondary" onClick={() => { setInvoicePromptOpen(false); window.location.reload(); }}>Cancel</Button>
+          <Button onClick={() => { window.location.href = `/workshop/vehicles/${props.vehicleId}/documents`; }}>Upload invoice</Button>
+        </div>
+      </Modal>
     </div>
   );
 }
