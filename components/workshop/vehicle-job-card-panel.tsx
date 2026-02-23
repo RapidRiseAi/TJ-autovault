@@ -46,9 +46,9 @@ export function VehicleJobCardPanel({
   const [isClosingLater, setIsClosingLater] = useState(false);
   const [isRedirectingToInvoice, setIsRedirectingToInvoice] = useState(false);
   const [requirementsPromptOpen, setRequirementsPromptOpen] = useState(false);
-  const [unmetCloseRequirements, setUnmetCloseRequirements] = useState<string[]>(
-    []
-  );
+  const [unmetCloseRequirements, setUnmetCloseRequirements] = useState<
+    string[]
+  >([]);
   const { pushToast } = useToast();
   const canCloseNow =
     activeJob != null && ['ready', 'completed'].includes(activeJob.status);
@@ -60,7 +60,10 @@ export function VehicleJobCardPanel({
     ) {
       return 'Set the job status to Ready or Completed.';
     }
-    if (error === 'At least one completion image is required before closing the job.') {
+    if (
+      error ===
+      'At least one completion image is required before closing the job.'
+    ) {
       return 'Upload at least one completion photo.';
     }
     return error;
@@ -153,7 +156,7 @@ export function VehicleJobCardPanel({
       <>
         <ActionTile
           title="Start job"
-          description="Create a new job card from an approved quote and upload before photos."
+          description="Create a new job card from an approved quote and optionally upload before photos."
           icon={<PlayCircle className="h-4 w-4" />}
           primary
           onClick={() => setStartOpen(true)}
@@ -186,7 +189,9 @@ export function VehicleJobCardPanel({
                       ok: false,
                       error: 'Please choose an approved quote.'
                     };
-                  const beforePhotoPaths = await uploadBeforePhotos(photoFiles);
+                  const beforePhotoPaths = photoFiles.length
+                    ? await uploadBeforePhotos(photoFiles)
+                    : [];
                   const quoteLabel =
                     selectedQuote.quoteNumber?.trim() ||
                     selectedQuote.id.slice(0, 8).toUpperCase();
@@ -218,16 +223,20 @@ export function VehicleJobCardPanel({
                 ))
               ) : (
                 <option value="">
-                  No approved quotes without sent invoices
+                  No approved quotes available to start a new job
                 </option>
               )}
             </select>
+            <label className="block text-xs font-medium text-gray-600">
+              Before images (optional)
+            </label>
             <input
               name="beforePhotos"
               type="file"
               accept="image/*"
               multiple
-              required
+              aria-label="Before images (optional)"
+              title="Before images (optional)"
               className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
             />
             <select
