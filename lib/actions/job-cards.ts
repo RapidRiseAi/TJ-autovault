@@ -10,7 +10,7 @@ import {
 
 type Result =
   | { ok: true; jobId?: string; message?: string }
-  | { ok: false; error: string };
+  | { ok: false; error: string; jobId?: string };
 
 function resolveVehicleCustomerAccountId(value: unknown): string | null {
   if (!value) return null;
@@ -94,6 +94,7 @@ export async function startJobCard(input: {
     .from('job_cards')
     .select('id')
     .eq('vehicle_id', vehicle.id)
+    .eq('workshop_id', ctx.profile.workshop_account_id)
     .in('status', [
       'not_started',
       'in_progress',
@@ -106,7 +107,8 @@ export async function startJobCard(input: {
   if (existing)
     return {
       ok: false,
-      error: 'An active job already exists for this vehicle.'
+      error: 'An active job already exists for this vehicle.',
+      jobId: existing.id
     };
 
   const now = new Date().toISOString();
