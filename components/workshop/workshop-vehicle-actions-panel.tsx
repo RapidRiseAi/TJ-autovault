@@ -8,7 +8,38 @@ import { VehicleWorkflowActions } from '@/components/workshop/vehicle-workflow-a
 import { UploadsActionsForm } from '@/components/workshop/uploads-actions-form';
 import { ActionTile } from '@/components/workshop/action-tile';
 
-export function WorkshopVehicleActionsPanel({ vehicleId, invoices, jobs, workRequests, currentMileage, uploadDestinationLabel, initialUploadMode, initialUploadSubject, pendingCloseJobId, prependTiles }: { vehicleId: string; invoices: Array<{ id: string; invoiceNumber?: string | null; paymentStatus?: string | null; totalCents?: number | null }>; jobs: Array<{ id: string }>; workRequests: Array<{ id: string; status: string }>; currentMileage: number; uploadDestinationLabel: string; initialUploadMode?: 'quote' | 'invoice' | 'inspection_report' | 'warning'; initialUploadSubject?: string; pendingCloseJobId?: string; prependTiles?: ReactNode; }) {
+export function WorkshopVehicleActionsPanel({
+  vehicleId,
+  invoices,
+  jobs,
+  workRequests,
+  currentMileage,
+  uploadDestinationLabel,
+  initialUploadMode,
+  initialUploadSubject,
+  pendingCloseJobId,
+  pendingInvoiceQuoteId,
+  pendingInvoiceAmountCents,
+  prependTiles
+}: {
+  vehicleId: string;
+  invoices: Array<{
+    id: string;
+    invoiceNumber?: string | null;
+    paymentStatus?: string | null;
+    totalCents?: number | null;
+  }>;
+  jobs: Array<{ id: string }>;
+  workRequests: Array<{ id: string; status: string }>;
+  currentMileage: number;
+  uploadDestinationLabel: string;
+  initialUploadMode?: 'quote' | 'invoice' | 'inspection_report' | 'warning';
+  initialUploadSubject?: string;
+  pendingCloseJobId?: string;
+  pendingInvoiceQuoteId?: string;
+  pendingInvoiceAmountCents?: number;
+  prependTiles?: ReactNode;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -39,9 +70,28 @@ export function WorkshopVehicleActionsPanel({ vehicleId, invoices, jobs, workReq
           onClick={() => setUploadOpen(true)}
         />
       </div>
-      <VehicleWorkflowActions vehicleId={vehicleId} invoices={invoices} jobs={jobs} workRequests={workRequests} currentMileage={currentMileage} />
-      <Modal open={uploadOpen} onClose={() => setUploadOpen(false)} title="Upload document">
-        <UploadsActionsForm vehicleId={vehicleId} destinationLabel={uploadDestinationLabel} onSuccess={() => setUploadOpen(false)} initialDocumentType={initialUploadMode} initialSubject={initialUploadSubject} pendingCloseJobId={pendingCloseOnInvoiceJobId} />
+      <VehicleWorkflowActions
+        vehicleId={vehicleId}
+        invoices={invoices}
+        jobs={jobs}
+        workRequests={workRequests}
+        currentMileage={currentMileage}
+      />
+      <Modal
+        open={uploadOpen}
+        onClose={() => setUploadOpen(false)}
+        title="Upload document"
+      >
+        <UploadsActionsForm
+          vehicleId={vehicleId}
+          destinationLabel={uploadDestinationLabel}
+          onSuccess={() => setUploadOpen(false)}
+          initialDocumentType={initialUploadMode}
+          initialSubject={initialUploadSubject}
+          pendingCloseJobId={pendingCloseOnInvoiceJobId}
+          linkedQuoteId={pendingInvoiceQuoteId}
+          initialAmountCents={pendingInvoiceAmountCents}
+        />
       </Modal>
     </>
   );
