@@ -16,7 +16,7 @@ export default async function WorkshopJobCardPage({ params }: { params: Promise<
   const [{ data: job }, events, updates, photos, parts, blockers, approvals, checklist] = await Promise.all([
     supabase
       .from('job_cards')
-      .select('id,vehicle_id,title,status,started_at,last_updated_at,completed_at,closed_at,is_locked,customer_summary,job_card_assignments(id,technician_user_id,profiles(display_name,full_name))')
+      .select('id,vehicle_id,title,status,started_at,last_updated_at,completed_at,closed_at,is_locked,customer_summary,quote_id,job_card_assignments(id,technician_user_id,profiles(display_name,full_name))')
       .eq('id', id)
       .eq('workshop_id', profile.workshop_account_id)
       .maybeSingle(),
@@ -30,6 +30,19 @@ export default async function WorkshopJobCardPage({ params }: { params: Promise<
   ]);
 
   if (!job) return <main><Card><h1 className="text-lg font-semibold">Job not found</h1></Card></main>;
+
+  const linkedQuoteId = job.quote_id ?? undefined;
+  let linkedQuoteAmountCents: number | undefined;
+
+  if (linkedQuoteId) {
+    const { data: linkedQuote } = await supabase
+      .from('quotes')
+      .select('id,total_cents')
+      .eq('id', linkedQuoteId)
+      .eq('vehicle_id', job.vehicle_id)
+      .maybeSingle();
+    linkedQuoteAmountCents = linkedQuote?.total_cents ?? undefined;
+  }
 
   return (
     <main className="space-y-4">
@@ -57,6 +70,8 @@ export default async function WorkshopJobCardPage({ params }: { params: Promise<
         blockers={blockers.data ?? []}
         approvals={approvals.data ?? []}
         checklist={checklist.data ?? []}
+        linkedQuoteId={linkedQuoteId}
+        linkedQuoteAmountCents={linkedQuoteAmountCents}
       />
     </main>
   );
