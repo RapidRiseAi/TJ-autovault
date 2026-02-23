@@ -21,6 +21,13 @@ const DOCUMENT_TYPES = [
 type DocType = (typeof DOCUMENT_TYPES)[number]['value'];
 type Urgency = 'info' | 'low' | 'medium' | 'high' | 'critical';
 
+function formatCentsInput(cents: number) {
+  const whole = Math.floor(cents / 100);
+  const remainder = cents % 100;
+  if (!remainder) return String(whole);
+  return `${whole}.${String(remainder).padStart(2, '0')}`.replace(/0$/, '');
+}
+
 export function UploadsActionsForm({
   vehicleId,
   onSuccess,
@@ -54,11 +61,11 @@ export function UploadsActionsForm({
   const [urgency, setUrgency] = useState<Urgency>('info');
   const [amount, setAmount] = useState(() => {
     if (!initialAmountCents) return '';
-    const whole = Math.floor(initialAmountCents / 100);
-    const cents = initialAmountCents % 100;
-    if (!cents) return String(whole);
-    return `${whole}.${String(cents).padStart(2, '0')}`.replace(/0$/, '');
+    return formatCentsInput(initialAmountCents);
   });
+  const [amountPrefilled, setAmountPrefilled] = useState(
+    Boolean(initialAmountCents && initialType === 'invoice')
+  );
   const [referenceNumber, setReferenceNumber] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -83,14 +90,12 @@ export function UploadsActionsForm({
   }, [initialDocumentType, initialSubject]);
 
   useEffect(() => {
-    if (documentType !== 'invoice' || !initialAmountCents) return;
-    const whole = Math.floor(initialAmountCents / 100);
-    const cents = initialAmountCents % 100;
-    setAmount(
-      !cents
-        ? String(whole)
-        : `${whole}.${String(cents).padStart(2, '0')}`.replace(/0$/, '')
-    );
+    if (documentType !== 'invoice' || !initialAmountCents) {
+      setAmountPrefilled(false);
+      return;
+    }
+    setAmount(formatCentsInput(initialAmountCents));
+    setAmountPrefilled(true);
   }, [documentType, initialAmountCents]);
 
   const disableSubmit = useMemo(
@@ -303,11 +308,25 @@ export function UploadsActionsForm({
             type="text"
             inputMode="decimal"
             value={amount}
-            onChange={(event) => setAmount(event.target.value)}
+            onChange={(event) => {
+              setAmount(event.target.value);
+              if (amountPrefilled) {
+                setAmountPrefilled(false);
+              }
+            }}
             required
-            className="mt-1 w-full rounded border p-2"
+            className={`mt-1 w-full rounded border p-2 transition ${
+              amountPrefilled
+                ? 'border-amber-400 bg-amber-50 ring-2 ring-amber-200'
+                : ''
+            }`}
             placeholder="0"
           />
+          {amountPrefilled ? (
+            <p className="mt-1 text-xs text-amber-700">
+              Prefilled from the linked quote amount.
+            </p>
+          ) : null}
         </label>
       ) : null}
       {isQuoteOrInvoice ? (

@@ -98,6 +98,7 @@ export default async function WorkshopVehiclePage({
     customersResult,
     recommendationsResult,
     quotesResult,
+    closedJobQuotesResult,
     activeJobResult,
     latestOpenJobResult,
     techniciansResult
@@ -158,12 +159,17 @@ export default async function WorkshopVehiclePage({
       .eq('workshop_account_id', workshopId)
       .eq('status', 'approved')
       .order('created_at', { ascending: false }),
+    supabase
+      .from('job_cards')
+      .select('quote_id')
+      .eq('vehicle_id', vehicleId)
+      .eq('workshop_id', workshopId)
+      .eq('status', 'closed')
+      .not('quote_id', 'is', null),
 
     supabase
       .from('job_cards')
-      .select(
-        'id,title,status,started_at,last_updated_at,quote_id'
-      )
+      .select('id,title,status,started_at,last_updated_at,quote_id')
       .eq('vehicle_id', vehicleId)
       .eq('workshop_id', workshopId)
       .in('status', [
@@ -295,15 +301,16 @@ export default async function WorkshopVehiclePage({
         )
       }
     : null;
-  const latestOpenJob = !activeJob && latestOpenJobResult.data
-    ? {
-        id: latestOpenJobResult.data.id,
-        title: latestOpenJobResult.data.title,
-        status: latestOpenJobResult.data.status,
-        started_at: latestOpenJobResult.data.started_at,
-        last_updated_at: latestOpenJobResult.data.last_updated_at
-      }
-    : null;
+  const latestOpenJob =
+    !activeJob && latestOpenJobResult.data
+      ? {
+          id: latestOpenJobResult.data.id,
+          title: latestOpenJobResult.data.title,
+          status: latestOpenJobResult.data.status,
+          started_at: latestOpenJobResult.data.started_at,
+          last_updated_at: latestOpenJobResult.data.last_updated_at
+        }
+      : null;
   const technicians = (techniciansResult.data ?? []).map(
     (row: {
       profile_id: string;
@@ -339,29 +346,36 @@ export default async function WorkshopVehiclePage({
         : undefined;
   const pendingCloseJobId =
     upload === 'invoice' && closeJobId ? closeJobId : undefined;
-  const approvedQuotes = (quotesResult.data ?? [])
-    .filter(
-      (quote: { invoices: Array<{ status: string | null }> | null }) =>
-        !(quote.invoices ?? []).some(
-          (invoice) => (invoice.status ?? '').toLowerCase() !== 'draft'
-        )
-    )
-    .map(
-      (quote: {
-        id: string;
-        quote_number: string | null;
-        total_cents: number | null;
-        created_at: string;
-      }) => ({
-        id: quote.id,
-        quoteNumber: quote.quote_number,
-        totalCents: quote.total_cents ?? 0,
-        createdAt: quote.created_at
-      })
-    );
+  const allApprovedQuotes = (quotesResult.data ?? []).map(
+    (quote: {
+      id: string;
+      quote_number: string | null;
+      total_cents: number | null;
+      created_at: string;
+      invoices: Array<{ status: string | null }> | null;
+    }) => ({
+      id: quote.id,
+      quoteNumber: quote.quote_number,
+      totalCents: quote.total_cents ?? 0,
+      createdAt: quote.created_at,
+      invoices: quote.invoices ?? []
+    })
+  );
+  const closedJobQuoteIds = new Set(
+    (closedJobQuotesResult.data ?? [])
+      .map((job: { quote_id: string | null }) => job.quote_id)
+      .filter((quoteId): quoteId is string => Boolean(quoteId))
+  );
+  const approvedQuotes = allApprovedQuotes.filter(
+    (quote) =>
+      !closedJobQuoteIds.has(quote.id) &&
+      !quote.invoices.some(
+        (invoice) => (invoice.status ?? '').toLowerCase() !== 'draft'
+      )
+  );
   const pendingCloseQuote =
     pendingCloseJobId && activeJob?.id === pendingCloseJobId
-      ? approvedQuotes.find((quote) => quote.id === activeJob.quoteId)
+      ? allApprovedQuotes.find((quote) => quote.id === activeJob.quoteId)
       : undefined;
 
   return (
@@ -418,7 +432,9 @@ export default async function WorkshopVehiclePage({
             </Button>
             {activeJob ? (
               <Button asChild size="sm" variant="secondary">
-                <Link href={`/workshop/jobs/${activeJob.id}`}>Open active job card</Link>
+                <Link href={`/workshop/jobs/${activeJob.id}`}>
+                  Open active job card
+                </Link>
               </Button>
             ) : null}
             {pendingVerification ? (
@@ -456,7 +472,8 @@ export default async function WorkshopVehiclePage({
                 {latestOpenJob.started_at
                   ? new Date(latestOpenJob.started_at).toLocaleString()
                   : 'Not started'}{' '}
-                • Updated {new Date(latestOpenJob.last_updated_at).toLocaleString()}
+                • Updated{' '}
+                {new Date(latestOpenJob.last_updated_at).toLocaleString()}
               </p>
             </div>
             <Button asChild>
