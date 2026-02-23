@@ -33,6 +33,8 @@ export function VehicleJobCardPanel({
   const [startOpen, setStartOpen] = useState(false);
   const [invoicePromptOpen, setInvoicePromptOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isClosingLater, setIsClosingLater] = useState(false);
+  const [isRedirectingToInvoice, setIsRedirectingToInvoice] = useState(false);
   const { pushToast } = useToast();
 
   async function run<T>(
@@ -164,20 +166,29 @@ export function VehicleJobCardPanel({
       </div>
       <Link href={`/workshop/jobs/${activeJob.id}`} className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-gray-600 hover:text-black">View full internal timeline <ArrowRight className="h-3.5 w-3.5" /></Link>
       <Modal open={invoicePromptOpen} onClose={() => setInvoicePromptOpen(false)} title="Send invoice now?">
-        <p className="text-sm text-gray-600">Choose whether to upload an invoice now or later. Your choice will close this job card.</p>
+        <p className="text-sm text-gray-600">Close now or upload an invoice first. The job card will stay open until the invoice is uploaded.</p>
         <div className="mt-4 flex justify-end gap-2">
           <Button
             variant="secondary"
-            disabled={isSaving}
-            onClick={() => void run(() => closeJobCard({ jobId: activeJob.id }), () => setInvoicePromptOpen(false))}
+            disabled={isSaving || isRedirectingToInvoice}
+            onClick={() => {
+              setIsClosingLater(true);
+              void run(
+                () => closeJobCard({ jobId: activeJob.id }),
+                () => setInvoicePromptOpen(false)
+              ).finally(() => setIsClosingLater(false));
+            }}
           >
-            {isSaving ? 'Closing…' : 'Later'}
+            {isClosingLater ? 'Closing…' : 'Later'}
           </Button>
           <Button
-            disabled={isSaving}
-            onClick={() => void run(() => closeJobCard({ jobId: activeJob.id }), () => { window.location.href = `/workshop/vehicles/${vehicleId}/documents`; }, { reloadOnSuccess: false })}
+            disabled={isSaving || isClosingLater || isRedirectingToInvoice}
+            onClick={() => {
+              setIsRedirectingToInvoice(true);
+              window.location.href = `/workshop/vehicles/${vehicleId}?upload=invoice&closeJobId=${activeJob.id}`;
+            }}
           >
-            {isSaving ? 'Closing…' : 'Upload invoice'}
+            {isRedirectingToInvoice ? 'Opening…' : 'Upload invoice'}
           </Button>
         </div>
       </Modal>
