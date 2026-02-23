@@ -157,7 +157,7 @@ export default async function WorkshopVehiclePage({
     supabase
       .from('job_cards')
       .select(
-        'id,title,status,started_at,last_updated_at,quote_id,job_card_assignments(id,technician_user_id,profiles(display_name,full_name,avatar_url))'
+        'id,title,status,started_at,last_updated_at,quote_id'
       )
       .eq('vehicle_id', vehicleId)
       .eq('workshop_id', workshopId)
@@ -177,6 +177,33 @@ export default async function WorkshopVehiclePage({
       .select('profile_id,profiles(display_name,full_name)')
       .eq('workshop_account_id', workshopId)
   ]);
+
+  if (activeJobResult.error) {
+    console.error('Failed to load active job card', {
+      vehicleId,
+      workshopId,
+      error: activeJobResult.error.message
+    });
+  }
+
+  const activeJobRaw = activeJobResult.data;
+  const activeJobAssignmentsResult = activeJobRaw
+    ? await supabase
+        .from('job_card_assignments')
+        .select(
+          'id,technician_user_id,profiles!left(display_name,full_name,avatar_url)'
+        )
+        .eq('job_card_id', activeJobRaw.id)
+    : { data: [], error: null };
+
+  if (activeJobAssignmentsResult.error) {
+    console.error('Failed to load active job assignments', {
+      vehicleId,
+      workshopId,
+      jobId: activeJobRaw?.id,
+      error: activeJobAssignmentsResult.error.message
+    });
+  }
 
   const vehicle = vehicleResult.data;
   if (!vehicle)
@@ -218,7 +245,6 @@ export default async function WorkshopVehiclePage({
   const pendingVerification = (vehicle.status ?? '')
     .toLowerCase()
     .includes('pending');
-  const activeJobRaw = activeJobResult.data;
   const activeJob = activeJobRaw
     ? {
         id: activeJobRaw.id,
@@ -227,7 +253,7 @@ export default async function WorkshopVehiclePage({
         started_at: activeJobRaw.started_at,
         last_updated_at: activeJobRaw.last_updated_at,
         quoteId: activeJobRaw.quote_id,
-        assignments: (activeJobRaw.job_card_assignments ?? []).map(
+        assignments: (activeJobAssignmentsResult.data ?? []).map(
           (assignment: {
             id: string;
             profiles:
