@@ -94,6 +94,7 @@ export function JobCardDetailClient(props: {
   const [statusModalOpen, setStatusModalOpen] = useState(false);
   const [completeModalOpen, setCompleteModalOpen] = useState(false);
   const [requestModalOpen, setRequestModalOpen] = useState(false);
+  const [logModalOpen, setLogModalOpen] = useState(false);
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
   const [requirementsPromptOpen, setRequirementsPromptOpen] = useState(false);
@@ -112,6 +113,7 @@ export function JobCardDetailClient(props: {
 
   const [reportNote, setReportNote] = useState('');
   const [reportFile, setReportFile] = useState<File | null>(null);
+  const [logNote, setLogNote] = useState('');
 
   const [invoiceSubject, setInvoiceSubject] = useState('Invoice');
   const [invoiceAmount, setInvoiceAmount] = useState(
@@ -216,7 +218,7 @@ export function JobCardDetailClient(props: {
     quoteId
   }: {
     file: File;
-    docType: 'invoice' | 'report' | 'warning';
+    docType: 'invoice' | 'report' | 'warning' | 'other';
     subject: string;
     body?: string;
     amount?: string;
@@ -312,10 +314,13 @@ export function JobCardDetailClient(props: {
             Complete job
           </Button>
           <Button size="sm" variant="secondary" disabled={props.isLocked} onClick={() => setRequestModalOpen(true)}>
-            Request
+            Request approval
+          </Button>
+          <Button size="sm" variant="secondary" disabled={props.isLocked} onClick={() => setLogModalOpen(true)}>
+            Add log entry
           </Button>
           <Button size="sm" variant="secondary" disabled={props.isLocked} onClick={() => setReportModalOpen(true)}>
-            Report
+            Internal report
           </Button>
           {props.isManager ? (
             <Button
@@ -521,7 +526,7 @@ export function JobCardDetailClient(props: {
         </form>
       </Modal>
 
-      <Modal open={requestModalOpen} onClose={() => setRequestModalOpen(false)} title="Submit request">
+      <Modal open={requestModalOpen} onClose={() => setRequestModalOpen(false)} title="Request approval">
         <form
           className="space-y-3"
           onSubmit={(event) => {
@@ -533,13 +538,13 @@ export function JobCardDetailClient(props: {
                 await uploadDocument({
                   file: requestFile,
                   docType: 'warning',
-                  subject: 'Request from workshop',
-                  body: requestNote || 'Request uploaded from job card.'
+                  subject: 'Approval request from workshop',
+                  body: requestNote || 'Approval requested from job card.'
                 });
                 const eventResult = await addJobCardEvent({
                   jobId: props.jobId,
                   eventType: 'approval_requested',
-                  note: requestNote || 'Request file uploaded.',
+                  note: requestNote || 'Approval requested with supporting file.',
                   customerFacing: true
                 });
                 if (!eventResult.ok) throw new Error(eventResult.error);
@@ -559,7 +564,7 @@ export function JobCardDetailClient(props: {
           }}
         >
           <textarea
-            placeholder="Request note"
+            placeholder="Approval request note"
             value={requestNote}
             onChange={(event) => setRequestNote(event.target.value)}
             className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
@@ -574,12 +579,48 @@ export function JobCardDetailClient(props: {
             className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
           />
           <Button disabled={props.isLocked || isUploading || !requestFile}>
-            {isUploading ? 'Uploading…' : 'Submit request'}
+            {isUploading ? 'Uploading…' : 'Send approval request'}
           </Button>
         </form>
       </Modal>
 
-      <Modal open={reportModalOpen} onClose={() => setReportModalOpen(false)} title="Submit report">
+      <Modal open={logModalOpen} onClose={() => setLogModalOpen(false)} title="Add internal log entry">
+        <form
+          className="space-y-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void doAction(async () => {
+              const eventResult = await addJobCardEvent({
+                jobId: props.jobId,
+                eventType: 'internal_note',
+                note: logNote.trim(),
+                customerFacing: false
+              });
+
+              if (eventResult.ok) {
+                setLogModalOpen(false);
+                setLogNote('');
+              }
+              return eventResult;
+            });
+          }}
+        >
+          <textarea
+            placeholder="Internal note for technicians"
+            value={logNote}
+            onChange={(event) => setLogNote(event.target.value)}
+            className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
+            rows={4}
+            required
+          />
+          <p className="text-xs text-gray-500">
+            This log entry is internal only and is never shown to the client.
+          </p>
+          <Button disabled={props.isLocked || !logNote.trim()}>Save internal log</Button>
+        </form>
+      </Modal>
+
+      <Modal open={reportModalOpen} onClose={() => setReportModalOpen(false)} title="Upload internal report">
         <form
           className="space-y-3"
           onSubmit={(event) => {
@@ -590,15 +631,15 @@ export function JobCardDetailClient(props: {
               try {
                 await uploadDocument({
                   file: reportFile,
-                  docType: 'report',
-                  subject: 'Workshop report',
-                  body: reportNote || 'Report uploaded from job card.'
+                  docType: 'other',
+                  subject: 'Internal workshop report',
+                  body: reportNote || 'Internal report uploaded from job card.'
                 });
                 const eventResult = await addJobCardEvent({
                   jobId: props.jobId,
                   eventType: 'internal_note',
-                  note: reportNote || 'Report file uploaded.',
-                  customerFacing: true
+                  note: reportNote || 'Internal report file uploaded.',
+                  customerFacing: false
                 });
                 if (!eventResult.ok) throw new Error(eventResult.error);
                 setReportModalOpen(false);
@@ -617,7 +658,7 @@ export function JobCardDetailClient(props: {
           }}
         >
           <textarea
-            placeholder="Report note"
+            placeholder="Internal report note"
             value={reportNote}
             onChange={(event) => setReportNote(event.target.value)}
             className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
@@ -632,7 +673,7 @@ export function JobCardDetailClient(props: {
             className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
           />
           <Button disabled={props.isLocked || isUploading || !reportFile}>
-            {isUploading ? 'Uploading…' : 'Submit report'}
+            {isUploading ? 'Uploading…' : 'Upload internal report'}
           </Button>
         </form>
       </Modal>
