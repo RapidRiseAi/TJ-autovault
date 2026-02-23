@@ -160,8 +160,6 @@ export async function startJobCard(input: {
   const beforePhotoPaths = input.beforePhotoPaths
     .map((path) => path.trim())
     .filter(Boolean);
-  if (!beforePhotoPaths.length)
-    return { ok: false, error: 'At least one before photo is required.' };
 
   const { data: vehicle } = await ctx.supabase
     .from('vehicles')
@@ -200,6 +198,7 @@ export async function startJobCard(input: {
       workshop_id: ctx.profile.workshop_account_id,
       created_by: ctx.profile.id,
       title: input.title.trim() || 'Service job',
+      quote_id: input.quoteId ?? null,
       status: 'in_progress',
       started_at: now,
       last_updated_at: now
@@ -209,16 +208,18 @@ export async function startJobCard(input: {
   if (error || !job)
     return { ok: false, error: error?.message ?? 'Could not start job.' };
 
-  await ctx.supabase
-    .from('job_card_photos')
-    .insert(
-      beforePhotoPaths.map((path) => ({
-        job_card_id: job.id,
-        kind: 'before',
-        storage_path: path,
-        uploaded_by: ctx.profile.id
-      }))
-    );
+  if (beforePhotoPaths.length) {
+    await ctx.supabase
+      .from('job_card_photos')
+      .insert(
+        beforePhotoPaths.map((path) => ({
+          job_card_id: job.id,
+          kind: 'before',
+          storage_path: path,
+          uploaded_by: ctx.profile.id
+        }))
+      );
+  }
 
   if (input.technicianIds.length) {
     await ctx.supabase
