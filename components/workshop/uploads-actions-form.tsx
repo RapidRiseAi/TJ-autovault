@@ -27,7 +27,9 @@ export function UploadsActionsForm({
   destinationLabel = 'customer timeline',
   initialDocumentType,
   initialSubject,
-  pendingCloseJobId
+  pendingCloseJobId,
+  initialAmountCents,
+  linkedQuoteId
 }: {
   vehicleId: string;
   onSuccess?: () => void;
@@ -35,6 +37,8 @@ export function UploadsActionsForm({
   initialDocumentType?: DocType;
   initialSubject?: string;
   pendingCloseJobId?: string;
+  initialAmountCents?: number;
+  linkedQuoteId?: string;
 }) {
   const router = useRouter();
   const { pushToast } = useToast();
@@ -48,7 +52,13 @@ export function UploadsActionsForm({
   );
   const [body, setBody] = useState('');
   const [urgency, setUrgency] = useState<Urgency>('info');
-  const [amount, setAmount] = useState('');
+  const [amount, setAmount] = useState(() => {
+    if (!initialAmountCents) return '';
+    const whole = Math.floor(initialAmountCents / 100);
+    const cents = initialAmountCents % 100;
+    if (!cents) return String(whole);
+    return `${whole}.${String(cents).padStart(2, '0')}`.replace(/0$/, '');
+  });
   const [referenceNumber, setReferenceNumber] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -71,6 +81,17 @@ export function UploadsActionsForm({
         ''
     );
   }, [initialDocumentType, initialSubject]);
+
+  useEffect(() => {
+    if (documentType !== 'invoice' || !initialAmountCents) return;
+    const whole = Math.floor(initialAmountCents / 100);
+    const cents = initialAmountCents % 100;
+    setAmount(
+      !cents
+        ? String(whole)
+        : `${whole}.${String(cents).padStart(2, '0')}`.replace(/0$/, '')
+    );
+  }, [documentType, initialAmountCents]);
 
   const disableSubmit = useMemo(
     () =>
@@ -168,7 +189,8 @@ export function UploadsActionsForm({
           referenceNumber: isQuoteOrInvoice
             ? referenceNumber.trim()
             : undefined,
-          dueDate: isInvoice && dueDate ? dueDate : undefined
+          dueDate: isInvoice && dueDate ? dueDate : undefined,
+          quoteId: isInvoice ? linkedQuoteId : undefined
         })
       });
       if (!completeResponse.ok)
@@ -257,13 +279,13 @@ export function UploadsActionsForm({
         <label className="block text-sm font-medium">
           Amount
           <input
-            type="number"
-            min="0"
-            step="0.01"
+            type="text"
+            inputMode="decimal"
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
             required
             className="mt-1 w-full rounded border p-2"
+            placeholder="0"
           />
         </label>
       ) : null}
