@@ -410,10 +410,11 @@ export async function closeJobCard(input: {
     .maybeSingle();
   if (!job) return { ok: false, error: 'Job not found' };
   if (job.is_locked) return { ok: false, error: 'Job already closed' };
-  if (job.status !== 'completed')
+  const canCloseStatuses = new Set(['completed', 'ready']);
+  if (!canCloseStatuses.has(job.status))
     return {
       ok: false,
-      error: 'Job must be completed before it can be closed.'
+      error: 'Job must be marked as ready or completed before it can be closed.'
     };
 
   const { count: afterPhotoCount, error: afterPhotoCountError } =
@@ -441,6 +442,7 @@ export async function closeJobCard(input: {
     .from('job_cards')
     .update({
       status: 'closed',
+      completed_at: job.status === 'completed' ? undefined : now,
       closed_at: now,
       is_locked: true,
       customer_summary: input.summary?.trim() || null,
