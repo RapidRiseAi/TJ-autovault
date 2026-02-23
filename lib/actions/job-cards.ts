@@ -12,6 +12,18 @@ type Result =
   | { ok: true; jobId?: string; message?: string }
   | { ok: false; error: string; jobId?: string };
 
+type CloseValidationResult =
+  | {
+      ok: true;
+      job: {
+        id: string;
+        vehicle_id: string;
+        status: string;
+        vehicles: unknown;
+      };
+    }
+  | { ok: false; error: string };
+
 function resolveVehicleCustomerAccountId(value: unknown): string | null {
   if (!value) return null;
   if (Array.isArray(value)) {
@@ -65,6 +77,75 @@ async function appendVehicleTimeline(args: {
     title: args.title,
     metadata: args.metadata ?? {}
   });
+}
+
+async function validateCloseJobCardOrError(
+  ctx: NonNullable<Awaited<ReturnType<typeof getWorkshopContext>>>,
+  jobId: string
+): Promise<CloseValidationResult> {
+  if (ctx.profile.role !== 'admin') {
+    return { ok: false, error: 'Manager/admin access required' };
+  }
+
+  const { data: job } = await ctx.supabase
+    .from('job_cards')
+    .select(
+      'id,vehicle_id,is_locked,status,vehicles(current_customer_account_id)'
+    )
+    .eq('id', jobId)
+    .eq('workshop_id', ctx.profile.workshop_account_id)
+    .maybeSingle();
+  if (!job) return { ok: false, error: 'Job not found' };
+  if (job.is_locked) return { ok: false, error: 'Job already closed' };
+
+  const canCloseStatuses = new Set(['completed', 'ready']);
+  if (!canCloseStatuses.has(job.status)) {
+    return {
+      ok: false,
+      error: 'Job must be marked as ready or completed before it can be closed.'
+    };
+  }
+
+  const { count: afterPhotoCount, error: afterPhotoCountError } =
+    await ctx.supabase
+      .from('job_card_photos')
+      .select('id', { count: 'exact', head: true })
+      .eq('job_card_id', jobId)
+      .eq('kind', 'after');
+
+  if (afterPhotoCountError) {
+    return {
+      ok: false,
+      error: 'Could not verify completion photos. Please try again.'
+    };
+  }
+  if (!afterPhotoCount) {
+    return {
+      ok: false,
+      error: 'At least one completion image is required before closing the job.'
+    };
+  }
+
+  return {
+    ok: true,
+    job: {
+      id: job.id,
+      vehicle_id: job.vehicle_id,
+      status: job.status,
+      vehicles: job.vehicles
+    }
+  };
+}
+
+export async function canCloseJobCard(input: {
+  jobId: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await getWorkshopContext();
+  if (!ctx) return { ok: false, error: 'Unauthorized' };
+
+  const validation = await validateCloseJobCardOrError(ctx, input.jobId);
+  if (!validation.ok) return validation;
+  return { ok: true };
 }
 
 export async function startJobCard(input: {
@@ -397,45 +478,9 @@ export async function closeJobCard(input: {
 }): Promise<Result> {
   const ctx = await getWorkshopContext();
   if (!ctx) return { ok: false, error: 'Unauthorized' };
-  if (ctx.profile.role !== 'admin')
-    return { ok: false, error: 'Manager/admin access required' };
-
-  const { data: job } = await ctx.supabase
-    .from('job_cards')
-    .select(
-      'id,vehicle_id,is_locked,status,vehicles(current_customer_account_id)'
-    )
-    .eq('id', input.jobId)
-    .eq('workshop_id', ctx.profile.workshop_account_id)
-    .maybeSingle();
-  if (!job) return { ok: false, error: 'Job not found' };
-  if (job.is_locked) return { ok: false, error: 'Job already closed' };
-  const canCloseStatuses = new Set(['completed', 'ready']);
-  if (!canCloseStatuses.has(job.status))
-    return {
-      ok: false,
-      error: 'Job must be marked as ready or completed before it can be closed.'
-    };
-
-  const { count: afterPhotoCount, error: afterPhotoCountError } =
-    await ctx.supabase
-      .from('job_card_photos')
-      .select('id', { count: 'exact', head: true })
-      .eq('job_card_id', input.jobId)
-      .eq('kind', 'after');
-
-  if (afterPhotoCountError) {
-    return {
-      ok: false,
-      error: 'Could not verify completion photos. Please try again.'
-    };
-  }
-  if (!afterPhotoCount) {
-    return {
-      ok: false,
-      error: 'At least one completion image is required before closing the job.'
-    };
-  }
+  const validation = await validateCloseJobCardOrError(ctx, input.jobId);
+  if (!validation.ok) return validation;
+  const { job } = validation;
 
   const now = new Date().toISOString();
   await ctx.supabase

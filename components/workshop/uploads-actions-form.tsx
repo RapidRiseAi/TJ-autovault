@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Modal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast-provider';
-import { closeJobCard, updateJobCardStatus } from '@/lib/actions/job-cards';
+import { canCloseJobCard, closeJobCard } from '@/lib/actions/job-cards';
 import { parseAmountInputToCents } from '@/lib/money';
 
 const DOCUMENT_TYPES = [
@@ -114,20 +114,7 @@ export function UploadsActionsForm({
 
   async function closePendingJob() {
     if (!pendingCloseJobId || documentType !== 'invoice') return true;
-    let closeResult = await closeJobCard({ jobId: pendingCloseJobId });
-    if (
-      !closeResult.ok &&
-      closeResult.error ===
-        'Job must be marked as ready or completed before it can be closed.'
-    ) {
-      const completionResult = await updateJobCardStatus({
-        jobId: pendingCloseJobId,
-        status: 'completed'
-      });
-      if (completionResult.ok) {
-        closeResult = await closeJobCard({ jobId: pendingCloseJobId });
-      }
-    }
+    const closeResult = await closeJobCard({ jobId: pendingCloseJobId });
     if (!closeResult.ok) {
       pushToast({
         title: 'Invoice uploaded, but job is still open',
@@ -150,6 +137,27 @@ export function UploadsActionsForm({
         : undefined;
       if (isQuoteOrInvoice && amountCents == null) {
         throw new Error('Invalid amount. Use numbers with up to 2 decimals.');
+      }
+
+      if (pendingCloseJobId && documentType === 'invoice') {
+        const precheck = await canCloseJobCard({ jobId: pendingCloseJobId });
+        if (!precheck.ok) {
+          const friendlyMessage =
+            precheck.error ===
+              'Job must be marked as ready or completed before it can be closed.' ||
+            precheck.error ===
+              'At least one completion image is required before closing the job.'
+              ? 'Please complete the job and upload at least one completion photo before closing.'
+              : precheck.error;
+
+          pushToast({
+            title: 'Cannot close job yet',
+            description: friendlyMessage,
+            tone: 'error'
+          });
+          setError(friendlyMessage);
+          return;
+        }
       }
 
       const signResponse = await fetch('/api/uploads/sign', {
