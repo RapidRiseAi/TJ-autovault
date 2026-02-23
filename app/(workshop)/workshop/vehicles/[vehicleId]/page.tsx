@@ -5,10 +5,12 @@ import {
   BadgeDollarSign,
   ClipboardList,
   FileWarning,
+  Hammer,
   ReceiptText
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { ActionTile } from '@/components/workshop/action-tile';
 import { createClient } from '@/lib/supabase/server';
 import { HeroHeader } from '@/components/layout/hero-header';
 import { VerifyVehicleButton } from '@/components/workshop/verify-vehicle-button';
@@ -16,6 +18,7 @@ import { WorkshopVehicleActionsPanel } from '@/components/workshop/workshop-vehi
 import { VehicleJobCardPanel } from '@/components/workshop/vehicle-job-card-panel';
 import { SectionCard } from '@/components/ui/section-card';
 import { SendMessageModal } from '@/components/messages/send-message-modal';
+import { formatJobCardStatus } from '@/lib/job-cards';
 
 function money(cents: number) {
   return new Intl.NumberFormat('en-ZA', {
@@ -386,6 +389,13 @@ export default async function WorkshopVehiclePage({
                 View documents
               </Link>
             </Button>
+            {activeJob ? (
+              <Button asChild size="sm" variant="secondary">
+                <Link href={`/workshop/jobs/${activeJob.id}`}>
+                  Open active job card
+                </Link>
+              </Button>
+            ) : null}
             {pendingVerification ? (
               <VerifyVehicleButton vehicleId={vehicle.id} />
             ) : null}
@@ -451,7 +461,17 @@ export default async function WorkshopVehiclePage({
                   approvedQuotes={approvedQuotes}
                   canClose={profile.role === 'admin'}
                 />
-              ) : null
+              ) : (
+                <ActionTile
+                  title={`Job ${formatJobCardStatus(activeJob.status)}`}
+                  description="This vehicle has an active job card. Open it to update progress and close the work."
+                  icon={<Hammer className="h-4 w-4" />}
+                  primary
+                  onClick={() => {
+                    window.location.href = `/workshop/jobs/${activeJob.id}`;
+                  }}
+                />
+              )
             }
             vehicleId={vehicle.id}
             invoices={(invoicesResult.data ?? []).map((invoice) => ({
