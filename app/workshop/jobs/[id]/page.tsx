@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { formatJobCardStatus, jobProgressIndex } from '@/lib/job-cards';
 import { JobCardDetailClient } from '@/components/workshop/job-card-detail-client';
 
@@ -60,8 +62,15 @@ export default async function WorkshopJobCardPage({ params }: { params: Promise<
   return (
     <main className="space-y-4">
       <Card className="rounded-2xl border border-neutral-200 bg-white p-5">
-        <p className="text-xs uppercase tracking-[0.14em] text-gray-500">Job card</p>
-        <h1 className="text-2xl font-semibold text-black">{job.title}</h1>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.14em] text-gray-500">Job card</p>
+            <h1 className="text-2xl font-semibold text-black">{job.title}</h1>
+          </div>
+          <Button asChild size="sm" variant="outline">
+            <Link href={`/workshop/vehicles/${job.vehicle_id}`}>Back to vehicle</Link>
+          </Button>
+        </div>
         <p className="text-sm text-gray-500">Status: {formatJobCardStatus(job.status)} • Started {job.started_at ? new Date(job.started_at).toLocaleString() : 'Not started'} • Last updated {new Date(job.last_updated_at).toLocaleString()}</p>
         <div className="mt-3 flex flex-wrap gap-2">
           {(job.job_card_assignments ?? []).map((assignment: { id: string; profiles: { display_name: string | null; full_name: string | null }[] | null }) => (

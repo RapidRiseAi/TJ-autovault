@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast-provider';
@@ -308,9 +307,6 @@ export function JobCardDetailClient(props: {
     <div className="space-y-4">
       <div className="rounded-3xl border border-neutral-200 bg-gradient-to-br from-white to-neutral-50 p-5 shadow-[0_20px_45px_rgba(17,17,17,0.06)]">
         <div className="flex flex-wrap gap-2">
-          <Button asChild size="sm" variant="outline">
-            <Link href={`/workshop/vehicles/${props.vehicleId}`}>Back to vehicle</Link>
-          </Button>
           <Button size="sm" variant="secondary" disabled={props.isLocked} onClick={() => setStatusModalOpen(true)}>
             Update status
           </Button>
@@ -336,6 +332,8 @@ export function JobCardDetailClient(props: {
                   setRequirementsPromptOpen(true);
                   return;
                 }
+                setInvoiceAmount(centsToInput(props.linkedQuoteAmountCents));
+                setInvoiceAmountPrefilled(Boolean(props.linkedQuoteAmountCents));
                 setInvoiceModalOpen(true);
               }}
             >
