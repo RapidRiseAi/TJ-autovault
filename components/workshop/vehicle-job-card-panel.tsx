@@ -11,10 +11,9 @@ import {
   addJobCardEvent,
   canCloseJobCard,
   closeJobCard,
-  startJobCard,
-  updateJobCardStatus
+  startJobCard
 } from '@/lib/actions/job-cards';
-import { formatJobCardStatus, JOB_CARD_STATUSES } from '@/lib/job-cards';
+import { formatJobCardStatus } from '@/lib/job-cards';
 
 export function VehicleJobCardPanel({
   vehicleId,
@@ -288,37 +287,6 @@ export function VehicleJobCardPanel({
         <Button asChild size="sm">
           <Link href={`/workshop/jobs/${activeJob.id}`}>Open job</Link>
         </Button>
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            const status = String(
-              new FormData(event.currentTarget).get('status') || 'in_progress'
-            );
-            void run(() =>
-              updateJobCardStatus({
-                jobId: activeJob.id,
-                status: status as never
-              })
-            );
-          }}
-          className="flex gap-2"
-        >
-          <select
-            name="status"
-            className="rounded-lg border border-neutral-300 px-2 text-xs"
-          >
-            {JOB_CARD_STATUSES.filter((status) => status !== 'not_started').map(
-              (status) => (
-                <option key={status} value={status}>
-                  {formatJobCardStatus(status)}
-                </option>
-              )
-            )}
-          </select>
-          <Button size="sm" variant="secondary" type="submit">
-            Change status
-          </Button>
-        </form>
         <form
           onSubmit={(event) => {
             event.preventDefault();

@@ -98,7 +98,6 @@ export default async function WorkshopVehiclePage({
     recommendationsResult,
     quotesResult,
     activeJobResult,
-    latestJobResult,
     techniciansResult
   ] = await Promise.all([
     supabase
@@ -177,14 +176,6 @@ export default async function WorkshopVehiclePage({
       .limit(1)
       .maybeSingle(),
     supabase
-      .from('job_cards')
-      .select('id')
-      .eq('vehicle_id', vehicleId)
-      .eq('workshop_id', workshopId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    supabase
       .from('workshop_users')
       .select('profile_id,profiles(display_name,full_name)')
       .eq('workshop_account_id', workshopId)
@@ -197,15 +188,6 @@ export default async function WorkshopVehiclePage({
       error: activeJobResult.error.message
     });
   }
-
-  if (latestJobResult.error) {
-    console.error('Failed to load latest job card', {
-      vehicleId,
-      workshopId,
-      error: latestJobResult.error.message
-    });
-  }
-
   const activeJobRaw = activeJobResult.data;
   const activeJobAssignmentsResult = activeJobRaw
     ? await supabase
@@ -294,8 +276,6 @@ export default async function WorkshopVehiclePage({
         )
       }
     : null;
-  const latestJobId = latestJobResult.data?.id ?? null;
-  const fallbackJobId = activeJob?.id ?? latestJobId;
   const technicians = (techniciansResult.data ?? []).map(
     (row: {
       profile_id: string;
@@ -408,11 +388,9 @@ export default async function WorkshopVehiclePage({
                 View documents
               </Link>
             </Button>
-            {fallbackJobId ? (
+            {activeJob ? (
               <Button asChild size="sm" variant="secondary">
-                <Link href={`/workshop/jobs/${fallbackJobId}`}>
-                  {activeJob ? 'Open active job card' : 'Open latest job card'}
-                </Link>
+                <Link href={`/workshop/jobs/${activeJob.id}`}>Open active job card</Link>
               </Button>
             ) : null}
             {pendingVerification ? (
