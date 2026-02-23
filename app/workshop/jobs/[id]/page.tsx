@@ -31,6 +31,8 @@ export default async function WorkshopJobCardPage({ params }: { params: Promise<
 
   if (!job) return <main><Card><h1 className="text-lg font-semibold">Job not found</h1></Card></main>;
 
+  if (job.status === 'closed') redirect(`/workshop/vehicles/${job.vehicle_id}`);
+
   let linkedQuoteId: string | undefined;
   let linkedQuoteAmountCents: number | undefined;
 

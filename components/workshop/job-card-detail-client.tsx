@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast-provider';
@@ -307,11 +308,11 @@ export function JobCardDetailClient(props: {
     <div className="space-y-4">
       <div className="rounded-3xl border border-neutral-200 bg-gradient-to-br from-white to-neutral-50 p-5 shadow-[0_20px_45px_rgba(17,17,17,0.06)]">
         <div className="flex flex-wrap gap-2">
+          <Button asChild size="sm" variant="outline">
+            <Link href={`/workshop/vehicles/${props.vehicleId}`}>Back to vehicle</Link>
+          </Button>
           <Button size="sm" variant="secondary" disabled={props.isLocked} onClick={() => setStatusModalOpen(true)}>
             Update status
-          </Button>
-          <Button size="sm" variant="secondary" disabled={props.isLocked} onClick={() => setCompleteModalOpen(true)}>
-            Complete job
           </Button>
           <Button size="sm" variant="secondary" disabled={props.isLocked} onClick={() => setRequestModalOpen(true)}>
             Request approval
@@ -321,6 +322,9 @@ export function JobCardDetailClient(props: {
           </Button>
           <Button size="sm" variant="secondary" disabled={props.isLocked} onClick={() => setReportModalOpen(true)}>
             Internal report
+          </Button>
+          <Button size="sm" variant="secondary" disabled={props.isLocked} onClick={() => setCompleteModalOpen(true)}>
+            Complete job
           </Button>
           {props.isManager ? (
             <Button
@@ -531,16 +535,17 @@ export function JobCardDetailClient(props: {
           className="space-y-3"
           onSubmit={(event) => {
             event.preventDefault();
-            if (!requestFile) return;
             setIsUploading(true);
             void (async () => {
               try {
-                await uploadDocument({
-                  file: requestFile,
-                  docType: 'warning',
-                  subject: 'Approval request from workshop',
-                  body: requestNote || 'Approval requested from job card.'
-                });
+                if (requestFile) {
+                  await uploadDocument({
+                    file: requestFile,
+                    docType: 'warning',
+                    subject: 'Approval request from workshop',
+                    body: requestNote || 'Approval requested from job card.'
+                  });
+                }
                 const eventResult = await addJobCardEvent({
                   jobId: props.jobId,
                   eventType: 'approval_requested',
@@ -569,16 +574,14 @@ export function JobCardDetailClient(props: {
             onChange={(event) => setRequestNote(event.target.value)}
             className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
             rows={3}
-            required
           />
           <input
             type="file"
             accept="application/pdf,image/*"
-            required
             onChange={(event) => setRequestFile(event.target.files?.[0] ?? null)}
             className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
           />
-          <Button disabled={props.isLocked || isUploading || !requestFile}>
+          <Button disabled={props.isLocked || isUploading}>
             {isUploading ? 'Uploading…' : 'Send approval request'}
           </Button>
         </form>
@@ -625,16 +628,17 @@ export function JobCardDetailClient(props: {
           className="space-y-3"
           onSubmit={(event) => {
             event.preventDefault();
-            if (!reportFile) return;
             setIsUploading(true);
             void (async () => {
               try {
-                await uploadDocument({
-                  file: reportFile,
-                  docType: 'other',
-                  subject: 'Internal workshop report',
-                  body: reportNote || 'Internal report uploaded from job card.'
-                });
+                if (reportFile) {
+                  await uploadDocument({
+                    file: reportFile,
+                    docType: 'other',
+                    subject: 'Internal workshop report',
+                    body: reportNote || 'Internal report uploaded from job card.'
+                  });
+                }
                 const eventResult = await addJobCardEvent({
                   jobId: props.jobId,
                   eventType: 'internal_note',
@@ -663,16 +667,14 @@ export function JobCardDetailClient(props: {
             onChange={(event) => setReportNote(event.target.value)}
             className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
             rows={3}
-            required
           />
           <input
             type="file"
             accept="application/pdf,image/*"
-            required
             onChange={(event) => setReportFile(event.target.files?.[0] ?? null)}
             className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
           />
-          <Button disabled={props.isLocked || isUploading || !reportFile}>
+          <Button disabled={props.isLocked || isUploading}>
             {isUploading ? 'Uploading…' : 'Upload internal report'}
           </Button>
         </form>
@@ -718,7 +720,7 @@ export function JobCardDetailClient(props: {
                   title: 'Invoice uploaded and job closed',
                   tone: 'success'
                 });
-                window.location.reload();
+                window.location.href = `/workshop/vehicles/${props.vehicleId}`;
               } catch (error) {
                 pushToast({
                   title: 'Invoice flow failed',

@@ -2,22 +2,20 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { BadgeDollarSign, ClipboardCheck, Gauge, Wrench } from 'lucide-react';
+import { BadgeDollarSign, ClipboardCheck, Gauge } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast-provider';
 import { ActionTile } from '@/components/workshop/action-tile';
 import { ModalFormShell } from '@/components/workshop/modal-form-shell';
 import { createRecommendation, updateInvoicePaymentStatus, updateVehicleServiceReminders, updateWorkRequestStatus } from '@/lib/actions/workshop';
-import { updateJobCardStatus } from '@/lib/actions/job-cards';
-import { JOB_CARD_STATUSES } from '@/lib/job-cards';
 import { WORK_REQUEST_STATUSES } from '@/lib/work-request-statuses';
 
 type ActionResponse = { ok: boolean; error?: string; message?: string };
 
-type Mode = 'recommendation' | 'mileage' | 'request' | 'payment' | 'job' | null;
+type Mode = 'recommendation' | 'mileage' | 'request' | 'payment' | null;
 
-export function VehicleWorkflowActions({ vehicleId, invoices, jobs, workRequests, currentMileage }: { vehicleId: string; invoices: Array<{ id: string; invoiceNumber?: string | null; paymentStatus?: string | null; totalCents?: number | null }>; jobs: Array<{ id: string }>; workRequests: Array<{ id: string; status: string }>; currentMileage: number; compact?: boolean; }) {
+export function VehicleWorkflowActions({ vehicleId, invoices, workRequests, currentMileage }: { vehicleId: string; invoices: Array<{ id: string; invoiceNumber?: string | null; paymentStatus?: string | null; totalCents?: number | null }>; jobs: Array<{ id: string }>; workRequests: Array<{ id: string; status: string }>; currentMileage: number; compact?: boolean; }) {
   const [open, setOpen] = useState<Mode>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
@@ -50,7 +48,6 @@ export function VehicleWorkflowActions({ vehicleId, invoices, jobs, workRequests
         <ActionTile title="Update mileage" description="Capture latest odometer and service reminders." icon={<Gauge className="h-4 w-4" />} onClick={() => setOpen('mileage')} />
         {activeWorkRequests.length ? <ActionTile title="Update work request status" description="Move requests through the workshop pipeline." icon={<ClipboardCheck className="h-4 w-4" />} onClick={() => setOpen('request')} /> : null}
         {unpaidInvoices.length ? <ActionTile title="Update payment status" description="Mark invoice payment progress for this vehicle." icon={<BadgeDollarSign className="h-4 w-4" />} onClick={() => setOpen('payment')} /> : null}
-        {jobs.length ? <ActionTile title="Update service job status" description="Update service job stage for active work." icon={<Wrench className="h-4 w-4" />} onClick={() => setOpen('job')} /> : null}
       </div>
 
       <Modal open={open === 'recommendation'} onClose={() => setOpen(null)} title="Add recommendation">
@@ -99,16 +96,6 @@ export function VehicleWorkflowActions({ vehicleId, invoices, jobs, workRequests
         </form>
       </Modal>
 
-      <Modal open={open === 'job'} onClose={() => setOpen(null)} title="Update service job status">
-        <form onSubmit={(event) => { event.preventDefault(); const formData = new FormData(event.currentTarget); void on(() => updateJobCardStatus({ jobId: String(formData.get('jobId')), status: String(formData.get('status')) as (typeof JOB_CARD_STATUSES)[number] })); }}>
-          <ModalFormShell>
-            <select name="jobId">{jobs.map((job) => <option key={job.id} value={job.id}>{job.id}</option>)}</select>
-            <select name="status">{JOB_CARD_STATUSES.map((status) => <option key={status} value={status}>{status.replaceAll('_', ' ')}</option>)}</select>
-            <Button disabled={isLoading}>{isLoading ? 'Updating...' : 'Update'}</Button>
-            {msg ? <p className="text-xs text-red-700">{msg}</p> : null}
-          </ModalFormShell>
-        </form>
-      </Modal>
     </div>
   );
 }
