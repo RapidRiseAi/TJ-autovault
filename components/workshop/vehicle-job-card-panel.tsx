@@ -49,7 +49,7 @@ export function VehicleJobCardPanel({
   const canCloseNow = activeJob?.status === 'completed';
 
   async function run<T>(
-    fn: () => Promise<T & { ok: boolean; error?: string }>,
+    fn: () => Promise<T & { ok: boolean; error?: string; jobId?: string }>,
     onDone?: () => void,
     options?: { reloadOnSuccess?: boolean }
   ) {
@@ -64,6 +64,17 @@ export function VehicleJobCardPanel({
       }
       return;
     }
+
+    if (result.jobId && result.error?.includes('already exists')) {
+      pushToast({
+        title: 'Job already active',
+        description: 'Opening the existing job card for this vehicle.',
+        tone: 'error'
+      });
+      window.location.href = `/workshop/jobs/${result.jobId}`;
+      return;
+    }
+
     pushToast({
       title: 'Could not save',
       description: result.error,
