@@ -106,10 +106,18 @@ export default async function WorkshopVehiclePage({
       .eq('workshop_account_id', workshopId)
       .maybeSingle(),
     supabase
-      .from('service_jobs')
+      .from('job_cards')
       .select('id,status')
       .eq('vehicle_id', vehicleId)
-      .eq('workshop_account_id', workshopId),
+      .eq('workshop_id', workshopId)
+      .in('status', [
+        'not_started',
+        'in_progress',
+        'waiting_parts',
+        'waiting_approval',
+        'quality_check',
+        'ready'
+      ]),
     supabase
       .from('invoices')
       .select('id,payment_status,total_cents,invoice_number')
