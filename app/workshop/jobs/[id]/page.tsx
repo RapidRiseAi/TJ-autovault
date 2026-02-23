@@ -16,7 +16,7 @@ export default async function WorkshopJobCardPage({ params }: { params: Promise<
   const [{ data: job }, events, updates, photos, parts, blockers, approvals, checklist] = await Promise.all([
     supabase
       .from('job_cards')
-      .select('id,vehicle_id,title,status,started_at,last_updated_at,completed_at,closed_at,is_locked,customer_summary,quote_id,job_card_assignments(id,technician_user_id,profiles(display_name,full_name))')
+      .select('id,vehicle_id,title,status,started_at,last_updated_at,completed_at,closed_at,is_locked,customer_summary,job_card_assignments(id,technician_user_id,profiles(display_name,full_name))')
       .eq('id', id)
       .eq('workshop_id', profile.workshop_account_id)
       .maybeSingle(),
@@ -31,8 +31,19 @@ export default async function WorkshopJobCardPage({ params }: { params: Promise<
 
   if (!job) return <main><Card><h1 className="text-lg font-semibold">Job not found</h1></Card></main>;
 
-  const linkedQuoteId = job.quote_id ?? undefined;
+  let linkedQuoteId: string | undefined;
   let linkedQuoteAmountCents: number | undefined;
+
+  const { data: quoteLinkage, error: quoteLinkageError } = await supabase
+    .from('job_cards')
+    .select('quote_id')
+    .eq('id', id)
+    .eq('workshop_id', profile.workshop_account_id)
+    .maybeSingle();
+
+  if (!quoteLinkageError) {
+    linkedQuoteId = (quoteLinkage as { quote_id: string | null } | null)?.quote_id ?? undefined;
+  }
 
   if (linkedQuoteId) {
     const { data: linkedQuote } = await supabase
