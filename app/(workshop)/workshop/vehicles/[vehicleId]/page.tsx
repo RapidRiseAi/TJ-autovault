@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import {
   BadgeDollarSign,
   ClipboardList,
+  ExternalLink,
   FileWarning,
   Hammer,
   ReceiptText
@@ -98,6 +99,7 @@ export default async function WorkshopVehiclePage({
     recommendationsResult,
     quotesResult,
     activeJobResult,
+    latestOpenJobResult,
     techniciansResult
   ] = await Promise.all([
     supabase
@@ -176,6 +178,15 @@ export default async function WorkshopVehiclePage({
       .limit(1)
       .maybeSingle(),
     supabase
+      .from('job_cards')
+      .select('id,title,status,started_at,last_updated_at')
+      .eq('vehicle_id', vehicleId)
+      .eq('workshop_id', workshopId)
+      .neq('status', 'closed')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
       .from('workshop_users')
       .select('profile_id,profiles(display_name,full_name)')
       .eq('workshop_account_id', workshopId)
@@ -186,6 +197,14 @@ export default async function WorkshopVehiclePage({
       vehicleId,
       workshopId,
       error: activeJobResult.error.message
+    });
+  }
+
+  if (latestOpenJobResult.error) {
+    console.error('Failed to load latest non-closed job card for vehicle', {
+      vehicleId,
+      workshopId,
+      error: latestOpenJobResult.error.message
     });
   }
   const activeJobRaw = activeJobResult.data;
@@ -274,6 +293,15 @@ export default async function WorkshopVehiclePage({
             avatarUrl: assignment.profiles?.[0]?.avatar_url ?? null
           })
         )
+      }
+    : null;
+  const latestOpenJob = !activeJob && latestOpenJobResult.data
+    ? {
+        id: latestOpenJobResult.data.id,
+        title: latestOpenJobResult.data.title,
+        status: latestOpenJobResult.data.status,
+        started_at: latestOpenJobResult.data.started_at,
+        last_updated_at: latestOpenJobResult.data.last_updated_at
       }
     : null;
   const technicians = (techniciansResult.data ?? []).map(
@@ -408,6 +436,36 @@ export default async function WorkshopVehiclePage({
           approvedQuotes={approvedQuotes}
           canClose={profile.role === 'admin'}
         />
+      ) : null}
+
+      {latestOpenJob ? (
+        <Card className="rounded-2xl border border-amber-200 bg-amber-50/40 p-5 shadow-[0_12px_24px_rgba(245,158,11,0.12)]">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-700">
+                Job card overview
+              </p>
+              <h2 className="mt-1 text-lg font-semibold text-neutral-900">
+                {latestOpenJob.title}
+              </h2>
+              <p className="mt-1 text-sm text-neutral-600">
+                Status {formatJobCardStatus(latestOpenJob.status)}
+              </p>
+              <p className="text-xs text-neutral-500">
+                Started{' '}
+                {latestOpenJob.started_at
+                  ? new Date(latestOpenJob.started_at).toLocaleString()
+                  : 'Not started'}{' '}
+                • Updated {new Date(latestOpenJob.last_updated_at).toLocaleString()}
+              </p>
+            </div>
+            <Button asChild>
+              <Link href={`/workshop/jobs/${latestOpenJob.id}`}>
+                Open job card <ExternalLink className="ml-1 h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
+        </Card>
       ) : null}
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
