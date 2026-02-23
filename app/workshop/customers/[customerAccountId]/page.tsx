@@ -88,7 +88,7 @@ export default async function WorkshopCustomerPage({ params }: { params: Promise
     loadCustomerVehicles({ supabase, customerAccountId, workshopId }),
     supabase.from('invoices').select('id', { count: 'exact', head: true }).eq('customer_account_id', customerAccountId).neq('payment_status', 'paid'),
     supabase.from('quotes').select('id', { count: 'exact', head: true }).eq('customer_account_id', customerAccountId).in('status', ['sent', 'pending']),
-    supabase.from('service_jobs').select('id', { count: 'exact', head: true }).eq('customer_account_id', customerAccountId).in('status', ['open', 'awaiting_approval', 'in_progress'])
+    supabase.from('job_cards').select('id', { count: 'exact', head: true }).eq('customer_account_id', customerAccountId).eq('workshop_id', workshopId).in('status', ['not_started', 'in_progress', 'waiting_parts', 'waiting_approval', 'quality_check', 'ready'])
   ]);
 
   return (

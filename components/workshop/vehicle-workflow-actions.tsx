@@ -8,7 +8,9 @@ import { Modal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast-provider';
 import { ActionTile } from '@/components/workshop/action-tile';
 import { ModalFormShell } from '@/components/workshop/modal-form-shell';
-import { createRecommendation, updateInvoicePaymentStatus, updateServiceJobStatus, updateVehicleServiceReminders, updateWorkRequestStatus } from '@/lib/actions/workshop';
+import { createRecommendation, updateInvoicePaymentStatus, updateVehicleServiceReminders, updateWorkRequestStatus } from '@/lib/actions/workshop';
+import { updateJobCardStatus } from '@/lib/actions/job-cards';
+import { JOB_CARD_STATUSES } from '@/lib/job-cards';
 import { WORK_REQUEST_STATUSES } from '@/lib/work-request-statuses';
 
 type ActionResponse = { ok: boolean; error?: string; message?: string };
@@ -98,10 +100,10 @@ export function VehicleWorkflowActions({ vehicleId, invoices, jobs, workRequests
       </Modal>
 
       <Modal open={open === 'job'} onClose={() => setOpen(null)} title="Update service job status">
-        <form onSubmit={(event) => { event.preventDefault(); const formData = new FormData(event.currentTarget); void on(() => updateServiceJobStatus({ jobId: String(formData.get('jobId')), status: String(formData.get('status')) as 'open' | 'awaiting_approval' | 'in_progress' | 'completed' | 'cancelled' })); }}>
+        <form onSubmit={(event) => { event.preventDefault(); const formData = new FormData(event.currentTarget); void on(() => updateJobCardStatus({ jobId: String(formData.get('jobId')), status: String(formData.get('status')) as (typeof JOB_CARD_STATUSES)[number] })); }}>
           <ModalFormShell>
             <select name="jobId">{jobs.map((job) => <option key={job.id} value={job.id}>{job.id}</option>)}</select>
-            <select name="status"><option value="open">Open</option><option value="awaiting_approval">Awaiting approval</option><option value="in_progress">In progress</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option></select>
+            <select name="status">{JOB_CARD_STATUSES.map((status) => <option key={status} value={status}>{status.replaceAll('_', ' ')}</option>)}</select>
             <Button disabled={isLoading}>{isLoading ? 'Updating...' : 'Update'}</Button>
             {msg ? <p className="text-xs text-red-700">{msg}</p> : null}
           </ModalFormShell>
