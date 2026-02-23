@@ -76,7 +76,18 @@ export function JobCardDetailClient(props: {
   const [isClosingJob, setIsClosingJob] = useState(false);
   const [isRedirectingToInvoice, setIsRedirectingToInvoice] = useState(false);
   const [invoicePromptOpen, setInvoicePromptOpen] = useState(false);
-  const canCloseNow = props.status === 'completed';
+  const [requirementsPromptOpen, setRequirementsPromptOpen] = useState(false);
+  const hasCompletionStatus = ['ready', 'completed'].includes(props.status);
+  const hasCompletionPhoto = props.photos.some((photo) => photo.kind === 'after');
+  const unmetCloseRequirements = [
+    !hasCompletionStatus
+      ? 'Set the job status to Ready or Completed.'
+      : null,
+    !hasCompletionPhoto
+      ? 'Upload at least one completion photo.'
+      : null
+  ].filter((requirement): requirement is string => Boolean(requirement));
+  const canCloseNow = unmetCloseRequirements.length === 0;
   const tabs: Tab[] = [
     'overview',
     'photos',
@@ -327,13 +338,24 @@ export function JobCardDetailClient(props: {
             <Button
               size="sm"
               variant="outline"
-              disabled={props.isLocked}
-              onClick={() => setInvoicePromptOpen(true)}
+              disabled={props.isLocked || isClosingJob || isRedirectingToInvoice}
+              onClick={() => {
+                if (!canCloseNow) {
+                  setRequirementsPromptOpen(true);
+                  return;
+                }
+                setInvoicePromptOpen(true);
+              }}
             >
               Close job
             </Button>
           ) : null}
         </div>
+        {props.isManager && unmetCloseRequirements.length ? (
+          <p className="text-xs text-amber-700">
+            Close job is unavailable until all requirements are met.
+          </p>
+        ) : null}
       </div>
       <div className="flex flex-wrap gap-2">
         {tabs.map((item) => (
@@ -476,6 +498,20 @@ export function JobCardDetailClient(props: {
             {isRedirectingToInvoice ? 'Opening…' : 'Upload invoice'}
           </Button>
         </div>
+      </Modal>
+      <Modal
+        open={requirementsPromptOpen}
+        onClose={() => setRequirementsPromptOpen(false)}
+        title="Cannot close job yet"
+      >
+        <p className="text-sm text-gray-600">
+          Complete the following before closing this job:
+        </p>
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-700">
+          {unmetCloseRequirements.map((requirement) => (
+            <li key={requirement}>{requirement}</li>
+          ))}
+        </ul>
       </Modal>
     </div>
   );

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast-provider';
 import {
   addJobCardEvent,
+  canCloseJobCard,
   closeJobCard,
   startJobCard,
   updateJobCardStatus
@@ -45,8 +46,39 @@ export function VehicleJobCardPanel({
   const [isSaving, setIsSaving] = useState(false);
   const [isClosingLater, setIsClosingLater] = useState(false);
   const [isRedirectingToInvoice, setIsRedirectingToInvoice] = useState(false);
+  const [requirementsPromptOpen, setRequirementsPromptOpen] = useState(false);
+  const [unmetCloseRequirements, setUnmetCloseRequirements] = useState<string[]>(
+    []
+  );
   const { pushToast } = useToast();
-  const canCloseNow = activeJob?.status === 'completed';
+  const canCloseNow =
+    activeJob != null && ['ready', 'completed'].includes(activeJob.status);
+
+  function parseCloseRequirement(error: string) {
+    if (
+      error ===
+      'Job must be marked as ready or completed before it can be closed.'
+    ) {
+      return 'Set the job status to Ready or Completed.';
+    }
+    if (error === 'At least one completion image is required before closing the job.') {
+      return 'Upload at least one completion photo.';
+    }
+    return error;
+  }
+
+  async function openCloseJobFlow() {
+    if (!activeJob) return;
+    const validation = await canCloseJobCard({ jobId: activeJob.id });
+    if (!validation.ok) {
+      setUnmetCloseRequirements([parseCloseRequirement(validation.error)]);
+      setRequirementsPromptOpen(true);
+      return;
+    }
+
+    setUnmetCloseRequirements([]);
+    setInvoicePromptOpen(true);
+  }
 
   async function run<T>(
     fn: () => Promise<T & { ok: boolean; error?: string; jobId?: string }>,
@@ -345,7 +377,8 @@ export function VehicleJobCardPanel({
           <Button
             size="sm"
             variant="outline"
-            onClick={() => setInvoicePromptOpen(true)}
+            disabled={isSaving || isClosingLater || isRedirectingToInvoice}
+            onClick={() => void openCloseJobFlow()}
           >
             Close job
           </Button>
@@ -390,6 +423,20 @@ export function VehicleJobCardPanel({
             {isRedirectingToInvoice ? 'Opening…' : 'Upload invoice'}
           </Button>
         </div>
+      </Modal>
+      <Modal
+        open={requirementsPromptOpen}
+        onClose={() => setRequirementsPromptOpen(false)}
+        title="Cannot close job yet"
+      >
+        <p className="text-sm text-gray-600">
+          Complete the following before closing this job:
+        </p>
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-700">
+          {unmetCloseRequirements.map((requirement) => (
+            <li key={requirement}>{requirement}</li>
+          ))}
+        </ul>
       </Modal>
     </div>
   );
