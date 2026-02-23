@@ -1,15 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
+import { useToast } from '@/components/ui/toast-provider';
 import {
   addJobCardEvent,
+  canCloseJobCard,
   closeJobCard,
   completeJobCard,
   updateJobCardStatus
 } from '@/lib/actions/job-cards';
 import { formatJobCardStatus, JOB_CARD_STATUSES } from '@/lib/job-cards';
+import { parseAmountInputToCents } from '@/lib/money';
 
 type Tab =
   | 'overview'
@@ -20,6 +23,16 @@ type Tab =
   | 'approvals'
   | 'checklist';
 
+type StatusValue = Exclude<(typeof JOB_CARD_STATUSES)[number], 'not_started'>;
+
+function centsToInput(cents?: number) {
+  if (!cents) return '';
+  const whole = Math.floor(cents / 100);
+  const decimal = cents % 100;
+  if (!decimal) return String(whole);
+  return `${whole}.${String(decimal).padStart(2, '0')}`.replace(/0$/, '');
+}
+
 export function JobCardDetailClient(props: {
   jobId: string;
   vehicleId: string;
@@ -27,6 +40,8 @@ export function JobCardDetailClient(props: {
   isManager: boolean;
   status: string;
   statusProgress: number;
+  linkedQuoteId?: string;
+  linkedQuoteAmountCents?: number;
   events: Array<{
     id: string;
     event_type: string;
@@ -71,23 +86,53 @@ export function JobCardDetailClient(props: {
     done_at: string | null;
   }>;
 }) {
+  const { pushToast } = useToast();
   const [tab, setTab] = useState<Tab>('overview');
   const [isUploading, setIsUploading] = useState(false);
   const [isClosingJob, setIsClosingJob] = useState(false);
-  const [isRedirectingToInvoice, setIsRedirectingToInvoice] = useState(false);
-  const [invoicePromptOpen, setInvoicePromptOpen] = useState(false);
+
+  const [statusModalOpen, setStatusModalOpen] = useState(false);
+  const [completeModalOpen, setCompleteModalOpen] = useState(false);
+  const [requestModalOpen, setRequestModalOpen] = useState(false);
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
   const [requirementsPromptOpen, setRequirementsPromptOpen] = useState(false);
+
+  const [statusDraft, setStatusDraft] = useState<StatusValue>(
+    (JOB_CARD_STATUSES.includes(props.status as never)
+      ? props.status
+      : 'in_progress') as StatusValue
+  );
+
+  const [completeNote, setCompleteNote] = useState('');
+  const [completeFiles, setCompleteFiles] = useState<File[]>([]);
+
+  const [requestNote, setRequestNote] = useState('');
+  const [requestFile, setRequestFile] = useState<File | null>(null);
+
+  const [reportNote, setReportNote] = useState('');
+  const [reportFile, setReportFile] = useState<File | null>(null);
+
+  const [invoiceSubject, setInvoiceSubject] = useState('Invoice');
+  const [invoiceAmount, setInvoiceAmount] = useState(
+    centsToInput(props.linkedQuoteAmountCents)
+  );
+  const [invoiceAmountPrefilled, setInvoiceAmountPrefilled] = useState(
+    Boolean(props.linkedQuoteAmountCents)
+  );
+  const [invoiceReference, setInvoiceReference] = useState('');
+  const [invoiceNote, setInvoiceNote] = useState('');
+  const [invoiceDueDate, setInvoiceDueDate] = useState('');
+  const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
+
   const hasCompletionStatus = ['ready', 'completed'].includes(props.status);
   const hasCompletionPhoto = props.photos.some((photo) => photo.kind === 'after');
   const unmetCloseRequirements = [
-    !hasCompletionStatus
-      ? 'Set the job status to Ready or Completed.'
-      : null,
-    !hasCompletionPhoto
-      ? 'Upload at least one completion photo.'
-      : null
+    !hasCompletionStatus ? 'Set the job status to Ready or Completed.' : null,
+    !hasCompletionPhoto ? 'Upload at least one completion photo.' : null
   ].filter((requirement): requirement is string => Boolean(requirement));
   const canCloseNow = unmetCloseRequirements.length === 0;
+
   const tabs: Tab[] = [
     'overview',
     'photos',
@@ -99,18 +144,26 @@ export function JobCardDetailClient(props: {
   ];
 
   async function doAction(
-    run: () => Promise<{ ok: boolean }>,
+    run: () => Promise<{ ok: boolean; error?: string }>,
     options?: { reloadOnSuccess?: boolean }
   ) {
     const result = await run();
-    if (result.ok && (options?.reloadOnSuccess ?? true))
+    if (!result.ok) {
+      pushToast({
+        title: 'Action failed',
+        description: result.error ?? 'Please try again.',
+        tone: 'error'
+      });
+      return false;
+    }
+    if (options?.reloadOnSuccess ?? true) {
       window.location.reload();
+    }
+    return true;
   }
 
   async function uploadPhotoFiles(files: File[], kind: 'before' | 'after') {
-    const selectedFiles = files.filter((file) =>
-      file.type.startsWith('image/')
-    );
+    const selectedFiles = files.filter((file) => file.type.startsWith('image/'));
     if (!selectedFiles.length) return [] as string[];
 
     setIsUploading(true);
@@ -152,211 +205,142 @@ export function JobCardDetailClient(props: {
     }
   }
 
+  async function uploadDocument({
+    file,
+    docType,
+    subject,
+    body,
+    amount,
+    referenceNumber,
+    dueDate,
+    quoteId
+  }: {
+    file: File;
+    docType: 'invoice' | 'report' | 'warning';
+    subject: string;
+    body?: string;
+    amount?: string;
+    referenceNumber?: string;
+    dueDate?: string;
+    quoteId?: string;
+  }) {
+    const signResponse = await fetch('/api/uploads/sign', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        vehicleId: props.vehicleId,
+        fileName: file.name,
+        contentType: file.type,
+        kind: file.type.startsWith('image/') ? 'image' : 'document',
+        documentType: docType
+      })
+    });
+    if (!signResponse.ok) throw new Error('Could not sign upload');
+
+    const signedPayload = (await signResponse.json()) as {
+      bucket: string;
+      path: string;
+      token: string;
+      docType: string;
+    };
+
+    const uploadResponse = await fetch(
+      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/upload/sign/${signedPayload.bucket}/${signedPayload.path}?token=${signedPayload.token}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type, 'x-upsert': 'true' },
+        body: file
+      }
+    );
+    if (!uploadResponse.ok) throw new Error('Upload failed');
+
+    const amountCents = amount ? parseAmountInputToCents(amount) : undefined;
+
+    const completeResponse = await fetch('/api/uploads/complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        vehicleId: props.vehicleId,
+        bucket: signedPayload.bucket,
+        path: signedPayload.path,
+        contentType: file.type,
+        size: file.size,
+        originalName: file.name,
+        docType: signedPayload.docType,
+        subject,
+        body,
+        amountCents,
+        referenceNumber,
+        dueDate,
+        quoteId
+      })
+    });
+
+    if (!completeResponse.ok) {
+      throw new Error(
+        (await completeResponse.json()).error ?? 'Could not complete upload'
+      );
+    }
+  }
+
+  const invoiceDisabled = useMemo(
+    () =>
+      props.isLocked ||
+      isUploading ||
+      !invoiceFile ||
+      !invoiceSubject.trim() ||
+      !invoiceAmount.trim() ||
+      !invoiceReference.trim(),
+    [
+      invoiceAmount,
+      invoiceFile,
+      invoiceReference,
+      invoiceSubject,
+      isUploading,
+      props.isLocked
+    ]
+  );
+
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-neutral-200 bg-white p-4">
+      <div className="rounded-3xl border border-neutral-200 bg-gradient-to-br from-white to-neutral-50 p-5 shadow-[0_20px_45px_rgba(17,17,17,0.06)]">
         <div className="flex flex-wrap gap-2">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const status = String(
-                new FormData(e.currentTarget).get('status') || 'in_progress'
-              );
-              void doAction(() =>
-                updateJobCardStatus({
-                  jobId: props.jobId,
-                  status: status as never
-                })
-              );
-            }}
-            className="flex gap-2"
-          >
-            <select
-              name="status"
-              disabled={props.isLocked}
-              className="rounded-lg border border-neutral-300 px-2 py-1 text-xs"
-            >
-              {JOB_CARD_STATUSES.filter(
-                (status) => status !== 'not_started'
-              ).map((status) => (
-                <option value={status} key={status}>
-                  {formatJobCardStatus(status)}
-                </option>
-              ))}
-            </select>
-            <Button size="sm" variant="secondary" disabled={props.isLocked}>
-              Change status
-            </Button>
-          </form>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const note = String(
-                new FormData(e.currentTarget).get('note') || ''
-              );
-              void doAction(() =>
-                addJobCardEvent({
-                  jobId: props.jobId,
-                  eventType: 'internal_note',
-                  note
-                })
-              );
-            }}
-            className="flex gap-2"
-          >
-            <input
-              name="note"
-              placeholder="Internal note"
-              className="rounded-lg border border-neutral-300 px-2 py-1 text-xs"
-            />
-            <Button size="sm" variant="secondary" disabled={props.isLocked}>
-              Add internal note
-            </Button>
-          </form>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const message = String(
-                new FormData(e.currentTarget).get('message') || ''
-              );
-              void doAction(() =>
-                addJobCardEvent({
-                  jobId: props.jobId,
-                  eventType: 'customer_update',
-                  note: message,
-                  customerFacing: true
-                })
-              );
-            }}
-            className="flex gap-2"
-          >
-            <input
-              name="message"
-              placeholder="Customer update"
-              className="rounded-lg border border-neutral-300 px-2 py-1 text-xs"
-            />
-            <Button size="sm" variant="secondary" disabled={props.isLocked}>
-              Post customer update
-            </Button>
-          </form>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const note = String(
-                new FormData(e.currentTarget).get('note') || 'Approval required'
-              );
-              void doAction(() =>
-                addJobCardEvent({
-                  jobId: props.jobId,
-                  eventType: 'approval_requested',
-                  note,
-                  customerFacing: true
-                })
-              );
-            }}
-            className="flex gap-2"
-          >
-            <input
-              name="note"
-              placeholder="Approval note"
-              className="rounded-lg border border-neutral-300 px-2 py-1 text-xs"
-            />
-            <Button size="sm" variant="secondary" disabled={props.isLocked}>
-              Request approval
-            </Button>
-          </form>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const form = new FormData(e.currentTarget);
-              const files = form
-                .getAll('photos')
-                .filter((value): value is File => value instanceof File);
-              void doAction(async () => {
-                const paths = await uploadPhotoFiles(files, 'before');
-                if (!paths.length) return { ok: false };
-                await addJobCardEvent({
-                  jobId: props.jobId,
-                  eventType: 'photo_uploaded',
-                  note: `${paths.length} photo(s) uploaded`
-                });
-                return { ok: true };
-              });
-            }}
-            className="flex gap-2"
-          >
-            <input
-              name="photos"
-              type="file"
-              accept="image/*"
-              multiple
-              className="rounded-lg border border-neutral-300 px-2 py-1 text-xs"
-            />
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={props.isLocked || isUploading}
-            >
-              {isUploading ? 'Uploading…' : 'Upload photos'}
-            </Button>
-          </form>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const form = new FormData(e.currentTarget);
-              const files = form
-                .getAll('afterPhotos')
-                .filter((value): value is File => value instanceof File);
-              void doAction(async () => {
-                const uploadedPaths = await uploadPhotoFiles(files, 'after');
-                return completeJobCard({
-                  jobId: props.jobId,
-                  endNote: String(form.get('endNote') || ''),
-                  afterPhotoPaths: uploadedPaths
-                });
-              });
-            }}
-            className="flex gap-2"
-          >
-            <input
-              name="endNote"
-              placeholder="Completion note"
-              className="rounded-lg border border-neutral-300 px-2 py-1 text-xs"
-            />
-            <input
-              name="afterPhotos"
-              type="file"
-              accept="image/*"
-              multiple
-              className="rounded-lg border border-neutral-300 px-2 py-1 text-xs"
-            />
-            <Button size="sm" disabled={props.isLocked || isUploading}>
-              {isUploading ? 'Uploading…' : 'Complete job'}
-            </Button>
-          </form>
+          <Button size="sm" variant="secondary" disabled={props.isLocked} onClick={() => setStatusModalOpen(true)}>
+            Update status
+          </Button>
+          <Button size="sm" variant="secondary" disabled={props.isLocked} onClick={() => setCompleteModalOpen(true)}>
+            Complete job
+          </Button>
+          <Button size="sm" variant="secondary" disabled={props.isLocked} onClick={() => setRequestModalOpen(true)}>
+            Request
+          </Button>
+          <Button size="sm" variant="secondary" disabled={props.isLocked} onClick={() => setReportModalOpen(true)}>
+            Report
+          </Button>
           {props.isManager ? (
             <Button
               size="sm"
               variant="outline"
-              disabled={props.isLocked || isClosingJob || isRedirectingToInvoice}
+              disabled={props.isLocked || isClosingJob || isUploading}
               onClick={() => {
                 if (!canCloseNow) {
                   setRequirementsPromptOpen(true);
                   return;
                 }
-                setInvoicePromptOpen(true);
+                setInvoiceModalOpen(true);
               }}
             >
-              Close job
+              Close & upload invoice
             </Button>
           ) : null}
         </div>
         {props.isManager && unmetCloseRequirements.length ? (
-          <p className="text-xs text-amber-700">
-            Close job is unavailable until all requirements are met.
+          <p className="mt-3 text-xs text-amber-700">
+            Close flow is blocked until required completion steps are done.
           </p>
         ) : null}
       </div>
+
       <div className="flex flex-wrap gap-2">
         {tabs.map((item) => (
           <button
@@ -368,6 +352,7 @@ export function JobCardDetailClient(props: {
           </button>
         ))}
       </div>
+
       <div className="rounded-2xl border border-neutral-200 bg-white p-4 text-sm text-gray-700">
         {tab === 'overview' ? (
           <div className="space-y-2">
@@ -402,9 +387,7 @@ export function JobCardDetailClient(props: {
         {tab === 'updates' ? (
           <div className="space-y-2">
             {props.updates.length ? (
-              props.updates.map((update) => (
-                <p key={update.id}>{update.message}</p>
-              ))
+              props.updates.map((update) => <p key={update.id}>{update.message}</p>)
             ) : (
               <p>No customer updates.</p>
             )}
@@ -463,50 +446,312 @@ export function JobCardDetailClient(props: {
           </div>
         ) : null}
       </div>
-      <Modal
-        open={invoicePromptOpen}
-        onClose={() => setInvoicePromptOpen(false)}
-        title="Send invoice now?"
-      >
-        <p className="text-sm text-gray-600">
-          Upload an invoice now, or close later once the job is completed and
-          completion images are uploaded.
-        </p>
-        <div className="mt-4 flex justify-end gap-2">
-          <Button
-            variant="secondary"
-            disabled={isClosingJob || isRedirectingToInvoice || !canCloseNow}
-            onClick={() => {
-              void doAction(async () => {
-                setIsClosingJob(true);
-                const result = await closeJobCard({ jobId: props.jobId });
-                setIsClosingJob(false);
-                if (result.ok) setInvoicePromptOpen(false);
-                return result;
+
+      <Modal open={statusModalOpen} onClose={() => setStatusModalOpen(false)} title="Update job status">
+        <form
+          className="space-y-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void doAction(async () => {
+              const result = await updateJobCardStatus({
+                jobId: props.jobId,
+                status: statusDraft
               });
-            }}
+              if (result.ok) setStatusModalOpen(false);
+              return result;
+            });
+          }}
+        >
+          <select
+            value={statusDraft}
+            onChange={(event) => setStatusDraft(event.target.value as StatusValue)}
+            className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
           >
-            {isClosingJob ? 'Closing…' : 'Close later'}
-          </Button>
-          <Button
-            disabled={isClosingJob || isRedirectingToInvoice}
-            onClick={() => {
-              setIsRedirectingToInvoice(true);
-              window.location.href = `/workshop/vehicles/${props.vehicleId}?upload=invoice&closeJobId=${props.jobId}`;
-            }}
-          >
-            {isRedirectingToInvoice ? 'Opening…' : 'Upload invoice'}
-          </Button>
-        </div>
+            {JOB_CARD_STATUSES.filter((status) => status !== 'not_started').map((status) => (
+              <option value={status} key={status}>
+                {formatJobCardStatus(status)}
+              </option>
+            ))}
+          </select>
+          <Button disabled={props.isLocked}>Save status</Button>
+        </form>
       </Modal>
+
+      <Modal open={completeModalOpen} onClose={() => setCompleteModalOpen(false)} title="Complete job">
+        <form
+          className="space-y-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void doAction(async () => {
+              const uploadedPaths = await uploadPhotoFiles(completeFiles, 'after');
+              const result = await completeJobCard({
+                jobId: props.jobId,
+                endNote: completeNote,
+                afterPhotoPaths: uploadedPaths
+              });
+              if (result.ok) setCompleteModalOpen(false);
+              return result;
+            });
+          }}
+        >
+          <textarea
+            placeholder="Completion note (optional)"
+            value={completeNote}
+            onChange={(event) => setCompleteNote(event.target.value)}
+            className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
+            rows={3}
+          />
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            required
+            onChange={(event) =>
+              setCompleteFiles(
+                Array.from(event.target.files ?? []).filter((file) =>
+                  file.type.startsWith('image/')
+                )
+              )
+            }
+            className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
+          />
+          <Button disabled={props.isLocked || isUploading}>
+            {isUploading ? 'Uploading…' : 'Complete job'}
+          </Button>
+        </form>
+      </Modal>
+
+      <Modal open={requestModalOpen} onClose={() => setRequestModalOpen(false)} title="Submit request">
+        <form
+          className="space-y-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!requestFile) return;
+            setIsUploading(true);
+            void (async () => {
+              try {
+                await uploadDocument({
+                  file: requestFile,
+                  docType: 'warning',
+                  subject: 'Request from workshop',
+                  body: requestNote || 'Request uploaded from job card.'
+                });
+                const eventResult = await addJobCardEvent({
+                  jobId: props.jobId,
+                  eventType: 'approval_requested',
+                  note: requestNote || 'Request file uploaded.',
+                  customerFacing: true
+                });
+                if (!eventResult.ok) throw new Error(eventResult.error);
+                setRequestModalOpen(false);
+                window.location.reload();
+              } catch (error) {
+                pushToast({
+                  title: 'Request failed',
+                  description:
+                    error instanceof Error ? error.message : 'Could not submit request.',
+                  tone: 'error'
+                });
+              } finally {
+                setIsUploading(false);
+              }
+            })();
+          }}
+        >
+          <textarea
+            placeholder="Request note"
+            value={requestNote}
+            onChange={(event) => setRequestNote(event.target.value)}
+            className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
+            rows={3}
+            required
+          />
+          <input
+            type="file"
+            accept="application/pdf,image/*"
+            required
+            onChange={(event) => setRequestFile(event.target.files?.[0] ?? null)}
+            className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
+          />
+          <Button disabled={props.isLocked || isUploading || !requestFile}>
+            {isUploading ? 'Uploading…' : 'Submit request'}
+          </Button>
+        </form>
+      </Modal>
+
+      <Modal open={reportModalOpen} onClose={() => setReportModalOpen(false)} title="Submit report">
+        <form
+          className="space-y-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!reportFile) return;
+            setIsUploading(true);
+            void (async () => {
+              try {
+                await uploadDocument({
+                  file: reportFile,
+                  docType: 'report',
+                  subject: 'Workshop report',
+                  body: reportNote || 'Report uploaded from job card.'
+                });
+                const eventResult = await addJobCardEvent({
+                  jobId: props.jobId,
+                  eventType: 'internal_note',
+                  note: reportNote || 'Report file uploaded.',
+                  customerFacing: true
+                });
+                if (!eventResult.ok) throw new Error(eventResult.error);
+                setReportModalOpen(false);
+                window.location.reload();
+              } catch (error) {
+                pushToast({
+                  title: 'Report failed',
+                  description:
+                    error instanceof Error ? error.message : 'Could not submit report.',
+                  tone: 'error'
+                });
+              } finally {
+                setIsUploading(false);
+              }
+            })();
+          }}
+        >
+          <textarea
+            placeholder="Report note"
+            value={reportNote}
+            onChange={(event) => setReportNote(event.target.value)}
+            className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
+            rows={3}
+            required
+          />
+          <input
+            type="file"
+            accept="application/pdf,image/*"
+            required
+            onChange={(event) => setReportFile(event.target.files?.[0] ?? null)}
+            className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
+          />
+          <Button disabled={props.isLocked || isUploading || !reportFile}>
+            {isUploading ? 'Uploading…' : 'Submit report'}
+          </Button>
+        </form>
+      </Modal>
+
+      <Modal open={invoiceModalOpen} onClose={() => setInvoiceModalOpen(false)} title="Close job and upload invoice">
+        <form
+          className="space-y-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!invoiceFile || invoiceDisabled) return;
+
+            setIsUploading(true);
+            void (async () => {
+              try {
+                const precheck = await canCloseJobCard({ jobId: props.jobId });
+                if (!precheck.ok) {
+                  setRequirementsPromptOpen(true);
+                  throw new Error(precheck.error);
+                }
+
+                await uploadDocument({
+                  file: invoiceFile,
+                  docType: 'invoice',
+                  subject: invoiceSubject.trim(),
+                  body: invoiceNote.trim() || undefined,
+                  amount: invoiceAmount,
+                  referenceNumber: invoiceReference.trim(),
+                  dueDate: invoiceDueDate || undefined,
+                  quoteId: props.linkedQuoteId
+                });
+
+                setIsClosingJob(true);
+                const closeResult = await closeJobCard({ jobId: props.jobId });
+                setIsClosingJob(false);
+
+                if (!closeResult.ok) {
+                  throw new Error(closeResult.error);
+                }
+
+                setInvoiceModalOpen(false);
+                pushToast({
+                  title: 'Invoice uploaded and job closed',
+                  tone: 'success'
+                });
+                window.location.reload();
+              } catch (error) {
+                pushToast({
+                  title: 'Invoice flow failed',
+                  description:
+                    error instanceof Error ? error.message : 'Please try again.',
+                  tone: 'error'
+                });
+              } finally {
+                setIsUploading(false);
+                setIsClosingJob(false);
+              }
+            })();
+          }}
+        >
+          <p className="text-xs text-gray-500">
+            Invoice upload is limited to invoice documents only and stays inside this job card view.
+          </p>
+          <input
+            value={invoiceSubject}
+            onChange={(event) => setInvoiceSubject(event.target.value)}
+            placeholder="Invoice subject"
+            required
+            className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
+          />
+          <input
+            type="text"
+            value={invoiceAmount}
+            onChange={(event) => {
+              setInvoiceAmount(event.target.value);
+              setInvoiceAmountPrefilled(false);
+            }}
+            placeholder="Amount"
+            required
+            className={`w-full rounded-xl border px-3 py-2 text-sm ${invoiceAmountPrefilled ? 'border-amber-300 bg-amber-50 ring-1 ring-amber-200' : 'border-neutral-300'}`}
+          />
+          <input
+            value={invoiceReference}
+            onChange={(event) => setInvoiceReference(event.target.value)}
+            placeholder="Invoice reference number"
+            required
+            className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
+          />
+          <input
+            type="date"
+            value={invoiceDueDate}
+            onChange={(event) => setInvoiceDueDate(event.target.value)}
+            className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
+          />
+          <textarea
+            value={invoiceNote}
+            onChange={(event) => setInvoiceNote(event.target.value)}
+            placeholder="Invoice note (optional)"
+            className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
+            rows={3}
+          />
+          <input
+            type="file"
+            accept="application/pdf,image/*"
+            required
+            onChange={(event) => setInvoiceFile(event.target.files?.[0] ?? null)}
+            className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
+          />
+          <Button disabled={invoiceDisabled || isClosingJob}>
+            {isUploading || isClosingJob ? 'Processing…' : 'Upload invoice and close'}
+          </Button>
+        </form>
+      </Modal>
+
       <Modal
         open={requirementsPromptOpen}
         onClose={() => setRequirementsPromptOpen(false)}
         title="Cannot close job yet"
       >
-        <p className="text-sm text-gray-600">
-          Complete the following before closing this job:
-        </p>
+        <p className="text-sm text-gray-600">Complete the following before closing this job:</p>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-700">
           {unmetCloseRequirements.map((requirement) => (
             <li key={requirement}>{requirement}</li>
