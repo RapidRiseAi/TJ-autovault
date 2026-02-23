@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Modal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast-provider';
+import { closeJobCard } from '@/lib/actions/job-cards';
 
 const DOCUMENT_TYPES = [
   { value: 'inspection_report', label: 'Inspection report', defaultSubject: 'Inspection report' },
@@ -15,7 +16,7 @@ const DOCUMENT_TYPES = [
 type DocType = (typeof DOCUMENT_TYPES)[number]['value'];
 type Urgency = 'info' | 'low' | 'medium' | 'high' | 'critical';
 
-export function UploadsActionsForm({ vehicleId, onSuccess, destinationLabel = 'customer timeline', initialDocumentType, initialSubject }: { vehicleId: string; onSuccess?: () => void; destinationLabel?: string; initialDocumentType?: DocType; initialSubject?: string }) {
+export function UploadsActionsForm({ vehicleId, onSuccess, destinationLabel = 'customer timeline', initialDocumentType, initialSubject, pendingCloseJobId }: { vehicleId: string; onSuccess?: () => void; destinationLabel?: string; initialDocumentType?: DocType; initialSubject?: string; pendingCloseJobId?: string }) {
   const router = useRouter();
   const { pushToast } = useToast();
   const initialType = initialDocumentType ?? 'inspection_report';
@@ -47,6 +48,17 @@ export function UploadsActionsForm({ vehicleId, onSuccess, destinationLabel = 'c
     [amount, body, file, isQuoteOrInvoice, isSubmitting, isWarning, referenceNumber, subject]
   );
 
+  async function closePendingJob() {
+    if (!pendingCloseJobId) return true;
+    const closeResult = await closeJobCard({ jobId: pendingCloseJobId });
+    if (!closeResult.ok) {
+      pushToast({ title: 'Invoice uploaded, but job is still open', description: closeResult.error, tone: 'error' });
+      setError(closeResult.error);
+      return false;
+    }
+    return true;
+  }
+
   async function submitUpload(uploadFile: File) {
     setIsSubmitting(true);
     setError(null);
@@ -71,7 +83,12 @@ export function UploadsActionsForm({ vehicleId, onSuccess, destinationLabel = 'c
       });
       if (!completeResponse.ok) throw new Error((await completeResponse.json()).error ?? 'Could not complete upload');
 
-      pushToast({ title: 'Upload completed', tone: 'success' });
+      const closed = await closePendingJob();
+      if (closed && pendingCloseJobId) {
+        pushToast({ title: 'Invoice uploaded and job closed', tone: 'success' });
+      } else {
+        pushToast({ title: 'Upload completed', tone: 'success' });
+      }
       onSuccess?.();
       router.refresh();
     } catch (uploadError) {

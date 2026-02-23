@@ -50,10 +50,10 @@ export default async function WorkshopVehiclePage({
   searchParams
 }: {
   params: Promise<{ vehicleId: string }>;
-  searchParams: Promise<{ quoteRecommendationId?: string }>;
+  searchParams: Promise<{ quoteRecommendationId?: string; upload?: string; closeJobId?: string }>;
 }) {
   const { vehicleId } = await params;
-  const { quoteRecommendationId } = await searchParams;
+  const { quoteRecommendationId, upload, closeJobId } = await searchParams;
   const supabase = await createClient();
   const user = (await supabase.auth.getUser()).data.user;
   if (!user) redirect('/login');
@@ -142,6 +142,13 @@ export default async function WorkshopVehiclePage({
   const recommendations = recommendationsResult.data ?? [];
   const approvedRecommendations = recommendations.filter((recommendation) => (recommendation.status ?? '').toLowerCase() === 'approved');
   const selectedApprovedRecommendation = approvedRecommendations.find((recommendation) => recommendation.id === quoteRecommendationId) ?? null;
+
+  const initialUploadMode = upload === 'invoice'
+    ? 'invoice'
+    : selectedApprovedRecommendation
+      ? 'quote'
+      : undefined;
+  const pendingCloseJobId = upload === 'invoice' && closeJobId ? closeJobId : undefined;
   const approvedQuotes = (quotesResult.data ?? [])
     .filter((quote: { invoices: Array<{ status: string | null }> | null }) => !(quote.invoices ?? []).some((invoice) => (invoice.status ?? '').toLowerCase() !== 'draft'))
     .map((quote: { id: string; quote_number: string | null; total_cents: number | null; created_at: string }) => ({
@@ -185,7 +192,7 @@ export default async function WorkshopVehiclePage({
           <p className="text-sm text-gray-500">Run common workshop updates without leaving this page.</p>
         </div>
         <div className="rounded-2xl border border-neutral-200 bg-white/80 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]">
-          <WorkshopVehicleActionsPanel prependTiles={!activeJob ? <VehicleJobCardPanel vehicleId={vehicle.id} activeJob={null} technicians={technicians} approvedQuotes={approvedQuotes} canClose={profile.role === 'admin'} /> : null} vehicleId={vehicle.id} invoices={(invoicesResult.data ?? []).map((invoice) => ({ id: invoice.id, invoiceNumber: invoice.invoice_number, paymentStatus: invoice.payment_status, totalCents: invoice.total_cents }))} jobs={(jobsResult.data ?? []).map((job) => ({ id: job.id }))} workRequests={(workRequestsResult.data ?? []).map((request) => ({ id: request.id, status: request.status }))} currentMileage={vehicle.odometer_km ?? 0} uploadDestinationLabel={uploadDestinationLabel} initialUploadMode={selectedApprovedRecommendation ? 'quote' : undefined} initialUploadSubject={selectedApprovedRecommendation?.title ?? undefined} />
+          <WorkshopVehicleActionsPanel prependTiles={!activeJob ? <VehicleJobCardPanel vehicleId={vehicle.id} activeJob={null} technicians={technicians} approvedQuotes={approvedQuotes} canClose={profile.role === 'admin'} /> : null} vehicleId={vehicle.id} invoices={(invoicesResult.data ?? []).map((invoice) => ({ id: invoice.id, invoiceNumber: invoice.invoice_number, paymentStatus: invoice.payment_status, totalCents: invoice.total_cents }))} jobs={(jobsResult.data ?? []).map((job) => ({ id: job.id }))} workRequests={(workRequestsResult.data ?? []).map((request) => ({ id: request.id, status: request.status }))} currentMileage={vehicle.odometer_km ?? 0} uploadDestinationLabel={uploadDestinationLabel} initialUploadMode={initialUploadMode} initialUploadSubject={selectedApprovedRecommendation?.title ?? undefined} pendingCloseJobId={pendingCloseJobId} />
         </div>
       </SectionCard>
 

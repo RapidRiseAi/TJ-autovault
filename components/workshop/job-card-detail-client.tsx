@@ -26,6 +26,7 @@ export function JobCardDetailClient(props: {
   const [tab, setTab] = useState<Tab>('overview');
   const [isUploading, setIsUploading] = useState(false);
   const [isClosingJob, setIsClosingJob] = useState(false);
+  const [isRedirectingToInvoice, setIsRedirectingToInvoice] = useState(false);
   const [invoicePromptOpen, setInvoicePromptOpen] = useState(false);
   const tabs: Tab[] = ['overview', 'photos', 'updates', 'internal', 'parts', 'approvals', 'checklist'];
 
@@ -117,11 +118,11 @@ export function JobCardDetailClient(props: {
         {tab === 'checklist' ? <div className="space-y-2">{props.checklist.length ? props.checklist.map((item) => <p key={item.id}>{item.is_done ? '✅' : '⬜'} {item.label}</p>) : <p>No checklist yet.</p>}</div> : null}
       </div>
       <Modal open={invoicePromptOpen} onClose={() => setInvoicePromptOpen(false)} title="Send invoice now?">
-        <p className="text-sm text-gray-600">Choose whether to upload an invoice now or later. Your choice will close this job card.</p>
+        <p className="text-sm text-gray-600">Close now or upload an invoice first. The job card will stay open until the invoice is uploaded.</p>
         <div className="mt-4 flex justify-end gap-2">
           <Button
             variant="secondary"
-            disabled={isClosingJob}
+            disabled={isClosingJob || isRedirectingToInvoice}
             onClick={() => {
               void doAction(async () => {
                 setIsClosingJob(true);
@@ -135,18 +136,13 @@ export function JobCardDetailClient(props: {
             {isClosingJob ? 'Closing…' : 'Later'}
           </Button>
           <Button
-            disabled={isClosingJob}
+            disabled={isClosingJob || isRedirectingToInvoice}
             onClick={() => {
-              void doAction(async () => {
-                setIsClosingJob(true);
-                const result = await closeJobCard({ jobId: props.jobId });
-                setIsClosingJob(false);
-                if (result.ok) window.location.href = `/workshop/vehicles/${props.vehicleId}/documents`;
-                return result;
-              }, { reloadOnSuccess: false });
+              setIsRedirectingToInvoice(true);
+              window.location.href = `/workshop/vehicles/${props.vehicleId}?upload=invoice&closeJobId=${props.jobId}`;
             }}
           >
-            {isClosingJob ? 'Closing…' : 'Upload invoice'}
+            {isRedirectingToInvoice ? 'Opening…' : 'Upload invoice'}
           </Button>
         </div>
       </Modal>
