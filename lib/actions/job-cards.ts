@@ -2,27 +2,46 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
-import { JOB_CARD_STATUSES, MAJOR_JOB_TIMELINE_STATUSES, type JobCardStatus } from '@/lib/job-cards';
+import {
+  JOB_CARD_STATUSES,
+  MAJOR_JOB_TIMELINE_STATUSES,
+  type JobCardStatus
+} from '@/lib/job-cards';
 
-type Result = { ok: true; jobId?: string; message?: string } | { ok: false; error: string };
+type Result =
+  | { ok: true; jobId?: string; message?: string }
+  | { ok: false; error: string };
 
 function resolveVehicleCustomerAccountId(value: unknown): string | null {
   if (!value) return null;
   if (Array.isArray(value)) {
-    const accountId = (value[0] as { current_customer_account_id?: unknown } | undefined)?.current_customer_account_id;
+    const accountId = (
+      value[0] as { current_customer_account_id?: unknown } | undefined
+    )?.current_customer_account_id;
     return typeof accountId === 'string' ? accountId : null;
   }
-  const accountId = (value as { current_customer_account_id?: unknown }).current_customer_account_id;
+  const accountId = (value as { current_customer_account_id?: unknown })
+    .current_customer_account_id;
   return typeof accountId === 'string' ? accountId : null;
 }
 
 async function getWorkshopContext() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data: profile } = await supabase.from('profiles').select('id,role,workshop_account_id').eq('id', user.id).maybeSingle();
-  if (!profile?.workshop_account_id || !['admin', 'technician'].includes(profile.role)) return null;
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('id,role,workshop_account_id')
+    .eq('id', user.id)
+    .maybeSingle();
+  if (
+    !profile?.workshop_account_id ||
+    !['admin', 'technician'].includes(profile.role)
+  )
+    return null;
   return { supabase, profile };
 }
 
@@ -48,38 +67,85 @@ async function appendVehicleTimeline(args: {
   });
 }
 
-export async function startJobCard(input: { vehicleId: string; title: string; quoteId?: string; beforePhotoPaths: string[]; technicianIds: string[] }): Promise<Result> {
+export async function startJobCard(input: {
+  vehicleId: string;
+  title: string;
+  quoteId?: string;
+  beforePhotoPaths: string[];
+  technicianIds: string[];
+}): Promise<Result> {
   const ctx = await getWorkshopContext();
   if (!ctx) return { ok: false, error: 'Unauthorized' };
-  const beforePhotoPaths = input.beforePhotoPaths.map((path) => path.trim()).filter(Boolean);
-  if (!beforePhotoPaths.length) return { ok: false, error: 'At least one before photo is required.' };
+  const beforePhotoPaths = input.beforePhotoPaths
+    .map((path) => path.trim())
+    .filter(Boolean);
+  if (!beforePhotoPaths.length)
+    return { ok: false, error: 'At least one before photo is required.' };
 
-  const { data: vehicle } = await ctx.supabase.from('vehicles').select('id,current_customer_account_id').eq('id', input.vehicleId).eq('workshop_account_id', ctx.profile.workshop_account_id).maybeSingle();
+  const { data: vehicle } = await ctx.supabase
+    .from('vehicles')
+    .select('id,current_customer_account_id')
+    .eq('id', input.vehicleId)
+    .eq('workshop_account_id', ctx.profile.workshop_account_id)
+    .maybeSingle();
   if (!vehicle) return { ok: false, error: 'Vehicle not found.' };
 
-  const { data: existing } = await ctx.supabase.from('job_cards').select('id').eq('vehicle_id', vehicle.id).in('status', ['not_started', 'in_progress', 'waiting_parts', 'waiting_approval', 'quality_check', 'ready']).maybeSingle();
-  if (existing) return { ok: false, error: 'An active job already exists for this vehicle.' };
+  const { data: existing } = await ctx.supabase
+    .from('job_cards')
+    .select('id')
+    .eq('vehicle_id', vehicle.id)
+    .in('status', [
+      'not_started',
+      'in_progress',
+      'waiting_parts',
+      'waiting_approval',
+      'quality_check',
+      'ready'
+    ])
+    .maybeSingle();
+  if (existing)
+    return {
+      ok: false,
+      error: 'An active job already exists for this vehicle.'
+    };
 
   const now = new Date().toISOString();
-  const { data: job, error } = await ctx.supabase.from('job_cards').insert({
-    vehicle_id: vehicle.id,
-    workshop_id: ctx.profile.workshop_account_id,
-    created_by: ctx.profile.id,
-    title: input.title.trim() || 'Service job',
-    status: 'in_progress',
-    started_at: now,
-    last_updated_at: now
-  }).select('id').single();
-  if (error || !job) return { ok: false, error: error?.message ?? 'Could not start job.' };
+  const { data: job, error } = await ctx.supabase
+    .from('job_cards')
+    .insert({
+      vehicle_id: vehicle.id,
+      workshop_id: ctx.profile.workshop_account_id,
+      created_by: ctx.profile.id,
+      title: input.title.trim() || 'Service job',
+      status: 'in_progress',
+      started_at: now,
+      last_updated_at: now
+    })
+    .select('id')
+    .single();
+  if (error || !job)
+    return { ok: false, error: error?.message ?? 'Could not start job.' };
 
-  await ctx.supabase.from('job_card_photos').insert(
-    beforePhotoPaths.map((path) => ({ job_card_id: job.id, kind: 'before', storage_path: path, uploaded_by: ctx.profile.id }))
-  );
+  await ctx.supabase
+    .from('job_card_photos')
+    .insert(
+      beforePhotoPaths.map((path) => ({
+        job_card_id: job.id,
+        kind: 'before',
+        storage_path: path,
+        uploaded_by: ctx.profile.id
+      }))
+    );
 
   if (input.technicianIds.length) {
-    await ctx.supabase.from('job_card_assignments').insert(
-      input.technicianIds.map((id) => ({ job_card_id: job.id, technician_user_id: id }))
-    );
+    await ctx.supabase
+      .from('job_card_assignments')
+      .insert(
+        input.technicianIds.map((id) => ({
+          job_card_id: job.id,
+          technician_user_id: id
+        }))
+      );
   }
 
   await ctx.supabase.from('job_card_events').insert({
@@ -106,17 +172,38 @@ export async function startJobCard(input: { vehicleId: string; title: string; qu
   return { ok: true, jobId: job.id };
 }
 
-export async function updateJobCardStatus(input: { jobId: string; status: JobCardStatus }): Promise<Result> {
+export async function updateJobCardStatus(input: {
+  jobId: string;
+  status: JobCardStatus;
+}): Promise<Result> {
   const ctx = await getWorkshopContext();
   if (!ctx) return { ok: false, error: 'Unauthorized' };
-  if (!JOB_CARD_STATUSES.includes(input.status)) return { ok: false, error: 'Invalid status' };
+  if (!JOB_CARD_STATUSES.includes(input.status))
+    return { ok: false, error: 'Invalid status' };
 
-  const { data: job } = await ctx.supabase.from('job_cards').select('id,vehicle_id,workshop_id,is_locked,status,vehicles(current_customer_account_id)').eq('id', input.jobId).eq('workshop_id', ctx.profile.workshop_account_id).maybeSingle();
+  const { data: job } = await ctx.supabase
+    .from('job_cards')
+    .select(
+      'id,vehicle_id,workshop_id,is_locked,status,vehicles(current_customer_account_id)'
+    )
+    .eq('id', input.jobId)
+    .eq('workshop_id', ctx.profile.workshop_account_id)
+    .maybeSingle();
   if (!job) return { ok: false, error: 'Job not found' };
   if (job.is_locked) return { ok: false, error: 'Job is closed and locked.' };
 
-  await ctx.supabase.from('job_cards').update({ status: input.status, last_updated_at: new Date().toISOString() }).eq('id', input.jobId);
-  await ctx.supabase.from('job_card_events').insert({ job_card_id: input.jobId, event_type: 'status_changed', payload: { status: input.status }, created_by: ctx.profile.id });
+  await ctx.supabase
+    .from('job_cards')
+    .update({ status: input.status, last_updated_at: new Date().toISOString() })
+    .eq('id', input.jobId);
+  await ctx.supabase
+    .from('job_card_events')
+    .insert({
+      job_card_id: input.jobId,
+      event_type: 'status_changed',
+      payload: { status: input.status },
+      created_by: ctx.profile.id
+    });
 
   if (MAJOR_JOB_TIMELINE_STATUSES.has(input.status)) {
     await appendVehicleTimeline({
@@ -137,11 +224,23 @@ export async function updateJobCardStatus(input: { jobId: string; status: JobCar
   return { ok: true };
 }
 
-export async function addJobCardEvent(input: { jobId: string; eventType: string; note: string; customerFacing?: boolean }): Promise<Result> {
+export async function addJobCardEvent(input: {
+  jobId: string;
+  eventType: string;
+  note: string;
+  customerFacing?: boolean;
+}): Promise<Result> {
   const ctx = await getWorkshopContext();
   if (!ctx) return { ok: false, error: 'Unauthorized' };
 
-  const { data: job } = await ctx.supabase.from('job_cards').select('id,vehicle_id,title,is_locked,vehicles(current_customer_account_id)').eq('id', input.jobId).eq('workshop_id', ctx.profile.workshop_account_id).maybeSingle();
+  const { data: job } = await ctx.supabase
+    .from('job_cards')
+    .select(
+      'id,vehicle_id,title,is_locked,vehicles(current_customer_account_id)'
+    )
+    .eq('id', input.jobId)
+    .eq('workshop_id', ctx.profile.workshop_account_id)
+    .maybeSingle();
   if (!job) return { ok: false, error: 'Job not found' };
   if (job.is_locked) return { ok: false, error: 'Job is closed and locked.' };
   const customerAccountId = resolveVehicleCustomerAccountId(job.vehicles);
@@ -165,7 +264,10 @@ export async function addJobCardEvent(input: { jobId: string; eventType: string;
         p_workshop_account_id: ctx.profile.workshop_account_id,
         p_to_customer_account_id: customerAccountId,
         p_kind: 'job',
-        p_title: input.eventType === 'approval_requested' ? 'Approval requested for your vehicle' : 'Job card update',
+        p_title:
+          input.eventType === 'approval_requested'
+            ? 'Approval requested for your vehicle'
+            : 'Job card update',
         p_body: input.note || 'There is an update on your open job card.',
         p_href: `/customer/jobs/${input.jobId}`,
         p_data: { job_card_id: input.jobId, event_type: input.eventType }
@@ -196,7 +298,10 @@ export async function addJobCardEvent(input: { jobId: string; eventType: string;
     }
   }
 
-  await ctx.supabase.from('job_cards').update({ last_updated_at: new Date().toISOString() }).eq('id', input.jobId);
+  await ctx.supabase
+    .from('job_cards')
+    .update({ last_updated_at: new Date().toISOString() })
+    .eq('id', input.jobId);
   revalidatePath(`/workshop/jobs/${input.jobId}`);
   revalidatePath(`/workshop/vehicles/${job.vehicle_id}`);
   revalidatePath(`/customer/jobs/${input.jobId}`);
@@ -204,25 +309,67 @@ export async function addJobCardEvent(input: { jobId: string; eventType: string;
   return { ok: true };
 }
 
-export async function completeJobCard(input: { jobId: string; endNote: string; afterPhotoPaths: string[] }): Promise<Result> {
+export async function completeJobCard(input: {
+  jobId: string;
+  endNote: string;
+  afterPhotoPaths: string[];
+}): Promise<Result> {
   const ctx = await getWorkshopContext();
   if (!ctx) return { ok: false, error: 'Unauthorized' };
-  if (!input.endNote.trim()) return { ok: false, error: 'End note is required' };
-  const afterPhotoPaths = input.afterPhotoPaths.map((path) => path.trim()).filter(Boolean);
-  if (!afterPhotoPaths.length) return { ok: false, error: 'At least one after photo is required' };
+  if (!input.endNote.trim())
+    return { ok: false, error: 'End note is required' };
+  const afterPhotoPaths = input.afterPhotoPaths
+    .map((path) => path.trim())
+    .filter(Boolean);
+  if (!afterPhotoPaths.length)
+    return { ok: false, error: 'At least one after photo is required' };
 
-  const { data: job } = await ctx.supabase.from('job_cards').select('id,vehicle_id,is_locked,vehicles(current_customer_account_id)').eq('id', input.jobId).eq('workshop_id', ctx.profile.workshop_account_id).maybeSingle();
+  const { data: job } = await ctx.supabase
+    .from('job_cards')
+    .select('id,vehicle_id,is_locked,vehicles(current_customer_account_id)')
+    .eq('id', input.jobId)
+    .eq('workshop_id', ctx.profile.workshop_account_id)
+    .maybeSingle();
   if (!job) return { ok: false, error: 'Job not found' };
   if (job.is_locked) return { ok: false, error: 'Job is closed and locked.' };
 
-  await ctx.supabase.from('job_card_photos').insert(
-    afterPhotoPaths.map((path) => ({ job_card_id: input.jobId, kind: 'after', storage_path: path, uploaded_by: ctx.profile.id }))
-  );
+  await ctx.supabase
+    .from('job_card_photos')
+    .insert(
+      afterPhotoPaths.map((path) => ({
+        job_card_id: input.jobId,
+        kind: 'after',
+        storage_path: path,
+        uploaded_by: ctx.profile.id
+      }))
+    );
 
   const now = new Date().toISOString();
-  await ctx.supabase.from('job_cards').update({ status: 'completed', completed_at: now, last_updated_at: now, customer_summary: input.endNote }).eq('id', input.jobId);
-  await ctx.supabase.from('job_card_events').insert({ job_card_id: input.jobId, event_type: 'job_completed', payload: { note: input.endNote }, created_by: ctx.profile.id });
-  await ctx.supabase.from('job_card_updates').insert({ job_card_id: input.jobId, message: 'Work completed, final checks in progress.', auto_generated: true, created_by: ctx.profile.id });
+  await ctx.supabase
+    .from('job_cards')
+    .update({
+      status: 'completed',
+      completed_at: now,
+      last_updated_at: now,
+      customer_summary: input.endNote
+    })
+    .eq('id', input.jobId);
+  await ctx.supabase
+    .from('job_card_events')
+    .insert({
+      job_card_id: input.jobId,
+      event_type: 'job_completed',
+      payload: { note: input.endNote },
+      created_by: ctx.profile.id
+    });
+  await ctx.supabase
+    .from('job_card_updates')
+    .insert({
+      job_card_id: input.jobId,
+      message: 'Work completed, final checks in progress.',
+      auto_generated: true,
+      created_by: ctx.profile.id
+    });
 
   await appendVehicleTimeline({
     supabase: ctx.supabase,
@@ -242,24 +389,70 @@ export async function completeJobCard(input: { jobId: string; endNote: string; a
   return { ok: true };
 }
 
-export async function closeJobCard(input: { jobId: string; summary?: string }): Promise<Result> {
+export async function closeJobCard(input: {
+  jobId: string;
+  summary?: string;
+}): Promise<Result> {
   const ctx = await getWorkshopContext();
   if (!ctx) return { ok: false, error: 'Unauthorized' };
-  if (ctx.profile.role !== 'admin') return { ok: false, error: 'Manager/admin access required' };
+  if (ctx.profile.role !== 'admin')
+    return { ok: false, error: 'Manager/admin access required' };
 
-  const { data: job } = await ctx.supabase.from('job_cards').select('id,vehicle_id,is_locked,vehicles(current_customer_account_id)').eq('id', input.jobId).eq('workshop_id', ctx.profile.workshop_account_id).maybeSingle();
+  const { data: job } = await ctx.supabase
+    .from('job_cards')
+    .select(
+      'id,vehicle_id,is_locked,status,vehicles(current_customer_account_id)'
+    )
+    .eq('id', input.jobId)
+    .eq('workshop_id', ctx.profile.workshop_account_id)
+    .maybeSingle();
   if (!job) return { ok: false, error: 'Job not found' };
   if (job.is_locked) return { ok: false, error: 'Job already closed' };
+  if (job.status !== 'completed')
+    return {
+      ok: false,
+      error: 'Job must be completed before it can be closed.'
+    };
+
+  const { count: afterPhotoCount, error: afterPhotoCountError } =
+    await ctx.supabase
+      .from('job_card_photos')
+      .select('id', { count: 'exact', head: true })
+      .eq('job_card_id', input.jobId)
+      .eq('kind', 'after');
+
+  if (afterPhotoCountError) {
+    return {
+      ok: false,
+      error: 'Could not verify completion photos. Please try again.'
+    };
+  }
+  if (!afterPhotoCount) {
+    return {
+      ok: false,
+      error: 'At least one completion image is required before closing the job.'
+    };
+  }
 
   const now = new Date().toISOString();
-  await ctx.supabase.from('job_cards').update({
-    status: 'closed',
-    closed_at: now,
-    is_locked: true,
-    customer_summary: input.summary?.trim() || null,
-    last_updated_at: now
-  }).eq('id', input.jobId);
-  await ctx.supabase.from('job_card_events').insert({ job_card_id: input.jobId, event_type: 'job_closed', payload: { summary: input.summary }, created_by: ctx.profile.id });
+  await ctx.supabase
+    .from('job_cards')
+    .update({
+      status: 'closed',
+      closed_at: now,
+      is_locked: true,
+      customer_summary: input.summary?.trim() || null,
+      last_updated_at: now
+    })
+    .eq('id', input.jobId);
+  await ctx.supabase
+    .from('job_card_events')
+    .insert({
+      job_card_id: input.jobId,
+      event_type: 'job_closed',
+      payload: { summary: input.summary },
+      created_by: ctx.profile.id
+    });
 
   await appendVehicleTimeline({
     supabase: ctx.supabase,
