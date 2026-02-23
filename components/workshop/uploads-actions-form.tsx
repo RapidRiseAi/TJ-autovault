@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Modal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast-provider';
-import { closeJobCard } from '@/lib/actions/job-cards';
+import { closeJobCard, updateJobCardStatus } from '@/lib/actions/job-cards';
 import { parseAmountInputToCents } from '@/lib/money';
 
 const DOCUMENT_TYPES = [
@@ -114,7 +114,20 @@ export function UploadsActionsForm({
 
   async function closePendingJob() {
     if (!pendingCloseJobId || documentType !== 'invoice') return true;
-    const closeResult = await closeJobCard({ jobId: pendingCloseJobId });
+    let closeResult = await closeJobCard({ jobId: pendingCloseJobId });
+    if (
+      !closeResult.ok &&
+      closeResult.error ===
+        'Job must be marked as ready or completed before it can be closed.'
+    ) {
+      const completionResult = await updateJobCardStatus({
+        jobId: pendingCloseJobId,
+        status: 'completed'
+      });
+      if (completionResult.ok) {
+        closeResult = await closeJobCard({ jobId: pendingCloseJobId });
+      }
+    }
     if (!closeResult.ok) {
       pushToast({
         title: 'Invoice uploaded, but job is still open',
