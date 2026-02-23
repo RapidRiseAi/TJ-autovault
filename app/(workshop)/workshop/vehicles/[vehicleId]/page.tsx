@@ -98,6 +98,7 @@ export default async function WorkshopVehiclePage({
     recommendationsResult,
     quotesResult,
     activeJobResult,
+    latestJobResult,
     techniciansResult
   ] = await Promise.all([
     supabase
@@ -176,6 +177,14 @@ export default async function WorkshopVehiclePage({
       .limit(1)
       .maybeSingle(),
     supabase
+      .from('job_cards')
+      .select('id')
+      .eq('vehicle_id', vehicleId)
+      .eq('workshop_id', workshopId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
       .from('workshop_users')
       .select('profile_id,profiles(display_name,full_name)')
       .eq('workshop_account_id', workshopId)
@@ -186,6 +195,14 @@ export default async function WorkshopVehiclePage({
       vehicleId,
       workshopId,
       error: activeJobResult.error.message
+    });
+  }
+
+  if (latestJobResult.error) {
+    console.error('Failed to load latest job card', {
+      vehicleId,
+      workshopId,
+      error: latestJobResult.error.message
     });
   }
 
@@ -277,6 +294,8 @@ export default async function WorkshopVehiclePage({
         )
       }
     : null;
+  const latestJobId = latestJobResult.data?.id ?? null;
+  const fallbackJobId = activeJob?.id ?? latestJobId;
   const technicians = (techniciansResult.data ?? []).map(
     (row: {
       profile_id: string;
@@ -389,10 +408,10 @@ export default async function WorkshopVehiclePage({
                 View documents
               </Link>
             </Button>
-            {activeJob ? (
+            {fallbackJobId ? (
               <Button asChild size="sm" variant="secondary">
-                <Link href={`/workshop/jobs/${activeJob.id}`}>
-                  Open active job card
+                <Link href={`/workshop/jobs/${fallbackJobId}`}>
+                  {activeJob ? 'Open active job card' : 'Open latest job card'}
                 </Link>
               </Button>
             ) : null}
