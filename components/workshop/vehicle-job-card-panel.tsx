@@ -160,14 +160,25 @@ export function VehicleJobCardPanel({
           <input name="note" placeholder="Approval request" className="rounded-lg border border-neutral-300 px-2 py-1 text-xs" />
           <Button size="sm" variant="secondary" type="submit">Request approval</Button>
         </form>
-        {canClose ? <Button size="sm" variant="outline" onClick={() => void run(() => closeJobCard({ jobId: activeJob.id }), () => setInvoicePromptOpen(true), { reloadOnSuccess: false })}>Close job</Button> : null}
+        {canClose ? <Button size="sm" variant="outline" onClick={() => setInvoicePromptOpen(true)}>Close job</Button> : null}
       </div>
       <Link href={`/workshop/jobs/${activeJob.id}`} className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-gray-600 hover:text-black">View full internal timeline <ArrowRight className="h-3.5 w-3.5" /></Link>
-      <Modal open={invoicePromptOpen} onClose={() => setInvoicePromptOpen(false)} title="Upload invoice now?">
-        <p className="text-sm text-gray-600">The job card has been closed. You can upload the invoice now or do it later.</p>
+      <Modal open={invoicePromptOpen} onClose={() => setInvoicePromptOpen(false)} title="Send invoice now?">
+        <p className="text-sm text-gray-600">Choose whether to upload an invoice now or later. Your choice will close this job card.</p>
         <div className="mt-4 flex justify-end gap-2">
-          <Button variant="secondary" onClick={() => { setInvoicePromptOpen(false); window.location.reload(); }}>Cancel</Button>
-          <Button onClick={() => { window.location.href = `/workshop/vehicles/${vehicleId}/documents`; }}>Upload invoice</Button>
+          <Button
+            variant="secondary"
+            disabled={isSaving}
+            onClick={() => void run(() => closeJobCard({ jobId: activeJob.id }), () => setInvoicePromptOpen(false))}
+          >
+            {isSaving ? 'Closing…' : 'Later'}
+          </Button>
+          <Button
+            disabled={isSaving}
+            onClick={() => void run(() => closeJobCard({ jobId: activeJob.id }), () => { window.location.href = `/workshop/vehicles/${vehicleId}/documents`; }, { reloadOnSuccess: false })}
+          >
+            {isSaving ? 'Closing…' : 'Upload invoice'}
+          </Button>
         </div>
       </Modal>
     </div>

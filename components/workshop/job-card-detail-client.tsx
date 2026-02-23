@@ -25,6 +25,7 @@ export function JobCardDetailClient(props: {
 }) {
   const [tab, setTab] = useState<Tab>('overview');
   const [isUploading, setIsUploading] = useState(false);
+  const [isClosingJob, setIsClosingJob] = useState(false);
   const [invoicePromptOpen, setInvoicePromptOpen] = useState(false);
   const tabs: Tab[] = ['overview', 'photos', 'updates', 'internal', 'parts', 'approvals', 'checklist'];
 
@@ -100,7 +101,7 @@ export function JobCardDetailClient(props: {
             <input name="afterPhotos" type="file" accept="image/*" multiple className="rounded-lg border border-neutral-300 px-2 py-1 text-xs" />
             <Button size="sm" disabled={props.isLocked || isUploading}>{isUploading ? 'Uploading…' : 'Complete job'}</Button>
           </form>
-          {props.isManager ? <Button size="sm" variant="outline" disabled={props.isLocked} onClick={() => void doAction(async () => { const result = await closeJobCard({ jobId: props.jobId }); if (result.ok) setInvoicePromptOpen(true); return result; }, { reloadOnSuccess: false })}>Close job</Button> : null}
+          {props.isManager ? <Button size="sm" variant="outline" disabled={props.isLocked} onClick={() => setInvoicePromptOpen(true)}>Close job</Button> : null}
         </div>
       </div>
       <div className="flex flex-wrap gap-2">
@@ -115,11 +116,38 @@ export function JobCardDetailClient(props: {
         {tab === 'approvals' ? <div className="space-y-2">{props.approvals.length ? props.approvals.map((approval) => <p key={approval.id}>{approval.title} - {approval.status}</p>) : <p>No approvals yet.</p>}</div> : null}
         {tab === 'checklist' ? <div className="space-y-2">{props.checklist.length ? props.checklist.map((item) => <p key={item.id}>{item.is_done ? '✅' : '⬜'} {item.label}</p>) : <p>No checklist yet.</p>}</div> : null}
       </div>
-      <Modal open={invoicePromptOpen} onClose={() => setInvoicePromptOpen(false)} title="Upload invoice now?">
-        <p className="text-sm text-gray-600">The job card has been closed. You can upload the invoice now or do it later.</p>
+      <Modal open={invoicePromptOpen} onClose={() => setInvoicePromptOpen(false)} title="Send invoice now?">
+        <p className="text-sm text-gray-600">Choose whether to upload an invoice now or later. Your choice will close this job card.</p>
         <div className="mt-4 flex justify-end gap-2">
-          <Button variant="secondary" onClick={() => { setInvoicePromptOpen(false); window.location.reload(); }}>Cancel</Button>
-          <Button onClick={() => { window.location.href = `/workshop/vehicles/${props.vehicleId}/documents`; }}>Upload invoice</Button>
+          <Button
+            variant="secondary"
+            disabled={isClosingJob}
+            onClick={() => {
+              void doAction(async () => {
+                setIsClosingJob(true);
+                const result = await closeJobCard({ jobId: props.jobId });
+                setIsClosingJob(false);
+                if (result.ok) setInvoicePromptOpen(false);
+                return result;
+              });
+            }}
+          >
+            {isClosingJob ? 'Closing…' : 'Later'}
+          </Button>
+          <Button
+            disabled={isClosingJob}
+            onClick={() => {
+              void doAction(async () => {
+                setIsClosingJob(true);
+                const result = await closeJobCard({ jobId: props.jobId });
+                setIsClosingJob(false);
+                if (result.ok) window.location.href = `/workshop/vehicles/${props.vehicleId}/documents`;
+                return result;
+              }, { reloadOnSuccess: false });
+            }}
+          >
+            {isClosingJob ? 'Closing…' : 'Upload invoice'}
+          </Button>
         </div>
       </Modal>
     </div>
