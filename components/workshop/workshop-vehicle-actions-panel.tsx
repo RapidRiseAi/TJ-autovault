@@ -13,6 +13,7 @@ export function WorkshopVehicleActionsPanel({ vehicleId, invoices, jobs, workReq
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [uploadOpen, setUploadOpen] = useState(Boolean(initialUploadMode));
+  const [pendingCloseOnInvoiceJobId] = useState(pendingCloseJobId);
 
   useEffect(() => {
     if (!initialUploadMode) return;
@@ -40,7 +41,7 @@ export function WorkshopVehicleActionsPanel({ vehicleId, invoices, jobs, workReq
       </div>
       <VehicleWorkflowActions vehicleId={vehicleId} invoices={invoices} jobs={jobs} workRequests={workRequests} currentMileage={currentMileage} />
       <Modal open={uploadOpen} onClose={() => setUploadOpen(false)} title="Upload document">
-        <UploadsActionsForm vehicleId={vehicleId} destinationLabel={uploadDestinationLabel} onSuccess={() => setUploadOpen(false)} initialDocumentType={initialUploadMode} initialSubject={initialUploadSubject} pendingCloseJobId={pendingCloseJobId} />
+        <UploadsActionsForm vehicleId={vehicleId} destinationLabel={uploadDestinationLabel} onSuccess={() => setUploadOpen(false)} initialDocumentType={initialUploadMode} initialSubject={initialUploadSubject} pendingCloseJobId={pendingCloseOnInvoiceJobId} />
       </Modal>
     </>
   );

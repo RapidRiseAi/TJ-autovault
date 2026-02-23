@@ -49,7 +49,7 @@ export function UploadsActionsForm({ vehicleId, onSuccess, destinationLabel = 'c
   );
 
   async function closePendingJob() {
-    if (!pendingCloseJobId) return true;
+    if (!pendingCloseJobId || documentType !== 'invoice') return true;
     const closeResult = await closeJobCard({ jobId: pendingCloseJobId });
     if (!closeResult.ok) {
       pushToast({ title: 'Invoice uploaded, but job is still open', description: closeResult.error, tone: 'error' });
@@ -84,7 +84,7 @@ export function UploadsActionsForm({ vehicleId, onSuccess, destinationLabel = 'c
       if (!completeResponse.ok) throw new Error((await completeResponse.json()).error ?? 'Could not complete upload');
 
       const closed = await closePendingJob();
-      if (closed && pendingCloseJobId) {
+      if (closed && pendingCloseJobId && documentType === 'invoice') {
         pushToast({ title: 'Invoice uploaded and job closed', tone: 'success' });
       } else {
         pushToast({ title: 'Upload completed', tone: 'success' });
