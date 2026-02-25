@@ -145,6 +145,15 @@ export function JobCardDetailClient(props: {
     'checklist'
   ];
 
+  const openBlockers = props.blockers.filter((blocker) => !blocker.resolved_at).length;
+  const completionPct = Math.max(0, Math.min(100, ((props.statusProgress + 1) / 5) * 100));
+
+  function statusTone(status: string) {
+    if (['completed', 'closed'].includes(status)) return 'text-emerald-700 bg-emerald-100 border-emerald-200';
+    if (['ready', 'in_progress'].includes(status)) return 'text-brand-red bg-red-50 border-red-200';
+    return 'text-amber-700 bg-amber-100 border-amber-200';
+  }
+
   async function doAction(
     run: () => Promise<{ ok: boolean; error?: string }>,
     options?: { reloadOnSuccess?: boolean }
@@ -305,54 +314,96 @@ export function JobCardDetailClient(props: {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-3xl border border-neutral-200 bg-gradient-to-br from-white to-neutral-50 p-5 shadow-[0_20px_45px_rgba(17,17,17,0.06)]">
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="secondary" disabled={props.isLocked} onClick={() => setStatusModalOpen(true)}>
+      <div className="rounded-3xl border border-black/10 bg-gradient-to-br from-white via-white to-neutral-50 p-5 shadow-[0_20px_45px_rgba(17,17,17,0.06)]">
+        <div className="grid gap-4 lg:grid-cols-[1.25fr,0.9fr]">
+          <div className="rounded-2xl border border-black/10 bg-[#111111] p-4 text-white shadow-[0_18px_35px_rgba(0,0,0,0.24)]">
+            <div className="flex items-center gap-2">
+              <span className={`rounded-full border px-3 py-1 text-xs font-medium ${statusTone(props.status)}`}>
+                {formatJobCardStatus(props.status)}
+              </span>
+              <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs text-white/80">
+                Step {props.statusProgress + 1} / 5
+              </span>
+              {props.isLocked ? (
+                <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs text-white/75">
+                  Locked
+                </span>
+              ) : null}
+            </div>
+            <div className="mt-4 h-2 w-full rounded-full bg-white/20">
+              <div
+                className="h-2 rounded-full bg-gradient-to-r from-brand-red to-red-400 transition-all"
+                style={{ width: `${completionPct}%` }}
+              />
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-xl border border-white/15 bg-white/5 p-3">
+                <p className="text-[11px] uppercase tracking-[0.14em] text-white/60">Open blockers</p>
+                <p className="mt-1 text-xl font-semibold text-white">{openBlockers}</p>
+              </div>
+              <div className="rounded-xl border border-white/15 bg-white/5 p-3">
+                <p className="text-[11px] uppercase tracking-[0.14em] text-white/60">Approval requests</p>
+                <p className="mt-1 text-xl font-semibold text-white">{props.approvals.length}</p>
+              </div>
+              <div className="rounded-xl border border-white/15 bg-white/5 p-3">
+                <p className="text-[11px] uppercase tracking-[0.14em] text-white/60">Photos</p>
+                <p className="mt-1 text-xl font-semibold text-white">{props.photos.length}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-black/10 bg-white p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-red">Quick actions</p>
+            <p className="mt-1 text-sm text-neutral-600">Use these to progress the job without switching tabs.</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button size="sm" variant="secondary" disabled={props.isLocked} onClick={() => setStatusModalOpen(true)}>
             Update status
-          </Button>
-          <Button size="sm" variant="secondary" disabled={props.isLocked} onClick={() => setRequestModalOpen(true)}>
+              </Button>
+              <Button size="sm" variant="secondary" disabled={props.isLocked} onClick={() => setRequestModalOpen(true)}>
             Request approval
-          </Button>
-          <Button size="sm" variant="secondary" disabled={props.isLocked} onClick={() => setLogModalOpen(true)}>
+              </Button>
+              <Button size="sm" variant="secondary" disabled={props.isLocked} onClick={() => setLogModalOpen(true)}>
             Add log entry
-          </Button>
-          <Button size="sm" variant="secondary" disabled={props.isLocked} onClick={() => setReportModalOpen(true)}>
+              </Button>
+              <Button size="sm" variant="secondary" disabled={props.isLocked} onClick={() => setReportModalOpen(true)}>
             Internal report
-          </Button>
-          <Button size="sm" variant="secondary" disabled={props.isLocked} onClick={() => setCompleteModalOpen(true)}>
+              </Button>
+              <Button size="sm" variant="secondary" disabled={props.isLocked} onClick={() => setCompleteModalOpen(true)}>
             Complete job
-          </Button>
-          {props.isManager ? (
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={props.isLocked || isClosingJob || isUploading}
-              onClick={() => {
-                if (!canCloseNow) {
-                  setRequirementsPromptOpen(true);
-                  return;
-                }
-                setInvoiceAmount(centsToInput(props.linkedQuoteAmountCents));
-                setInvoiceAmountPrefilled(Boolean(props.linkedQuoteAmountCents));
-                setInvoiceModalOpen(true);
-              }}
-            >
-              Close & upload invoice
-            </Button>
-          ) : null}
+              </Button>
+              {props.isManager ? (
+                <Button
+                  size="sm"
+                  variant="primary"
+                  disabled={props.isLocked || isClosingJob || isUploading}
+                  onClick={() => {
+                    if (!canCloseNow) {
+                      setRequirementsPromptOpen(true);
+                      return;
+                    }
+                    setInvoiceAmount(centsToInput(props.linkedQuoteAmountCents));
+                    setInvoiceAmountPrefilled(Boolean(props.linkedQuoteAmountCents));
+                    setInvoiceModalOpen(true);
+                  }}
+                >
+                  Close & upload invoice
+                </Button>
+              ) : null}
+            </div>
+            {props.isManager && unmetCloseRequirements.length ? (
+              <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                Close flow is blocked until required completion steps are done.
+              </p>
+            ) : null}
+          </div>
         </div>
-        {props.isManager && unmetCloseRequirements.length ? (
-          <p className="mt-3 text-xs text-amber-700">
-            Close flow is blocked until required completion steps are done.
-          </p>
-        ) : null}
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 rounded-2xl border border-black/10 bg-white p-2 shadow-[0_4px_18px_rgba(17,17,17,0.04)]">
         {tabs.map((item) => (
           <button
             key={item}
-            className={`rounded-full border px-3 py-1 text-xs ${tab === item ? 'border-black bg-black text-white' : 'border-neutral-200 bg-white text-gray-600'}`}
+            className={`rounded-full border px-3 py-1 text-xs font-medium capitalize transition ${tab === item ? 'border-brand-red bg-brand-red text-white shadow-sm' : 'border-transparent bg-white text-gray-600 hover:border-black/10'}`}
             onClick={() => setTab(item)}
           >
             {item}
@@ -360,31 +411,54 @@ export function JobCardDetailClient(props: {
         ))}
       </div>
 
-      <div className="rounded-2xl border border-neutral-200 bg-white p-4 text-sm text-gray-700">
+      <div className="rounded-2xl border border-black/10 bg-white p-4 text-sm text-gray-700 shadow-[0_12px_28px_rgba(17,17,17,0.04)]">
         {tab === 'overview' ? (
-          <div className="space-y-2">
-            <p>Status: {formatJobCardStatus(props.status)}</p>
-            <p>Progress step: {props.statusProgress + 1} / 5</p>
-            <p>
-              Blockers open:{' '}
-              {props.blockers.filter((blocker) => !blocker.resolved_at).length}
-            </p>
-            <p>
-              Recent timeline:{' '}
-              {props.events
-                .slice(0, 5)
-                .map((event) => event.event_type)
-                .join(', ') || 'No events yet'}
-            </p>
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-xl border border-black/10 bg-white p-3">
+                <p className="text-xs text-neutral-500">Current status</p>
+                <p className="mt-1 font-semibold text-neutral-900">{formatJobCardStatus(props.status)}</p>
+              </div>
+              <div className="rounded-xl border border-black/10 bg-white p-3">
+                <p className="text-xs text-neutral-500">Progress</p>
+                <p className="mt-1 font-semibold text-neutral-900">{props.statusProgress + 1} of 5 steps</p>
+              </div>
+              <div className="rounded-xl border border-black/10 bg-white p-3">
+                <p className="text-xs text-neutral-500">Open blockers</p>
+                <p className="mt-1 font-semibold text-neutral-900">{openBlockers}</p>
+              </div>
+              <div className="rounded-xl border border-black/10 bg-white p-3">
+                <p className="text-xs text-neutral-500">Checklist done</p>
+                <p className="mt-1 font-semibold text-neutral-900">
+                  {props.checklist.filter((item) => item.is_done).length} / {props.checklist.length || 0}
+                </p>
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">Recent timeline</p>
+              {props.events.length ? (
+                <ul className="mt-2 space-y-2">
+                  {props.events.slice(0, 5).map((event) => (
+                    <li key={event.id} className="rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-neutral-700">
+                      <span className="font-medium text-neutral-900">{event.event_type.replaceAll('_', ' ')}</span>
+                      <span className="ml-2 text-xs text-neutral-500">{new Date(event.created_at).toLocaleString()}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-2 text-sm text-neutral-500">No events yet.</p>
+              )}
+            </div>
           </div>
         ) : null}
         {tab === 'photos' ? (
           <div className="space-y-2">
             {props.photos.length ? (
               props.photos.map((photo) => (
-                <p key={photo.id}>
-                  {photo.kind}: {photo.storage_path}
-                </p>
+                <div key={photo.id} className="rounded-xl border border-black/10 bg-white px-3 py-2">
+                  <p className="font-medium capitalize text-neutral-900">{photo.kind} photo</p>
+                  <p className="text-xs text-neutral-500">{photo.storage_path}</p>
+                </div>
               ))
             ) : (
               <p>No photos uploaded.</p>
@@ -394,7 +468,12 @@ export function JobCardDetailClient(props: {
         {tab === 'updates' ? (
           <div className="space-y-2">
             {props.updates.length ? (
-              props.updates.map((update) => <p key={update.id}>{update.message}</p>)
+              props.updates.map((update) => (
+                <div key={update.id} className="rounded-xl border border-black/10 bg-white px-3 py-2">
+                  <p>{update.message}</p>
+                  <p className="text-xs text-neutral-500">{new Date(update.created_at).toLocaleString()}</p>
+                </div>
+              ))
             ) : (
               <p>No customer updates.</p>
             )}
@@ -404,9 +483,10 @@ export function JobCardDetailClient(props: {
           <div className="space-y-2">
             {props.events.length ? (
               props.events.map((event) => (
-                <p key={event.id}>
-                  {event.event_type}: {event.payload?.note ?? ''}
-                </p>
+                <div key={event.id} className="rounded-xl border border-black/10 bg-white px-3 py-2">
+                  <p className="font-medium text-neutral-900">{event.event_type.replaceAll('_', ' ')}</p>
+                  <p>{event.payload?.note ?? ''}</p>
+                </div>
               ))
             ) : (
               <p>No internal log yet.</p>
@@ -417,9 +497,10 @@ export function JobCardDetailClient(props: {
           <div className="space-y-2">
             {props.parts.length ? (
               props.parts.map((part) => (
-                <p key={part.id}>
-                  {part.name} × {part.qty} ({part.status})
-                </p>
+                <div key={part.id} className="rounded-xl border border-black/10 bg-white px-3 py-2">
+                  <p className="font-medium text-neutral-900">{part.name} × {part.qty}</p>
+                  <p className="text-xs capitalize text-neutral-600">{part.status}</p>
+                </div>
               ))
             ) : (
               <p>No parts yet.</p>
@@ -430,9 +511,10 @@ export function JobCardDetailClient(props: {
           <div className="space-y-2">
             {props.approvals.length ? (
               props.approvals.map((approval) => (
-                <p key={approval.id}>
-                  {approval.title} - {approval.status}
-                </p>
+                <div key={approval.id} className="rounded-xl border border-black/10 bg-white px-3 py-2">
+                  <p className="font-medium text-neutral-900">{approval.title}</p>
+                  <p className="text-xs capitalize text-neutral-600">{approval.status}</p>
+                </div>
               ))
             ) : (
               <p>No approvals yet.</p>
