@@ -209,27 +209,23 @@ export async function startJobCard(input: {
     return { ok: false, error: error?.message ?? 'Could not start job.' };
 
   if (beforePhotoPaths.length) {
-    await ctx.supabase
-      .from('job_card_photos')
-      .insert(
-        beforePhotoPaths.map((path) => ({
-          job_card_id: job.id,
-          kind: 'before',
-          storage_path: path,
-          uploaded_by: ctx.profile.id
-        }))
-      );
+    await ctx.supabase.from('job_card_photos').insert(
+      beforePhotoPaths.map((path) => ({
+        job_card_id: job.id,
+        kind: 'before',
+        storage_path: path,
+        uploaded_by: ctx.profile.id
+      }))
+    );
   }
 
   if (input.technicianIds.length) {
-    await ctx.supabase
-      .from('job_card_assignments')
-      .insert(
-        input.technicianIds.map((id) => ({
-          job_card_id: job.id,
-          technician_user_id: id
-        }))
-      );
+    await ctx.supabase.from('job_card_assignments').insert(
+      input.technicianIds.map((id) => ({
+        job_card_id: job.id,
+        technician_user_id: id
+      }))
+    );
   }
 
   await ctx.supabase.from('job_card_events').insert({
@@ -264,6 +260,11 @@ export async function updateJobCardStatus(input: {
   if (!ctx) return { ok: false, error: 'Unauthorized' };
   if (!JOB_CARD_STATUSES.includes(input.status))
     return { ok: false, error: 'Invalid status' };
+  if (input.status === 'completed' || input.status === 'closed')
+    return {
+      ok: false,
+      error: 'Use complete job or close job actions for these statuses.'
+    };
 
   const { data: job } = await ctx.supabase
     .from('job_cards')
@@ -280,14 +281,12 @@ export async function updateJobCardStatus(input: {
     .from('job_cards')
     .update({ status: input.status, last_updated_at: new Date().toISOString() })
     .eq('id', input.jobId);
-  await ctx.supabase
-    .from('job_card_events')
-    .insert({
-      job_card_id: input.jobId,
-      event_type: 'status_changed',
-      payload: { status: input.status },
-      created_by: ctx.profile.id
-    });
+  await ctx.supabase.from('job_card_events').insert({
+    job_card_id: input.jobId,
+    event_type: 'status_changed',
+    payload: { status: input.status },
+    created_by: ctx.profile.id
+  });
 
   if (MAJOR_JOB_TIMELINE_STATUSES.has(input.status)) {
     await appendVehicleTimeline({
@@ -417,16 +416,14 @@ export async function completeJobCard(input: {
   if (!job) return { ok: false, error: 'Job not found' };
   if (job.is_locked) return { ok: false, error: 'Job is closed and locked.' };
 
-  await ctx.supabase
-    .from('job_card_photos')
-    .insert(
-      afterPhotoPaths.map((path) => ({
-        job_card_id: input.jobId,
-        kind: 'after',
-        storage_path: path,
-        uploaded_by: ctx.profile.id
-      }))
-    );
+  await ctx.supabase.from('job_card_photos').insert(
+    afterPhotoPaths.map((path) => ({
+      job_card_id: input.jobId,
+      kind: 'after',
+      storage_path: path,
+      uploaded_by: ctx.profile.id
+    }))
+  );
 
   const now = new Date().toISOString();
   await ctx.supabase
@@ -438,22 +435,18 @@ export async function completeJobCard(input: {
       customer_summary: input.endNote
     })
     .eq('id', input.jobId);
-  await ctx.supabase
-    .from('job_card_events')
-    .insert({
-      job_card_id: input.jobId,
-      event_type: 'job_completed',
-      payload: { note: input.endNote },
-      created_by: ctx.profile.id
-    });
-  await ctx.supabase
-    .from('job_card_updates')
-    .insert({
-      job_card_id: input.jobId,
-      message: 'Work completed, final checks in progress.',
-      auto_generated: true,
-      created_by: ctx.profile.id
-    });
+  await ctx.supabase.from('job_card_events').insert({
+    job_card_id: input.jobId,
+    event_type: 'job_completed',
+    payload: { note: input.endNote },
+    created_by: ctx.profile.id
+  });
+  await ctx.supabase.from('job_card_updates').insert({
+    job_card_id: input.jobId,
+    message: 'Work completed, final checks in progress.',
+    auto_generated: true,
+    created_by: ctx.profile.id
+  });
 
   await appendVehicleTimeline({
     supabase: ctx.supabase,
@@ -495,14 +488,12 @@ export async function closeJobCard(input: {
       last_updated_at: now
     })
     .eq('id', input.jobId);
-  await ctx.supabase
-    .from('job_card_events')
-    .insert({
-      job_card_id: input.jobId,
-      event_type: 'job_closed',
-      payload: { summary: input.summary },
-      created_by: ctx.profile.id
-    });
+  await ctx.supabase.from('job_card_events').insert({
+    job_card_id: input.jobId,
+    event_type: 'job_closed',
+    payload: { summary: input.summary },
+    created_by: ctx.profile.id
+  });
 
   await appendVehicleTimeline({
     supabase: ctx.supabase,
