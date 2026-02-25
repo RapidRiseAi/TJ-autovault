@@ -6,6 +6,11 @@ import { Button } from '@/components/ui/button';
 import { formatJobCardStatus, jobProgressIndex } from '@/lib/job-cards';
 import { JobCardDetailClient } from '@/components/workshop/job-card-detail-client';
 
+function formatDateTime(value?: string | null) {
+  if (!value) return '—';
+  return new Date(value).toLocaleString();
+}
+
 export default async function WorkshopJobCardPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
@@ -93,23 +98,46 @@ export default async function WorkshopJobCardPage({ params }: { params: Promise<
     linkedQuoteAmountCents = linkedQuote?.total_cents ?? undefined;
   }
 
+  const assignmentChips = (job.job_card_assignments ?? []).map((assignment: { id: string; profiles: { display_name: string | null; full_name: string | null }[] | null }) => ({
+    id: assignment.id,
+    name: assignment.profiles?.[0]?.display_name ?? assignment.profiles?.[0]?.full_name ?? 'Technician'
+  }));
+
   return (
-    <main className="space-y-4">
-      <Card className="rounded-2xl border border-neutral-200 bg-white p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-xs uppercase tracking-[0.14em] text-gray-500">Job card</p>
-            <h1 className="text-2xl font-semibold text-black">{job.title}</h1>
+    <main className="space-y-5">
+      <Card className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-[0_14px_30px_rgba(17,17,17,0.07)] md:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="space-y-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500">Job card</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl font-semibold text-neutral-900 md:text-[1.75rem]">{job.title}</h1>
+              <span className="rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700">
+                {formatJobCardStatus(job.status)}
+              </span>
+            </div>
           </div>
           <Button asChild size="sm" variant="outline">
             <Link href={`/workshop/vehicles/${job.vehicle_id}`}>Back to vehicle</Link>
           </Button>
         </div>
-        <p className="text-sm text-gray-500">Status: {formatJobCardStatus(job.status)} • Started {job.started_at ? new Date(job.started_at).toLocaleString() : 'Not started'} • Last updated {new Date(job.last_updated_at).toLocaleString()}</p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {(job.job_card_assignments ?? []).map((assignment: { id: string; profiles: { display_name: string | null; full_name: string | null }[] | null }) => (
-            <span key={assignment.id} className="rounded-full border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs">{assignment.profiles?.[0]?.display_name ?? assignment.profiles?.[0]?.full_name ?? 'Technician'}</span>
-          ))}
+
+        <div className="mt-4 grid gap-3 text-sm text-gray-600 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-2xl border border-neutral-200 bg-neutral-50/80 px-3 py-2">
+            <p className="text-[11px] uppercase tracking-wide text-gray-500">Started</p>
+            <p className="mt-1 text-sm font-medium text-neutral-800">{formatDateTime(job.started_at)}</p>
+          </div>
+          <div className="rounded-2xl border border-neutral-200 bg-neutral-50/80 px-3 py-2">
+            <p className="text-[11px] uppercase tracking-wide text-gray-500">Last updated</p>
+            <p className="mt-1 text-sm font-medium text-neutral-800">{formatDateTime(job.last_updated_at)}</p>
+          </div>
+          <div className="rounded-2xl border border-neutral-200 bg-neutral-50/80 px-3 py-2 sm:col-span-2 lg:col-span-2">
+            <p className="text-[11px] uppercase tracking-wide text-gray-500">Assigned technicians</p>
+            <div className="mt-1 flex flex-wrap gap-2">
+              {assignmentChips.length ? assignmentChips.map((assignment) => (
+                <span key={assignment.id} className="rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-xs font-medium text-neutral-700">{assignment.name}</span>
+              )) : <span className="text-sm text-gray-500">No technician assigned</span>}
+            </div>
+          </div>
         </div>
       </Card>
       <JobCardDetailClient
