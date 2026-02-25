@@ -25,6 +25,10 @@ function formatCurrency(cents: number) {
   }).format(cents / 100);
 }
 
+function buildStaffThreadKey(leftProfileId: string, rightProfileId: string) {
+  return [leftProfileId, rightProfileId].sort().join(':');
+}
+
 async function createTechnician(formData: FormData) {
   'use server';
 
@@ -216,7 +220,7 @@ async function confirmTechnicianPayout(formData: FormData) {
     redirect('/workshop/technicians?error=payout_confirm_failed');
   }
 
-  if (actor.role !== 'admin' && payout.technician_profile_id !== actor.id) {
+  if (payout.technician_profile_id !== actor.id) {
     redirect('/workshop/dashboard');
   }
 
@@ -229,6 +233,100 @@ async function confirmTechnicianPayout(formData: FormData) {
 
   revalidatePath('/workshop/technicians');
   redirect('/workshop/technicians?payout_confirmed=1');
+}
+
+async function sendStaffMessage(formData: FormData) {
+  'use server';
+
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) redirect('/login');
+
+  const body = (formData.get('body')?.toString() ?? '').trim();
+  if (!body) redirect('/workshop/technicians?error=message_invalid');
+
+  const { data: actor } = await supabase
+    .from('profiles')
+    .select('id,role,workshop_account_id,display_name,full_name')
+    .eq('id', auth.user.id)
+    .maybeSingle();
+
+  if (
+    !actor?.workshop_account_id ||
+    (actor.role !== 'admin' && actor.role !== 'technician')
+  ) {
+    redirect('/workshop/dashboard');
+  }
+
+  const adminSupabase = createAdminClient();
+  const actorName = actor.display_name ?? actor.full_name ?? 'Workshop staff';
+  const mode = (formData.get('mode')?.toString() ?? '').trim();
+
+  if (mode === 'to_technician') {
+    if (actor.role !== 'admin') redirect('/workshop/dashboard');
+
+    const technicianId = (formData.get('technicianId')?.toString() ?? '').trim();
+    if (!technicianId) redirect('/workshop/technicians?error=message_invalid');
+
+    const { data: technician } = await supabase
+      .from('profiles')
+      .select('id,role,workshop_account_id')
+      .eq('id', technicianId)
+      .eq('workshop_account_id', actor.workshop_account_id)
+      .maybeSingle();
+
+    if (!technician || technician.role !== 'technician') {
+      redirect('/workshop/technicians?error=message_invalid');
+    }
+
+    await adminSupabase.from('notifications').insert({
+      workshop_account_id: actor.workshop_account_id,
+      to_profile_id: technician.id,
+      kind: 'message',
+      title: `Message from ${actorName}`,
+      body,
+      href: '/workshop/technicians',
+      data: {
+        channel: 'staff_direct_message',
+        sender_profile_id: actor.id,
+        recipient_profile_id: technician.id,
+        thread_key: buildStaffThreadKey(actor.id, technician.id)
+      }
+    });
+  } else if (mode === 'to_workshop') {
+    if (actor.role !== 'technician') redirect('/workshop/dashboard');
+
+    const { data: admins } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('workshop_account_id', actor.workshop_account_id)
+      .eq('role', 'admin');
+
+    const adminRecipients = (admins ?? []).filter((recipient) => recipient.id !== actor.id);
+    if (!adminRecipients.length) redirect('/workshop/technicians?error=message_invalid');
+
+    await adminSupabase.from('notifications').insert(
+      adminRecipients.map((recipient) => ({
+        workshop_account_id: actor.workshop_account_id,
+        to_profile_id: recipient.id,
+        kind: 'message',
+        title: `Message from ${actorName}`,
+        body,
+        href: '/workshop/technicians',
+        data: {
+          channel: 'staff_direct_message',
+          sender_profile_id: actor.id,
+          recipient_profile_id: recipient.id,
+          thread_key: buildStaffThreadKey(actor.id, recipient.id)
+        }
+      }))
+    );
+  } else {
+    redirect('/workshop/technicians?error=message_invalid');
+  }
+
+  revalidatePath('/workshop/technicians');
+  redirect('/workshop/technicians?message=1');
 }
 
 async function removeTechnician(formData: FormData) {
@@ -426,6 +524,14 @@ export default async function WorkshopTechniciansPage({
     })
   );
 
+  const { data: staffDirectMessages } = await supabase
+    .from('notifications')
+    .select('id,to_profile_id,title,body,created_at,data')
+    .eq('workshop_account_id', workshopId)
+    .eq('kind', 'message')
+    .order('created_at', { ascending: false })
+    .limit(200);
+
   const params = await searchParams;
 
   return (
@@ -482,7 +588,7 @@ export default async function WorkshopTechniciansPage({
                     <p className="text-xs text-gray-500">{tech.jobCards} job cards • {tech.reportsMade} reports • {tech.uploads} uploads • {tech.inspectionReports} inspections • {tech.daysWorked} days worked</p>
                     <p className="mt-1 text-sm text-gray-700">Wages owed: <span className="font-semibold">{formatCurrency(tech.wagesOwed)}</span></p>
                     <p className="text-xs text-gray-500">Daily wage: {formatCurrency(tech.dailyWageCents)}</p>
-                    <Link href="/workshop/dashboard" className="text-xs font-semibold text-brand-red underline-offset-4 hover:underline">Open workshop timeline</Link>
+                    <Link href={`/workshop/technicians/${tech.id}/timeline`} className="text-xs font-semibold text-brand-red underline-offset-4 hover:underline">Open technician timeline</Link>
                   </div>
                   {profile.role === 'admin' ? (
                     <div className="flex min-w-80 flex-col gap-2">
@@ -514,12 +620,58 @@ export default async function WorkshopTechniciansPage({
                         <form key={pending.id} action={confirmTechnicianPayout} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-white px-3 py-2">
                           <input type="hidden" name="payoutId" value={pending.id} />
                           <p className="text-sm text-gray-700">{formatCurrency(pending.amount_cents)} paid on {new Date(pending.paid_at).toLocaleDateString('en-ZA')}</p>
-                          {profile.role === 'admin' || profile.id === tech.id ? <Button type="submit" size="sm">Confirm received</Button> : null}
+                          {profile.id === tech.id ? <Button type="submit" size="sm">Confirm received</Button> : null}
                         </form>
                       ))}
                     </div>
                   </div>
                 ) : null}
+
+                <div className="mt-3 rounded-xl border border-black/10 bg-slate-50 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-700">Staff messages</p>
+                  <div className="mt-2 space-y-1">
+                    {(staffDirectMessages ?? [])
+                      .filter((item) => {
+                        const data = (item.data ?? {}) as { channel?: string; thread_key?: string };
+                        if (data.channel !== 'staff_direct_message' || !data.thread_key) return false;
+                        return data.thread_key.includes(tech.id);
+                      })
+                      .slice(0, 3)
+                      .map((item) => (
+                        <div key={item.id} className="rounded-lg border border-black/10 bg-white px-3 py-2">
+                          <p className="text-xs font-semibold text-gray-700">{item.title}</p>
+                          <p className="text-xs text-gray-600">{item.body}</p>
+                        </div>
+                      ))}
+                  </div>
+
+                  {profile.role === 'admin' ? (
+                    <form action={sendStaffMessage} className="mt-3 flex flex-wrap gap-2">
+                      <input type="hidden" name="mode" value="to_technician" />
+                      <input type="hidden" name="technicianId" value={tech.id} />
+                      <input
+                        name="body"
+                        required
+                        className="min-w-52 flex-1 rounded-xl border border-black/15 px-3 py-2 text-xs"
+                        placeholder={`Message ${tech.name}`}
+                      />
+                      <Button type="submit" size="sm">Send message</Button>
+                    </form>
+                  ) : null}
+
+                  {profile.role === 'technician' && profile.id === tech.id ? (
+                    <form action={sendStaffMessage} className="mt-3 flex flex-wrap gap-2">
+                      <input type="hidden" name="mode" value="to_workshop" />
+                      <input
+                        name="body"
+                        required
+                        className="min-w-52 flex-1 rounded-xl border border-black/15 px-3 py-2 text-xs"
+                        placeholder="Message workshop admin"
+                      />
+                      <Button type="submit" size="sm">Message workshop</Button>
+                    </form>
+                  ) : null}
+                </div>
 
                 {profile.role === 'admin' ? (
                   <details className="mt-3">
