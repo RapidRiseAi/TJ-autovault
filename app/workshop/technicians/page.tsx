@@ -581,110 +581,119 @@ export default async function WorkshopTechniciansPage({
         {techSummaries.length ? (
           <div className="mt-4 space-y-4">
             {techSummaries.map((tech) => (
-              <div key={tech.id} className="rounded-2xl border border-black/10 bg-white p-4">
-                <div className="flex flex-wrap items-start justify-between gap-4">
+              <details key={tech.id} className="group rounded-2xl border border-black/10 bg-white p-4">
+                <summary className="flex cursor-pointer list-none flex-wrap items-start justify-between gap-4">
                   <div>
                     <p className="text-base font-semibold text-gray-900">{tech.name}</p>
                     <p className="text-xs text-gray-500">{tech.jobCards} job cards • {tech.reportsMade} reports • {tech.uploads} uploads • {tech.inspectionReports} inspections • {tech.daysWorked} days worked</p>
                     <p className="mt-1 text-sm text-gray-700">Wages owed: <span className="font-semibold">{formatCurrency(tech.wagesOwed)}</span></p>
-                    <p className="text-xs text-gray-500">Daily wage: {formatCurrency(tech.dailyWageCents)}</p>
-                    <Link href={`/workshop/technicians/${tech.id}/timeline`} className="text-xs font-semibold text-brand-red underline-offset-4 hover:underline">Open technician timeline</Link>
                   </div>
-                  {profile.role === 'admin' ? (
-                    <div className="flex min-w-80 flex-col gap-2">
-                      <form action={updateTechnicianComp} className="rounded-xl border border-black/10 p-3">
-                        <input type="hidden" name="technicianId" value={tech.id} />
-                        <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">Daily wage (ZAR)</label>
-                        <div className="flex gap-2">
-                          <input name="dailyWage" type="number" min="0" step="0.01" defaultValue={(tech.dailyWageCents / 100).toFixed(2)} className="w-full rounded-xl border border-black/15 px-3 py-2 text-sm" />
-                          <Button type="submit" size="sm">Save</Button>
-                        </div>
-                      </form>
-                      <form action={createTechnicianPayout} className="rounded-xl border border-black/10 p-3">
-                        <input type="hidden" name="technicianId" value={tech.id} />
-                        <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">Pay technician (requires proof)</label>
-                        <input name="amount" type="number" min="0.01" step="0.01" placeholder="Amount" className="mb-2 w-full rounded-xl border border-black/15 px-3 py-2 text-sm" />
-                        <input name="proof" type="file" required className="mb-2 w-full rounded-xl border border-black/15 px-3 py-2 text-xs" />
-                        <textarea name="notes" rows={2} placeholder="Optional internal note" className="mb-2 w-full rounded-xl border border-black/15 px-3 py-2 text-xs" />
-                        <Button type="submit" size="sm">Submit payment</Button>
-                      </form>
-                    </div>
-                  ) : null}
-                </div>
+                  <span className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-500 group-open:hidden">Expand</span>
+                  <span className="hidden text-xs font-semibold uppercase tracking-[0.12em] text-gray-500 group-open:block">Collapse</span>
+                </summary>
 
-                {tech.pendingPayouts.length ? (
-                  <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-800">Pending payout confirmations</p>
-                    <div className="mt-2 space-y-2">
-                      {tech.pendingPayouts.map((pending: { id: string; amount_cents: number; paid_at: string }) => (
-                        <form key={pending.id} action={confirmTechnicianPayout} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-white px-3 py-2">
-                          <input type="hidden" name="payoutId" value={pending.id} />
-                          <p className="text-sm text-gray-700">{formatCurrency(pending.amount_cents)} paid on {new Date(pending.paid_at).toLocaleDateString('en-ZA')}</p>
-                          {profile.id === tech.id ? <Button type="submit" size="sm">Confirm received</Button> : null}
+                <div className="mt-4 border-t border-black/10 pt-4">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs text-gray-500">Daily wage: {formatCurrency(tech.dailyWageCents)}</p>
+                      <Link href={`/workshop/technicians/${tech.id}/timeline`} className="text-xs font-semibold text-brand-red underline-offset-4 hover:underline">Open technician timeline</Link>
+                    </div>
+                    {profile.role === 'admin' ? (
+                      <div className="flex min-w-80 flex-col gap-2">
+                        <form action={updateTechnicianComp} className="rounded-xl border border-black/10 p-3">
+                          <input type="hidden" name="technicianId" value={tech.id} />
+                          <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">Daily wage (ZAR)</label>
+                          <div className="flex gap-2">
+                            <input name="dailyWage" type="number" min="0" step="0.01" defaultValue={(tech.dailyWageCents / 100).toFixed(2)} className="w-full rounded-xl border border-black/15 px-3 py-2 text-sm" />
+                            <Button type="submit" size="sm">Save</Button>
+                          </div>
                         </form>
-                      ))}
-                    </div>
+                        <form action={createTechnicianPayout} className="rounded-xl border border-black/10 p-3">
+                          <input type="hidden" name="technicianId" value={tech.id} />
+                          <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">Pay technician (requires proof)</label>
+                          <input name="amount" type="number" min="0.01" step="0.01" placeholder="Amount" className="mb-2 w-full rounded-xl border border-black/15 px-3 py-2 text-sm" />
+                          <input name="proof" type="file" required className="mb-2 w-full rounded-xl border border-black/15 px-3 py-2 text-xs" />
+                          <textarea name="notes" rows={2} placeholder="Optional internal note" className="mb-2 w-full rounded-xl border border-black/15 px-3 py-2 text-xs" />
+                          <Button type="submit" size="sm">Submit payment</Button>
+                        </form>
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
 
-                <div className="mt-3 rounded-xl border border-black/10 bg-slate-50 p-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-700">Staff messages</p>
-                  <div className="mt-2 space-y-1">
-                    {(staffDirectMessages ?? [])
-                      .filter((item) => {
-                        const data = (item.data ?? {}) as { channel?: string; thread_key?: string };
-                        if (data.channel !== 'staff_direct_message' || !data.thread_key) return false;
-                        return data.thread_key.includes(tech.id);
-                      })
-                      .slice(0, 3)
-                      .map((item) => (
-                        <div key={item.id} className="rounded-lg border border-black/10 bg-white px-3 py-2">
-                          <p className="text-xs font-semibold text-gray-700">{item.title}</p>
-                          <p className="text-xs text-gray-600">{item.body}</p>
-                        </div>
-                      ))}
+                  {tech.pendingPayouts.length ? (
+                    <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-800">Pending payout confirmations</p>
+                      <div className="mt-2 space-y-2">
+                        {tech.pendingPayouts.map((pending: { id: string; amount_cents: number; paid_at: string }) => (
+                          <form key={pending.id} action={confirmTechnicianPayout} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-white px-3 py-2">
+                            <input type="hidden" name="payoutId" value={pending.id} />
+                            <p className="text-sm text-gray-700">{formatCurrency(pending.amount_cents)} paid on {new Date(pending.paid_at).toLocaleDateString('en-ZA')}</p>
+                            {profile.id === tech.id ? <Button type="submit" size="sm">Confirm received</Button> : null}
+                          </form>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className="mt-3 rounded-xl border border-black/10 bg-slate-50 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-700">Staff messages</p>
+                    <div className="mt-2 space-y-1">
+                      {(staffDirectMessages ?? [])
+                        .filter((item) => {
+                          const data = (item.data ?? {}) as { channel?: string; thread_key?: string };
+                          if (data.channel !== 'staff_direct_message' || !data.thread_key) return false;
+                          return data.thread_key.includes(tech.id);
+                        })
+                        .slice(0, 3)
+                        .map((item) => (
+                          <div key={item.id} className="rounded-lg border border-black/10 bg-white px-3 py-2">
+                            <p className="text-xs font-semibold text-gray-700">{item.title}</p>
+                            <p className="text-xs text-gray-600">{item.body}</p>
+                          </div>
+                        ))}
+                    </div>
+
+                    {profile.role === 'admin' ? (
+                      <form action={sendStaffMessage} className="mt-3 flex flex-wrap gap-2">
+                        <input type="hidden" name="mode" value="to_technician" />
+                        <input type="hidden" name="technicianId" value={tech.id} />
+                        <input
+                          name="body"
+                          required
+                          className="min-w-52 flex-1 rounded-xl border border-black/15 px-3 py-2 text-xs"
+                          placeholder={`Message ${tech.name}`}
+                        />
+                        <Button type="submit" size="sm">Send message</Button>
+                      </form>
+                    ) : null}
+
+                    {profile.role === 'technician' && profile.id === tech.id ? (
+                      <form action={sendStaffMessage} className="mt-3 flex flex-wrap gap-2">
+                        <input type="hidden" name="mode" value="to_workshop" />
+                        <input
+                          name="body"
+                          required
+                          className="min-w-52 flex-1 rounded-xl border border-black/15 px-3 py-2 text-xs"
+                          placeholder="Message workshop admin"
+                        />
+                        <Button type="submit" size="sm">Message workshop</Button>
+                      </form>
+                    ) : null}
                   </div>
 
                   {profile.role === 'admin' ? (
-                    <form action={sendStaffMessage} className="mt-3 flex flex-wrap gap-2">
-                      <input type="hidden" name="mode" value="to_technician" />
-                      <input type="hidden" name="technicianId" value={tech.id} />
-                      <input
-                        name="body"
-                        required
-                        className="min-w-52 flex-1 rounded-xl border border-black/15 px-3 py-2 text-xs"
-                        placeholder={`Message ${tech.name}`}
-                      />
-                      <Button type="submit" size="sm">Send message</Button>
-                    </form>
-                  ) : null}
-
-                  {profile.role === 'technician' && profile.id === tech.id ? (
-                    <form action={sendStaffMessage} className="mt-3 flex flex-wrap gap-2">
-                      <input type="hidden" name="mode" value="to_workshop" />
-                      <input
-                        name="body"
-                        required
-                        className="min-w-52 flex-1 rounded-xl border border-black/15 px-3 py-2 text-xs"
-                        placeholder="Message workshop admin"
-                      />
-                      <Button type="submit" size="sm">Message workshop</Button>
-                    </form>
+                    <details className="mt-3">
+                      <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.12em] text-red-700">Remove technician</summary>
+                      <form action={removeTechnician} className="mt-2 space-y-2 rounded-xl border border-red-200 bg-red-50 p-3">
+                        <input type="hidden" name="technicianId" value={tech.id} />
+                        <textarea name="reason" required rows={3} className="w-full rounded-xl border border-black/15 px-3 py-2 text-xs" placeholder="Reason for removing this technician" />
+                        <input name="document" type="file" className="w-full rounded-xl border border-black/15 bg-white px-3 py-2 text-xs" />
+                        <Button type="submit" variant="destructive" size="sm">Confirm remove</Button>
+                      </form>
+                    </details>
                   ) : null}
                 </div>
-
-                {profile.role === 'admin' ? (
-                  <details className="mt-3">
-                    <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.12em] text-red-700">Remove technician</summary>
-                    <form action={removeTechnician} className="mt-2 space-y-2 rounded-xl border border-red-200 bg-red-50 p-3">
-                      <input type="hidden" name="technicianId" value={tech.id} />
-                      <textarea name="reason" required rows={3} className="w-full rounded-xl border border-black/15 px-3 py-2 text-xs" placeholder="Reason for removing this technician" />
-                      <input name="document" type="file" className="w-full rounded-xl border border-black/15 bg-white px-3 py-2 text-xs" />
-                      <Button type="submit" variant="destructive" size="sm">Confirm remove</Button>
-                    </form>
-                  </details>
-                ) : null}
-              </div>
+              </details>
             ))}
           </div>
         ) : (
