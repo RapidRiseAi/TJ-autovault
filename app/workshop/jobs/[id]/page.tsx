@@ -15,7 +15,7 @@ export default async function WorkshopJobCardPage({ params }: { params: Promise<
   const { data: profile } = await supabase.from('profiles').select('id,role,workshop_account_id').eq('id', auth.user.id).maybeSingle();
   if (!profile?.workshop_account_id) redirect('/customer/dashboard');
 
-  const [{ data: job }, events, updates, photos, parts, blockers, approvals, checklist] = await Promise.all([
+  const [{ data: job, error: jobError }, events, updates, photos, parts, blockers, approvals, checklist] = await Promise.all([
     supabase
       .from('job_cards')
       .select('id,vehicle_id,title,status,started_at,last_updated_at,completed_at,closed_at,is_locked,customer_summary,job_card_assignments(id,technician_user_id,profiles(display_name,full_name))')
@@ -31,6 +31,26 @@ export default async function WorkshopJobCardPage({ params }: { params: Promise<
     supabase.from('job_card_checklist_items').select('id,label,is_required,is_done,done_at').eq('job_card_id', id)
   ]);
 
+  console.error('[WorkshopJobCardPage] primary_query', {
+    jobCardId: id,
+    hasJob: Boolean(job),
+    jobError,
+    eventsError: events.error,
+    eventsCount: events.data?.length ?? null,
+    updatesError: updates.error,
+    updatesCount: updates.data?.length ?? null,
+    photosError: photos.error,
+    photosCount: photos.data?.length ?? null,
+    partsError: parts.error,
+    partsCount: parts.data?.length ?? null,
+    blockersError: blockers.error,
+    blockersCount: blockers.data?.length ?? null,
+    approvalsError: approvals.error,
+    approvalsCount: approvals.data?.length ?? null,
+    checklistError: checklist.error,
+    checklistCount: checklist.data?.length ?? null
+  });
+
   if (!job) return <main><Card><h1 className="text-lg font-semibold">Job not found</h1></Card></main>;
 
   if (job.status === 'closed') redirect(`/workshop/vehicles/${job.vehicle_id}`);
@@ -45,17 +65,31 @@ export default async function WorkshopJobCardPage({ params }: { params: Promise<
     .eq('workshop_id', profile.workshop_account_id)
     .maybeSingle();
 
+  console.error('[WorkshopJobCardPage] quote_linkage_query', {
+    jobCardId: id,
+    quoteLinkage,
+    quoteLinkageError
+  });
+
   if (!quoteLinkageError) {
     linkedQuoteId = (quoteLinkage as { quote_id: string | null } | null)?.quote_id ?? undefined;
   }
 
   if (linkedQuoteId) {
-    const { data: linkedQuote } = await supabase
+    const { data: linkedQuote, error: linkedQuoteError } = await supabase
       .from('quotes')
       .select('id,total_cents')
       .eq('id', linkedQuoteId)
       .eq('vehicle_id', job.vehicle_id)
       .maybeSingle();
+
+    console.error('[WorkshopJobCardPage] linked_quote_query', {
+      jobCardId: id,
+      linkedQuoteId,
+      linkedQuote,
+      linkedQuoteError
+    });
+
     linkedQuoteAmountCents = linkedQuote?.total_cents ?? undefined;
   }
 
