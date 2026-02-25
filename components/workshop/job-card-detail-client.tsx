@@ -150,6 +150,15 @@ export function JobCardDetailClient(props: {
     'checklist'
   ];
 
+  const openBlockers = props.blockers.filter((blocker) => !blocker.resolved_at).length;
+  const completionPct = Math.max(0, Math.min(100, ((props.statusProgress + 1) / 5) * 100));
+
+  function statusTone(status: string) {
+    if (['completed', 'closed'].includes(status)) return 'text-emerald-700 bg-emerald-100 border-emerald-200';
+    if (['ready', 'in_progress'].includes(status)) return 'text-brand-red bg-red-50 border-red-200';
+    return 'text-amber-700 bg-amber-100 border-amber-200';
+  }
+
   async function doAction(
     run: () => Promise<{ ok: boolean; error?: string }>,
     options?: { reloadOnSuccess?: boolean }
@@ -375,18 +384,13 @@ export function JobCardDetailClient(props: {
             </Button>
           ) : null}
         </div>
-        {props.isManager && unmetCloseRequirements.length ? (
-          <p className="mt-3 text-xs text-amber-700">
-            Close flow is blocked until required completion steps are done.
-          </p>
-        ) : null}
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 rounded-2xl border border-black/10 bg-white p-2 shadow-[0_4px_18px_rgba(17,17,17,0.04)]">
         {tabs.map((item) => (
           <button
             key={item}
-            className={`rounded-full border px-3 py-1 text-xs ${tab === item ? 'border-black bg-black text-white' : 'border-neutral-200 bg-white text-gray-600'}`}
+            className={`rounded-full border px-3 py-1 text-xs font-medium capitalize transition ${tab === item ? 'border-brand-red bg-brand-red text-white shadow-sm' : 'border-transparent bg-white text-gray-600 hover:border-black/10'}`}
             onClick={() => setTab(item)}
           >
             {item}
@@ -394,31 +398,54 @@ export function JobCardDetailClient(props: {
         ))}
       </div>
 
-      <div className="rounded-2xl border border-neutral-200 bg-white p-4 text-sm text-gray-700">
+      <div className="rounded-2xl border border-black/10 bg-white p-4 text-sm text-gray-700 shadow-[0_12px_28px_rgba(17,17,17,0.04)]">
         {tab === 'overview' ? (
-          <div className="space-y-2">
-            <p>Status: {formatJobCardStatus(props.status)}</p>
-            <p>Progress step: {props.statusProgress + 1} / 5</p>
-            <p>
-              Blockers open:{' '}
-              {props.blockers.filter((blocker) => !blocker.resolved_at).length}
-            </p>
-            <p>
-              Recent timeline:{' '}
-              {props.events
-                .slice(0, 5)
-                .map((event) => event.event_type)
-                .join(', ') || 'No events yet'}
-            </p>
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-xl border border-black/10 bg-white p-3">
+                <p className="text-xs text-neutral-500">Current status</p>
+                <p className="mt-1 font-semibold text-neutral-900">{formatJobCardStatus(props.status)}</p>
+              </div>
+              <div className="rounded-xl border border-black/10 bg-white p-3">
+                <p className="text-xs text-neutral-500">Progress</p>
+                <p className="mt-1 font-semibold text-neutral-900">{props.statusProgress + 1} of 5 steps</p>
+              </div>
+              <div className="rounded-xl border border-black/10 bg-white p-3">
+                <p className="text-xs text-neutral-500">Open blockers</p>
+                <p className="mt-1 font-semibold text-neutral-900">{openBlockers}</p>
+              </div>
+              <div className="rounded-xl border border-black/10 bg-white p-3">
+                <p className="text-xs text-neutral-500">Checklist done</p>
+                <p className="mt-1 font-semibold text-neutral-900">
+                  {props.checklist.filter((item) => item.is_done).length} / {props.checklist.length || 0}
+                </p>
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">Recent timeline</p>
+              {props.events.length ? (
+                <ul className="mt-2 space-y-2">
+                  {props.events.slice(0, 5).map((event) => (
+                    <li key={event.id} className="rounded-xl border border-black/10 bg-white px-3 py-2 text-sm text-neutral-700">
+                      <span className="font-medium text-neutral-900">{event.event_type.replaceAll('_', ' ')}</span>
+                      <span className="ml-2 text-xs text-neutral-500">{new Date(event.created_at).toLocaleString()}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-2 text-sm text-neutral-500">No events yet.</p>
+              )}
+            </div>
           </div>
         ) : null}
         {tab === 'photos' ? (
           <div className="space-y-2">
             {props.photos.length ? (
               props.photos.map((photo) => (
-                <p key={photo.id}>
-                  {photo.kind}: {photo.storage_path}
-                </p>
+                <div key={photo.id} className="rounded-xl border border-black/10 bg-white px-3 py-2">
+                  <p className="font-medium capitalize text-neutral-900">{photo.kind} photo</p>
+                  <p className="text-xs text-neutral-500">{photo.storage_path}</p>
+                </div>
               ))
             ) : (
               <p>No photos uploaded.</p>
@@ -440,9 +467,10 @@ export function JobCardDetailClient(props: {
           <div className="space-y-2">
             {props.events.length ? (
               props.events.map((event) => (
-                <p key={event.id}>
-                  {event.event_type}: {event.payload?.note ?? ''}
-                </p>
+                <div key={event.id} className="rounded-xl border border-black/10 bg-white px-3 py-2">
+                  <p className="font-medium text-neutral-900">{event.event_type.replaceAll('_', ' ')}</p>
+                  <p>{event.payload?.note ?? ''}</p>
+                </div>
               ))
             ) : (
               <p>No internal log yet.</p>
@@ -453,9 +481,10 @@ export function JobCardDetailClient(props: {
           <div className="space-y-2">
             {props.parts.length ? (
               props.parts.map((part) => (
-                <p key={part.id}>
-                  {part.name} × {part.qty} ({part.status})
-                </p>
+                <div key={part.id} className="rounded-xl border border-black/10 bg-white px-3 py-2">
+                  <p className="font-medium text-neutral-900">{part.name} × {part.qty}</p>
+                  <p className="text-xs capitalize text-neutral-600">{part.status}</p>
+                </div>
               ))
             ) : (
               <p>No parts yet.</p>
@@ -466,9 +495,10 @@ export function JobCardDetailClient(props: {
           <div className="space-y-2">
             {props.approvals.length ? (
               props.approvals.map((approval) => (
-                <p key={approval.id}>
-                  {approval.title} - {approval.status}
-                </p>
+                <div key={approval.id} className="rounded-xl border border-black/10 bg-white px-3 py-2">
+                  <p className="font-medium text-neutral-900">{approval.title}</p>
+                  <p className="text-xs capitalize text-neutral-600">{approval.status}</p>
+                </div>
               ))
             ) : (
               <p>No approvals yet.</p>
