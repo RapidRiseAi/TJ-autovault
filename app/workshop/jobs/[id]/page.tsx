@@ -95,28 +95,20 @@ export default async function WorkshopJobCardPage({ params }: { params: Promise<
 
   return (
     <main className="space-y-4">
-      <Card className="rounded-3xl border border-black/10 bg-gradient-to-br from-black via-[#151515] to-[#262626] p-6 text-white shadow-[0_20px_48px_rgba(0,0,0,0.28)]">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="space-y-1">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/65">Job card</p>
-            <h1 className="text-3xl font-semibold text-white">{job.title}</h1>
-            <p className="text-sm text-white/70">
-              Started {job.started_at ? new Date(job.started_at).toLocaleString() : 'Not started'} • Last updated{' '}
-              {new Date(job.last_updated_at).toLocaleString()}
-            </p>
+      <Card className="rounded-2xl border border-neutral-200 bg-white p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.14em] text-gray-500">Job card</p>
+            <h1 className="text-2xl font-semibold text-black">{job.title}</h1>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium text-white">
-              {formatJobCardStatus(job.status)}
-            </span>
-            <Button asChild size="sm" variant="secondary">
-              <Link href={`/workshop/vehicles/${job.vehicle_id}`}>Back to vehicle</Link>
-            </Button>
-          </div>
+          <Button asChild size="sm" variant="outline">
+            <Link href={`/workshop/vehicles/${job.vehicle_id}`}>Back to vehicle</Link>
+          </Button>
         </div>
+        <p className="text-sm text-gray-500">Status: {formatJobCardStatus(job.status)} • Started {job.started_at ? new Date(job.started_at).toLocaleString() : 'Not started'} • Last updated {new Date(job.last_updated_at).toLocaleString()}</p>
         <div className="mt-3 flex flex-wrap gap-2">
           {(job.job_card_assignments ?? []).map((assignment: { id: string; profiles: { display_name: string | null; full_name: string | null }[] | null }) => (
-            <span key={assignment.id} className="rounded-full border border-white/20 bg-white/10 px-2 py-1 text-xs text-white/90">{assignment.profiles?.[0]?.display_name ?? assignment.profiles?.[0]?.full_name ?? 'Technician'}</span>
+            <span key={assignment.id} className="rounded-full border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs">{assignment.profiles?.[0]?.display_name ?? assignment.profiles?.[0]?.full_name ?? 'Technician'}</span>
           ))}
         </div>
       </Card>
