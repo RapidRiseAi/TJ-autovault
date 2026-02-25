@@ -539,9 +539,7 @@ export default async function WorkshopVehiclePage({
                   description="This vehicle has an active job card. Open it to update progress and close the work."
                   icon={<Hammer className="h-4 w-4" />}
                   primary
-                  onClick={() => {
-                    window.location.href = `/workshop/jobs/${activeJob.id}`;
-                  }}
+                  href={`/workshop/jobs/${activeJob.id}`}
                 />
               )
             }
