@@ -79,7 +79,7 @@ export default async function WorkshopVehiclePage({
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role,workshop_account_id')
+    .select('id,role,workshop_account_id')
     .eq('id', user.id)
     .single();
   if (
@@ -562,6 +562,7 @@ export default async function WorkshopVehiclePage({
             pendingInvoiceQuoteId={pendingCloseQuote?.id}
             pendingInvoiceAmountCents={pendingCloseQuote?.totalCents}
             technicians={technicians}
+            currentProfileId={profile.id}
           />
         </div>
       </SectionCard>
