@@ -296,7 +296,7 @@ async function sendStaffMessage(formData: FormData) {
   } else if (mode === 'to_workshop') {
     if (actor.role !== 'technician') redirect('/workshop/dashboard');
 
-    const { data: admins } = await supabase
+    const { data: admins } = await adminSupabase
       .from('profiles')
       .select('id')
       .eq('workshop_account_id', actor.workshop_account_id)
