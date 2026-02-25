@@ -193,9 +193,10 @@ export default async function WorkshopVehiclePage({
       .limit(1)
       .maybeSingle(),
     supabase
-      .from('workshop_users')
-      .select('profile_id,profiles(display_name,full_name)')
+      .from('profiles')
+      .select('id,display_name,full_name')
       .eq('workshop_account_id', workshopId)
+      .in('role', ['admin', 'technician'])
   ]);
 
   if (activeJobResult.error) {
@@ -313,16 +314,12 @@ export default async function WorkshopVehiclePage({
       : null;
   const technicians = (techniciansResult.data ?? []).map(
     (row: {
-      profile_id: string;
-      profiles:
-        | { display_name: string | null; full_name: string | null }[]
-        | null;
+      id: string;
+      display_name: string | null;
+      full_name: string | null;
     }) => ({
-      id: row.profile_id,
-      name:
-        row.profiles?.[0]?.display_name ??
-        row.profiles?.[0]?.full_name ??
-        'Technician'
+      id: row.id,
+      name: row.display_name ?? row.full_name ?? 'Technician'
     })
   );
   const unpaidInvoiceCount = invoices.filter(

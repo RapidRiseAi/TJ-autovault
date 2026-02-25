@@ -8,6 +8,7 @@ const workshopLinks = [
   { href: '/workshop/dashboard', label: 'Dashboard' },
   { href: '/workshop/customers', label: 'Customers' },
   { href: '/workshop/work-requests', label: 'Work requests' },
+  { href: '/workshop/technicians', label: 'Technicians' },
   { href: '/workshop/vehicle-deletions', label: 'Vehicle deletions' },
   { href: '/workshop/notifications', label: 'Notifications' },
   { href: '/workshop/profile', label: 'Profile' }
