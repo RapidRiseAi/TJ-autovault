@@ -30,6 +30,7 @@ export const inspectionGenerateSchema = z.object({
   vehicleId: z.string().uuid(),
   templateId: z.string().uuid(),
   technicianProfileId: z.string().uuid(),
+  odometerKm: z.number().int().nonnegative(),
   notes: z.string().optional(),
   answers: z.record(z.string(), inspectionAnswerValueSchema)
 });

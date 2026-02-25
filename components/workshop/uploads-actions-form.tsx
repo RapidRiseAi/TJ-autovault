@@ -38,6 +38,7 @@ export function UploadsActionsForm({
   pendingCloseJobId,
   initialAmountCents,
   linkedQuoteId,
+  currentMileage,
   technicians = []
 }: {
   vehicleId: string;
@@ -48,6 +49,7 @@ export function UploadsActionsForm({
   pendingCloseJobId?: string;
   initialAmountCents?: number;
   linkedQuoteId?: string;
+  currentMileage: number;
   technicians?: Array<{ id: string; name: string }>;
 }) {
   const router = useRouter();
@@ -286,6 +288,7 @@ export function UploadsActionsForm({
       {isInspectionReport ? (
         <InspectionReportFormRenderer
           vehicleId={vehicleId}
+          currentMileage={currentMileage}
           technicians={technicians}
           onDone={() => {
             onSuccess?.();

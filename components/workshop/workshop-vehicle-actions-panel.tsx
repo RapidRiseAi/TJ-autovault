@@ -93,6 +93,7 @@ export function WorkshopVehicleActionsPanel({
           pendingCloseJobId={pendingCloseOnInvoiceJobId}
           linkedQuoteId={pendingInvoiceQuoteId}
           initialAmountCents={pendingInvoiceAmountCents}
+          currentMileage={currentMileage}
           technicians={technicians}
         />
       </Modal>
