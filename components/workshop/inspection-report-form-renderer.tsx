@@ -22,10 +22,12 @@ type TemplateRecord = {
 
 export function InspectionReportFormRenderer({
   vehicleId,
+  currentMileage,
   technicians,
   onDone
 }: {
   vehicleId: string;
+  currentMileage: number;
   technicians: Array<{ id: string; name: string }>;
   onDone?: () => void;
 }) {
@@ -41,6 +43,7 @@ export function InspectionReportFormRenderer({
   const [file, setFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [odometerKm, setOdometerKm] = useState<number>(currentMileage);
 
   async function loadTemplates() {
     setIsLoadingTemplates(true);
@@ -74,6 +77,16 @@ export function InspectionReportFormRenderer({
       return;
     }
 
+    if (!Number.isFinite(odometerKm)) {
+      setError('Mileage is required.');
+      return;
+    }
+
+    if (odometerKm < currentMileage) {
+      setError(`Mileage cannot be less than current mileage (${currentMileage.toLocaleString()} km).`);
+      return;
+    }
+
     if (mode === 'digital') {
       if (!templateId) {
         setError('Select a template first.');
@@ -98,6 +111,7 @@ export function InspectionReportFormRenderer({
             templateId,
             technicianProfileId,
             notes,
+            odometerKm,
             answers
           })
         });
@@ -162,6 +176,7 @@ export function InspectionReportFormRenderer({
           docType: 'inspection_report',
           subject: 'Inspection report',
           technicianProfileId,
+          odometerKm,
           reportId
         })
       });
@@ -326,6 +341,20 @@ export function InspectionReportFormRenderer({
           />
         </label>
       )}
+
+      <label className="block text-sm font-medium">
+        Updated mileage (km) <span className="text-red-600">*</span>
+        <input
+          type="number"
+          min={currentMileage}
+          required
+          className="mt-1 w-full rounded border p-2"
+          value={odometerKm}
+          onChange={(event) =>
+            setOdometerKm(event.target.value === '' ? Number.NaN : Number(event.target.value))
+          }
+        />
+      </label>
 
       <label className="block text-sm font-medium">
         Technician <span className="text-red-600">*</span>

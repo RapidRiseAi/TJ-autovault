@@ -108,6 +108,14 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  const currentMileage = vehicle.odometer_km ?? 0;
+  if (payload.odometerKm < currentMileage) {
+    return NextResponse.json(
+      { error: `Mileage cannot be less than current mileage (${currentMileage.toLocaleString()} km)` },
+      { status: 400 }
+    );
+  }
+
   const { data: report, error: reportError } = await supabase
     .from('inspection_reports')
     .insert({
@@ -126,6 +134,8 @@ export async function POST(request: NextRequest) {
   if (reportError || !report) {
     return NextResponse.json({ error: reportError?.message ?? 'Could not create report' }, { status: 400 });
   }
+
+  await supabase.from('vehicles').update({ odometer_km: payload.odometerKm }).eq('id', vehicle.id);
 
   const pdfDoc = await PDFDocument.create();
   let page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
@@ -149,7 +159,7 @@ export async function POST(request: NextRequest) {
   page.drawText(`Reg: ${vehicle.registration_number ?? '-'}`, { x: MARGIN + 10, y: cursorY - 18, size: 10, font: bold });
   page.drawText(`Make/Model: ${[vehicle.make, vehicle.model].filter(Boolean).join(' ') || '-'}`, { x: MARGIN + 10, y: cursorY - 34, size: 10, font });
   page.drawText(`VIN: ${vehicle.vin ?? '-'}`, { x: MARGIN + 10, y: cursorY - 50, size: 10, font });
-  page.drawText(`Mileage: ${vehicle.odometer_km ?? '-'} km`, { x: MARGIN + 280, y: cursorY - 18, size: 10, font });
+  page.drawText(`Mileage: ${payload.odometerKm} km`, { x: MARGIN + 280, y: cursorY - 18, size: 10, font });
   const customerName = (customer?.customer_accounts as { name?: string } | null)?.name ?? '-';
   page.drawText(`Customer: ${customerName}`, { x: MARGIN + 280, y: cursorY - 34, size: 10, font });
 

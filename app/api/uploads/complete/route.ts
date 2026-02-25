@@ -39,7 +39,8 @@ const requestSchema = z.object({
     .optional(),
   quoteId: z.string().uuid().optional(),
   technicianProfileId: z.string().uuid().optional(),
-  reportId: z.string().uuid().optional()
+  reportId: z.string().uuid().optional(),
+  odometerKm: z.number().int().nonnegative().optional()
 });
 
 function canonicalDocType(docType: z.infer<typeof requestSchema>['docType']) {
@@ -90,7 +91,7 @@ export async function POST(request: NextRequest) {
   const { data: vehicle } = await supabase
     .from('vehicles')
     .select(
-      'id,registration_number,workshop_account_id,current_customer_account_id'
+      'id,registration_number,workshop_account_id,current_customer_account_id,odometer_km'
     )
     .eq('id', payload.vehicleId)
     .maybeSingle();
@@ -184,6 +185,17 @@ export async function POST(request: NextRequest) {
     if (!payload.technicianProfileId) {
       return NextResponse.json({ error: 'Technician is required for inspection reports' }, { status: 400 });
     }
+    if (payload.odometerKm == null) {
+      return NextResponse.json({ error: 'Mileage is required for inspection reports' }, { status: 400 });
+    }
+
+    const currentMileage = vehicle.odometer_km ?? 0;
+    if (payload.odometerKm < currentMileage) {
+      return NextResponse.json(
+        { error: `Mileage cannot be less than current mileage (${currentMileage.toLocaleString()} km)` },
+        { status: 400 }
+      );
+    }
 
     const reportInsert: Record<string, unknown> = {
       workshop_account_id: vehicle.workshop_account_id,
@@ -197,6 +209,8 @@ export async function POST(request: NextRequest) {
     if (payload.reportId) reportInsert.id = payload.reportId;
 
     await supabase.from('inspection_reports').insert(reportInsert);
+
+    await supabase.from('vehicles').update({ odometer_km: payload.odometerKm }).eq('id', payload.vehicleId);
 
     await supabase.from('vehicle_timeline_events').insert({
       workshop_account_id: vehicle.workshop_account_id,
