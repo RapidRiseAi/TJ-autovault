@@ -102,13 +102,18 @@ async function updateTechnicianComp(formData: FormData) {
   if (!actor?.workshop_account_id || actor.role !== 'admin') redirect('/workshop/dashboard');
 
   const technicianId = (formData.get('technicianId')?.toString() ?? '').trim();
-  const dailyWage = Number(formData.get('dailyWage')?.toString() ?? '0');
+  const dailyWageInput = (formData.get('dailyWage')?.toString() ?? '').trim();
+  const normalizedDailyWage = dailyWageInput
+    .replace(/\s+/g, '')
+    .replace(/,/g, '.');
+  const dailyWage = Number(normalizedDailyWage || '0');
   if (!technicianId || !Number.isFinite(dailyWage) || dailyWage < 0) {
     redirect('/workshop/technicians?error=invalid_wage');
   }
 
   const cents = Math.round(dailyWage * 100);
-  const { error } = await supabase
+  const adminSupabase = createAdminClient();
+  const { error } = await adminSupabase
     .from('profiles')
     .update({ daily_wage_cents: cents })
     .eq('id', technicianId)
