@@ -36,6 +36,7 @@ export function InspectionReportFormRenderer({
   const [mode, setMode] = useState<'digital' | 'upload'>('digital');
   const [templates, setTemplates] = useState<TemplateRecord[]>([]);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
+  const [hasLoadedTemplates, setHasLoadedTemplates] = useState(false);
   const [templateId, setTemplateId] = useState('');
   const [answers, setAnswers] = useState<Record<string, string | number | boolean>>({});
   const [notes, setNotes] = useState('');
@@ -46,12 +47,14 @@ export function InspectionReportFormRenderer({
   const [odometerKm, setOdometerKm] = useState<number>(currentMileage);
 
   async function loadTemplates() {
+    if (isLoadingTemplates || hasLoadedTemplates) return;
     setIsLoadingTemplates(true);
     try {
       const response = await fetch('/api/workshop/inspection-templates');
       if (!response.ok) throw new Error('Could not load templates');
       const body = await response.json();
       setTemplates(body.templates ?? []);
+      setHasLoadedTemplates(true);
     } catch (templateError) {
       const message = templateError instanceof Error ? templateError.message : 'Could not load templates';
       setError(message);
@@ -229,9 +232,19 @@ export function InspectionReportFormRenderer({
                 onFocus={() => {
                   if (!templates.length) void loadTemplates();
                 }}
+                onMouseDown={() => {
+                  if (!templates.length) void loadTemplates();
+                }}
                 onChange={(event) => setTemplateId(event.target.value)}
               >
-                <option value="">Select template</option>
+                <option value="" disabled={isLoadingTemplates}>
+                  {isLoadingTemplates ? 'Loading templates…' : 'Select template'}
+                </option>
+                {!isLoadingTemplates && hasLoadedTemplates && !templates.length ? (
+                  <option value="" disabled>
+                    No templates available
+                  </option>
+                ) : null}
                 {templates.map((template) => (
                   <option key={template.id} value={template.id}>
                     {template.name}
