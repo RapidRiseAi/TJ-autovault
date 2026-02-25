@@ -39,7 +39,8 @@ export function UploadsActionsForm({
   initialAmountCents,
   linkedQuoteId,
   currentMileage,
-  technicians = []
+  technicians = [],
+  currentProfileId
 }: {
   vehicleId: string;
   onSuccess?: () => void;
@@ -51,6 +52,7 @@ export function UploadsActionsForm({
   linkedQuoteId?: string;
   currentMileage: number;
   technicians?: Array<{ id: string; name: string }>;
+  currentProfileId?: string;
 }) {
   const router = useRouter();
   const { pushToast } = useToast();
@@ -290,6 +292,7 @@ export function UploadsActionsForm({
           vehicleId={vehicleId}
           currentMileage={currentMileage}
           technicians={technicians}
+          currentProfileId={currentProfileId}
           onDone={() => {
             onSuccess?.();
             router.refresh();

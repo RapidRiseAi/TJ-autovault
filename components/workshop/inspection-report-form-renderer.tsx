@@ -24,11 +24,13 @@ export function InspectionReportFormRenderer({
   vehicleId,
   currentMileage,
   technicians,
+  currentProfileId,
   onDone
 }: {
   vehicleId: string;
   currentMileage: number;
   technicians: Array<{ id: string; name: string }>;
+  currentProfileId?: string;
   onDone?: () => void;
 }) {
   const router = useRouter();
@@ -40,7 +42,7 @@ export function InspectionReportFormRenderer({
   const [templateId, setTemplateId] = useState('');
   const [answers, setAnswers] = useState<Record<string, string | number | boolean>>({});
   const [notes, setNotes] = useState('');
-  const [technicianProfileId, setTechnicianProfileId] = useState('');
+  const [technicianProfileId, setTechnicianProfileId] = useState(currentProfileId ?? '');
   const [file, setFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -377,11 +379,14 @@ export function InspectionReportFormRenderer({
           onChange={(event) => setTechnicianProfileId(event.target.value)}
         >
           <option value="">Select technician</option>
-          {technicians.map((technician) => (
-            <option key={technician.id} value={technician.id}>
-              {technician.name}
-            </option>
-          ))}
+          {currentProfileId ? <option value={currentProfileId}>Me (use my signature)</option> : null}
+          {technicians
+            .filter((technician) => technician.id !== currentProfileId)
+            .map((technician) => (
+              <option key={technician.id} value={technician.id}>
+                {technician.name}
+              </option>
+            ))}
         </select>
       </label>
 

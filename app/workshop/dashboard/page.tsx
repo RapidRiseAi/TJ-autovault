@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { AlertTriangle, Car, CheckCircle2, UserRound } from 'lucide-react';
 import { HeroHeader } from '@/components/layout/hero-header';
@@ -37,6 +38,56 @@ function getVehicleDisplayName(vehicle: { make: string | null; model: string | n
   return displayName || vehicle.registration_number;
 }
 
+
+function getSouthAfricaDateIso() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Africa/Johannesburg',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(new Date());
+  const year = parts.find((part) => part.type === 'year')?.value ?? '0000';
+  const month = parts.find((part) => part.type === 'month')?.value ?? '01';
+  const day = parts.find((part) => part.type === 'day')?.value ?? '01';
+  return `${year}-${month}-${day}`;
+}
+
+async function submitTechnicianClockIn(formData: FormData) {
+  'use server';
+  const supabase = await createClient();
+  const user = (await supabase.auth.getUser()).data.user;
+  if (!user) redirect('/login');
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('id,role,workshop_account_id')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (!profile?.workshop_account_id || profile.role !== 'technician') {
+    redirect('/workshop/dashboard');
+  }
+
+  const answer = (formData.get('clockedIn')?.toString() ?? '').trim();
+  if (answer !== 'yes' && answer !== 'no') redirect('/workshop/dashboard');
+
+  const workedOn = getSouthAfricaDateIso();
+  await supabase.from('technician_attendance').upsert(
+    {
+      workshop_account_id: profile.workshop_account_id,
+      technician_profile_id: profile.id,
+      worked_on: workedOn,
+      clocked_in: answer === 'yes',
+      created_by: profile.id
+    },
+    { onConflict: 'technician_profile_id,worked_on' }
+  );
+
+  revalidatePath('/workshop/dashboard');
+  revalidatePath('/workshop/technicians');
+  redirect('/workshop/dashboard?clocked=1');
+}
+
 function formatDate(value: string) {
   if (!value) return 'Unknown date';
   return new Date(value).toLocaleDateString('en-ZA', {
@@ -46,14 +97,14 @@ function formatDate(value: string) {
   });
 }
 
-export default async function WorkshopDashboardPage() {
+export default async function WorkshopDashboardPage({ searchParams }: { searchParams?: Promise<{ clocked?: string }> }) {
   const supabase = await createClient();
   const user = (await supabase.auth.getUser()).data.user;
   if (!user) redirect('/login');
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role,workshop_account_id')
+    .select('id,role,workshop_account_id')
     .eq('id', user.id)
     .single();
   if (!profile?.workshop_account_id || (profile.role !== 'admin' && profile.role !== 'technician')) {
@@ -61,6 +112,17 @@ export default async function WorkshopDashboardPage() {
   }
 
   const workshopId = profile.workshop_account_id;
+  const todaySa = getSouthAfricaDateIso();
+  const { data: todaysAttendance } = profile.role === 'technician'
+    ? await supabase
+        .from('technician_attendance')
+        .select('id,clocked_in')
+        .eq('workshop_account_id', workshopId)
+        .eq('technician_profile_id', profile.id)
+        .eq('worked_on', todaySa)
+        .maybeSingle()
+    : { data: null };
+  const params = searchParams ? await searchParams : undefined;
   const [
     { count: vehicles },
     { count: openRequests },
@@ -150,6 +212,21 @@ export default async function WorkshopDashboardPage() {
           </div>
         }
       />
+
+      {profile.role === 'technician' && !todaysAttendance ? (
+        <SectionCard className="rounded-3xl border border-amber-200 bg-amber-50 p-5">
+          <h2 className="text-base font-semibold text-amber-900">Clock in for today</h2>
+          <p className="mt-1 text-sm text-amber-800">Are you clocking in for work today? This updates days worked and technician pay owed.</p>
+          <form action={submitTechnicianClockIn} className="mt-3 flex gap-2">
+            <button type="submit" name="clockedIn" value="yes" className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">Yes, clock me in</button>
+            <button type="submit" name="clockedIn" value="no" className="rounded-xl border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-900">No, not today</button>
+          </form>
+        </SectionCard>
+      ) : null}
+
+      {params?.clocked === '1' ? (
+        <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">Clock-in response saved for today.</p>
+      ) : null}
 
       <section className="grid gap-4 xl:grid-cols-3">
         <article className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-[0_14px_30px_rgba(17,17,17,0.08)]">

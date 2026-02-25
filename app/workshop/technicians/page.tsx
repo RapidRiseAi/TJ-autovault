@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { PageHeader } from '@/components/layout/page-header';
@@ -83,6 +84,146 @@ async function createTechnician(formData: FormData) {
   revalidatePath('/workshop/technicians');
   revalidatePath('/workshop/workshop/vehicles');
   redirect('/workshop/technicians?created=1');
+}
+
+async function updateTechnicianComp(formData: FormData) {
+  'use server';
+
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) redirect('/login');
+
+  const { data: actor } = await supabase
+    .from('profiles')
+    .select('role,workshop_account_id')
+    .eq('id', auth.user.id)
+    .maybeSingle();
+
+  if (!actor?.workshop_account_id || actor.role !== 'admin') redirect('/workshop/dashboard');
+
+  const technicianId = (formData.get('technicianId')?.toString() ?? '').trim();
+  const dailyWage = Number(formData.get('dailyWage')?.toString() ?? '0');
+  if (!technicianId || !Number.isFinite(dailyWage) || dailyWage < 0) {
+    redirect('/workshop/technicians?error=invalid_wage');
+  }
+
+  const cents = Math.round(dailyWage * 100);
+  const { error } = await supabase
+    .from('profiles')
+    .update({ daily_wage_cents: cents })
+    .eq('id', technicianId)
+    .eq('role', 'technician')
+    .eq('workshop_account_id', actor.workshop_account_id);
+
+  if (error) redirect('/workshop/technicians?error=invalid_wage');
+
+  revalidatePath('/workshop/technicians');
+  redirect('/workshop/technicians?updated=1');
+}
+
+async function createTechnicianPayout(formData: FormData) {
+  'use server';
+
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) redirect('/login');
+
+  const { data: actor } = await supabase
+    .from('profiles')
+    .select('id,role,workshop_account_id')
+    .eq('id', auth.user.id)
+    .maybeSingle();
+
+  if (!actor?.workshop_account_id || actor.role !== 'admin') redirect('/workshop/dashboard');
+
+  const technicianId = (formData.get('technicianId')?.toString() ?? '').trim();
+  const amount = Number(formData.get('amount')?.toString() ?? '0');
+  const notes = (formData.get('notes')?.toString() ?? '').trim();
+  const proof = formData.get('proof');
+
+  if (!technicianId || !Number.isFinite(amount) || amount <= 0 || !(proof instanceof File) || proof.size <= 0) {
+    redirect('/workshop/technicians?error=payout_invalid');
+  }
+
+  const adminSupabase = createAdminClient();
+  const safeName = sanitizeFileName(proof.name || 'payment-proof');
+  const proofPath = `technician-payouts/${actor.workshop_account_id}/${technicianId}/${Date.now()}-${safeName}`;
+  const upload = await adminSupabase.storage.from('private-images').upload(proofPath, proof, {
+    cacheControl: '3600',
+    contentType: proof.type || undefined,
+    upsert: false
+  });
+
+  if (upload.error) redirect('/workshop/technicians?error=payout_upload_failed');
+
+  const amountCents = Math.round(amount * 100);
+  const { error: payoutError } = await supabase.from('technician_payouts').insert({
+    workshop_account_id: actor.workshop_account_id,
+    technician_profile_id: technicianId,
+    amount_cents: amountCents,
+    proof_bucket: 'private-images',
+    proof_path: proofPath,
+    notes: notes || null,
+    created_by: actor.id
+  });
+
+  if (payoutError) redirect('/workshop/technicians?error=payout_failed');
+
+  await supabase.from('notifications').insert({
+    workshop_account_id: actor.workshop_account_id,
+    to_profile_id: technicianId,
+    kind: 'system',
+    title: 'Technician payment submitted',
+    body: `A payment of ${formatCurrency(amountCents)} was submitted and is waiting for your confirmation.`,
+    href: '/workshop/technicians'
+  });
+
+  revalidatePath('/workshop/technicians');
+  redirect('/workshop/technicians?payout=1');
+}
+
+async function confirmTechnicianPayout(formData: FormData) {
+  'use server';
+
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) redirect('/login');
+
+  const payoutId = (formData.get('payoutId')?.toString() ?? '').trim();
+  if (!payoutId) redirect('/workshop/technicians?error=payout_confirm_failed');
+
+  const { data: actor } = await supabase
+    .from('profiles')
+    .select('id,role,workshop_account_id')
+    .eq('id', auth.user.id)
+    .maybeSingle();
+
+  if (!actor?.workshop_account_id) redirect('/workshop/dashboard');
+
+  const { data: payout } = await supabase
+    .from('technician_payouts')
+    .select('id,technician_profile_id,workshop_account_id,status')
+    .eq('id', payoutId)
+    .eq('workshop_account_id', actor.workshop_account_id)
+    .maybeSingle();
+
+  if (!payout || payout.status !== 'pending_confirmation') {
+    redirect('/workshop/technicians?error=payout_confirm_failed');
+  }
+
+  if (actor.role !== 'admin' && payout.technician_profile_id !== actor.id) {
+    redirect('/workshop/dashboard');
+  }
+
+  const { error } = await supabase
+    .from('technician_payouts')
+    .update({ status: 'confirmed', confirmed_at: new Date().toISOString(), confirmed_by: actor.id })
+    .eq('id', payout.id);
+
+  if (error) redirect('/workshop/technicians?error=payout_confirm_failed');
+
+  revalidatePath('/workshop/technicians');
+  redirect('/workshop/technicians?payout_confirmed=1');
 }
 
 async function removeTechnician(formData: FormData) {
@@ -179,7 +320,7 @@ async function removeTechnician(formData: FormData) {
 export default async function WorkshopTechniciansPage({
   searchParams
 }: {
-  searchParams: Promise<{ created?: string; removed?: string; error?: string }>;
+  searchParams: Promise<{ created?: string; removed?: string; updated?: string; payout?: string; payout_confirmed?: string; error?: string }>;
 }) {
   const supabase = await createClient();
   const user = (await supabase.auth.getUser()).data.user;
@@ -201,227 +342,196 @@ export default async function WorkshopTechniciansPage({
   const workshopId = profile.workshop_account_id;
   const { data: techniciansRaw } = await supabase
     .from('profiles')
-    .select('id,display_name,full_name,created_at')
+    .select('id,display_name,full_name,created_at,daily_wage_cents')
     .eq('workshop_account_id', workshopId)
     .eq('role', 'technician')
     .order('created_at', { ascending: true });
 
   const technicians = techniciansRaw ?? [];
-  const reportCounts = await Promise.all(
+
+  const techSummaries = await Promise.all(
     technicians.map(async (tech) => {
-      const { count } = await supabase
-        .from('inspection_reports')
-        .select('id', { count: 'exact', head: true })
-        .eq('workshop_account_id', workshopId)
-        .eq('technician_profile_id', tech.id);
+      const [
+        inspection,
+        jobs,
+        reports,
+        uploads,
+        attendance,
+        payouts,
+        pendingPayouts
+      ] = await Promise.all([
+        supabase
+          .from('inspection_reports')
+          .select('id', { count: 'exact', head: true })
+          .eq('workshop_account_id', workshopId)
+          .eq('technician_profile_id', tech.id),
+        supabase
+          .from('job_card_assignments')
+          .select('id,job_cards!inner(workshop_id)', { count: 'exact', head: true })
+          .eq('technician_user_id', tech.id)
+          .eq('job_cards.workshop_id', workshopId),
+        supabase
+          .from('job_card_events')
+          .select('id,job_cards!inner(workshop_id)', { count: 'exact', head: true })
+          .eq('created_by', tech.id)
+          .eq('job_cards.workshop_id', workshopId),
+        supabase
+          .from('job_card_photos')
+          .select('id,job_cards!inner(workshop_id)', { count: 'exact', head: true })
+          .eq('uploaded_by', tech.id)
+          .eq('job_cards.workshop_id', workshopId),
+        supabase
+          .from('technician_attendance')
+          .select('id', { count: 'exact', head: true })
+          .eq('workshop_account_id', workshopId)
+          .eq('technician_profile_id', tech.id)
+          .eq('clocked_in', true),
+        supabase
+          .from('technician_payouts')
+          .select('amount_cents,status')
+          .eq('workshop_account_id', workshopId)
+          .eq('technician_profile_id', tech.id),
+        supabase
+          .from('technician_payouts')
+          .select('id,amount_cents,paid_at,status')
+          .eq('workshop_account_id', workshopId)
+          .eq('technician_profile_id', tech.id)
+          .eq('status', 'pending_confirmation')
+          .order('paid_at', { ascending: false })
+      ]);
+
+      const daysWorked = attendance.count ?? 0;
+      const confirmedPaid = (payouts.data ?? [])
+        .filter((item) => item.status === 'confirmed')
+        .reduce((sum, item) => sum + (item.amount_cents ?? 0), 0);
+      const wagesOwed = Math.max(daysWorked * (tech.daily_wage_cents ?? 0) - confirmedPaid, 0);
+
       return {
-        technicianId: tech.id,
-        inspectionReports: count ?? 0
+        id: tech.id,
+        name: tech.display_name ?? tech.full_name ?? 'Technician',
+        dailyWageCents: tech.daily_wage_cents ?? 0,
+        inspectionReports: inspection.count ?? 0,
+        jobCards: jobs.count ?? 0,
+        reportsMade: reports.count ?? 0,
+        uploads: uploads.count ?? 0,
+        daysWorked,
+        wagesOwed,
+        pendingPayouts: pendingPayouts.data ?? []
       };
     })
   );
 
-  const reportCountByTechnician = new Map(
-    reportCounts.map((item) => [item.technicianId, item.inspectionReports])
-  );
-
   const params = await searchParams;
-  const created = params.created === '1';
-  const removed = params.removed === '1';
-  const error = params.error;
 
   return (
     <main className="space-y-4">
       <PageHeader
         title="Technicians"
-        subtitle="Add technician logins so they can be selected when uploading inspection reports."
+        subtitle="Manage technicians, pay rates, history and payout confirmations."
       />
 
-      {created ? (
-        <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-          Technician added successfully.
-        </p>
-      ) : null}
-      {removed ? (
-        <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-          Technician removed successfully.
-        </p>
-      ) : null}
-      {error ? (
+      {params.created === '1' ? <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">Technician added successfully.</p> : null}
+      {params.updated === '1' ? <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">Technician pay details saved.</p> : null}
+      {params.payout === '1' ? <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">Payment submitted. Technician must confirm receipt.</p> : null}
+      {params.payout_confirmed === '1' ? <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">Payment confirmation recorded.</p> : null}
+      {params.removed === '1' ? <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">Technician removed successfully.</p> : null}
+      {params.error ? (
         <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error === 'invalid_input'
+          {params.error === 'invalid_input'
             ? 'Please enter a name, a valid email and a password with at least 8 characters.'
-            : error === 'email_exists'
-              ? 'That email is already in use. Try another one.'
-              : error === 'remove_invalid_input'
-                ? 'Provide a reason before removing this technician.'
-                : error === 'remove_not_found'
-                  ? 'Could not find that technician. Refresh the page and try again.'
-                  : error === 'remove_document_upload_failed'
-                    ? 'Could not upload your supporting document. Please try again.'
-                    : error === 'remove_failed'
-                      ? 'Could not remove technician right now. Please try again.'
-              : 'Could not create technician right now. Please try again.'}
+            : params.error === 'invalid_wage'
+              ? 'Could not save daily wage. Enter a valid amount.'
+              : params.error === 'payout_invalid'
+                ? 'Enter a valid payment amount and upload proof of payment.'
+                : params.error === 'payout_upload_failed'
+                  ? 'Could not upload proof of payment.'
+                  : params.error === 'payout_failed'
+                    ? 'Could not submit payment.'
+                    : params.error === 'payout_confirm_failed'
+                      ? 'Could not confirm this payment right now.'
+                      : 'Could not complete that action right now.'}
         </p>
       ) : null}
 
       {profile.role === 'admin' ? (
         <SectionCard className="rounded-3xl p-6">
-          <h2 className="text-base font-semibold text-gray-900">
-            Add technician
-          </h2>
-          <p className="mt-1 text-sm text-gray-600">
-            This creates a login account and links it to your workshop.
-          </p>
-          <form
-            action={createTechnician}
-            className="mt-4 grid gap-4 md:grid-cols-3"
-          >
-            <div>
-              <label
-                htmlFor="displayName"
-                className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500"
-              >
-                Name
-              </label>
-              <input
-                id="displayName"
-                name="displayName"
-                required
-                className="w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm"
-                placeholder="Technician name"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="email"
-                className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500"
-              >
-                Email
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                required
-                className="w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm"
-                placeholder="tech@workshop.com"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="password"
-                className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500"
-              >
-                Temporary password
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                minLength={8}
-                required
-                className="w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm"
-                placeholder="Minimum 8 characters"
-              />
-            </div>
-            <div className="md:col-span-3">
-              <Button type="submit">Create technician</Button>
-            </div>
+          <h2 className="text-base font-semibold text-gray-900">Add technician</h2>
+          <form action={createTechnician} className="mt-4 grid gap-4 md:grid-cols-3">
+            <input name="displayName" required className="w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm" placeholder="Technician name" />
+            <input name="email" type="email" required className="w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm" placeholder="tech@workshop.com" />
+            <input name="password" type="password" minLength={8} required className="w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm" placeholder="Temporary password" />
+            <div className="md:col-span-3"><Button type="submit">Create technician</Button></div>
           </form>
         </SectionCard>
       ) : null}
 
       <SectionCard className="rounded-3xl p-6">
-        <h2 className="text-base font-semibold text-gray-900">Team</h2>
-        <p className="mt-1 text-sm text-gray-600">
-          Work summary and wages owed can be expanded later. Current view shows
-          inspection report activity.
-        </p>
-
-        {technicians.length ? (
-          <div className="mt-4 overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-[0.13em] text-gray-500">
-                  <th className="py-2 pr-4">Technician</th>
-                  <th className="py-2 pr-4">Inspection reports</th>
-                  <th className="py-2 pr-4">Wages owed</th>
+        <h2 className="text-base font-semibold text-gray-900">Team and history</h2>
+        {techSummaries.length ? (
+          <div className="mt-4 space-y-4">
+            {techSummaries.map((tech) => (
+              <div key={tech.id} className="rounded-2xl border border-black/10 bg-white p-4">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <p className="text-base font-semibold text-gray-900">{tech.name}</p>
+                    <p className="text-xs text-gray-500">{tech.jobCards} job cards • {tech.reportsMade} reports • {tech.uploads} uploads • {tech.inspectionReports} inspections • {tech.daysWorked} days worked</p>
+                    <p className="mt-1 text-sm text-gray-700">Wages owed: <span className="font-semibold">{formatCurrency(tech.wagesOwed)}</span></p>
+                    <p className="text-xs text-gray-500">Daily wage: {formatCurrency(tech.dailyWageCents)}</p>
+                    <Link href="/workshop/dashboard" className="text-xs font-semibold text-brand-red underline-offset-4 hover:underline">Open workshop timeline</Link>
+                  </div>
                   {profile.role === 'admin' ? (
-                    <th className="py-2 pr-4">Actions</th>
+                    <div className="flex min-w-80 flex-col gap-2">
+                      <form action={updateTechnicianComp} className="rounded-xl border border-black/10 p-3">
+                        <input type="hidden" name="technicianId" value={tech.id} />
+                        <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">Daily wage (ZAR)</label>
+                        <div className="flex gap-2">
+                          <input name="dailyWage" type="number" min="0" step="0.01" defaultValue={(tech.dailyWageCents / 100).toFixed(2)} className="w-full rounded-xl border border-black/15 px-3 py-2 text-sm" />
+                          <Button type="submit" size="sm">Save</Button>
+                        </div>
+                      </form>
+                      <form action={createTechnicianPayout} className="rounded-xl border border-black/10 p-3">
+                        <input type="hidden" name="technicianId" value={tech.id} />
+                        <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">Pay technician (requires proof)</label>
+                        <input name="amount" type="number" min="0.01" step="0.01" placeholder="Amount" className="mb-2 w-full rounded-xl border border-black/15 px-3 py-2 text-sm" />
+                        <input name="proof" type="file" required className="mb-2 w-full rounded-xl border border-black/15 px-3 py-2 text-xs" />
+                        <textarea name="notes" rows={2} placeholder="Optional internal note" className="mb-2 w-full rounded-xl border border-black/15 px-3 py-2 text-xs" />
+                        <Button type="submit" size="sm">Submit payment</Button>
+                      </form>
+                    </div>
                   ) : null}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {technicians.map((tech) => (
-                  <tr key={tech.id}>
-                    <td className="py-2 pr-4 font-medium text-gray-900">
-                      {tech.display_name ?? tech.full_name ?? 'Technician'}
-                    </td>
-                    <td className="py-2 pr-4 text-gray-700">
-                      {reportCountByTechnician.get(tech.id) ?? 0}
-                    </td>
-                    <td className="py-2 pr-4 text-gray-700">
-                      {formatCurrency(0)}
-                    </td>
-                    {profile.role === 'admin' ? (
-                      <td className="py-2 pr-4 text-gray-700">
-                        <details>
-                          <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.12em] text-red-700">
-                            Remove
-                          </summary>
-                          <form action={removeTechnician} className="mt-2 space-y-2">
-                            <input
-                              type="hidden"
-                              name="technicianId"
-                              value={tech.id}
-                            />
-                            <div>
-                              <label
-                                htmlFor={`reason-${tech.id}`}
-                                className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-gray-500"
-                              >
-                                Reason
-                              </label>
-                              <textarea
-                                id={`reason-${tech.id}`}
-                                name="reason"
-                                required
-                                rows={3}
-                                className="w-full min-w-60 rounded-xl border border-black/15 px-3 py-2 text-xs"
-                                placeholder="Reason for removing this technician"
-                              />
-                            </div>
-                            <div>
-                              <label
-                                htmlFor={`document-${tech.id}`}
-                                className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-gray-500"
-                              >
-                                Supporting document (optional)
-                              </label>
-                              <input
-                                id={`document-${tech.id}`}
-                                name="document"
-                                type="file"
-                                className="w-full min-w-60 rounded-xl border border-black/15 bg-white px-3 py-2 text-xs"
-                              />
-                            </div>
-                            <Button type="submit" variant="destructive" size="sm">
-                              Confirm remove
-                            </Button>
-                          </form>
-                        </details>
-                      </td>
-                    ) : null}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                </div>
+
+                {tech.pendingPayouts.length ? (
+                  <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-800">Pending payout confirmations</p>
+                    <div className="mt-2 space-y-2">
+                      {tech.pendingPayouts.map((pending: { id: string; amount_cents: number; paid_at: string }) => (
+                        <form key={pending.id} action={confirmTechnicianPayout} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-white px-3 py-2">
+                          <input type="hidden" name="payoutId" value={pending.id} />
+                          <p className="text-sm text-gray-700">{formatCurrency(pending.amount_cents)} paid on {new Date(pending.paid_at).toLocaleDateString('en-ZA')}</p>
+                          {profile.role === 'admin' || profile.id === tech.id ? <Button type="submit" size="sm">Confirm received</Button> : null}
+                        </form>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {profile.role === 'admin' ? (
+                  <details className="mt-3">
+                    <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.12em] text-red-700">Remove technician</summary>
+                    <form action={removeTechnician} className="mt-2 space-y-2 rounded-xl border border-red-200 bg-red-50 p-3">
+                      <input type="hidden" name="technicianId" value={tech.id} />
+                      <textarea name="reason" required rows={3} className="w-full rounded-xl border border-black/15 px-3 py-2 text-xs" placeholder="Reason for removing this technician" />
+                      <input name="document" type="file" className="w-full rounded-xl border border-black/15 bg-white px-3 py-2 text-xs" />
+                      <Button type="submit" variant="destructive" size="sm">Confirm remove</Button>
+                    </form>
+                  </details>
+                ) : null}
+              </div>
+            ))}
           </div>
         ) : (
-          <p className="mt-4 text-sm text-gray-600">
-            No technicians yet. Add your first technician above.
-          </p>
+          <p className="mt-4 text-sm text-gray-600">No technicians yet. Add your first technician above.</p>
         )}
       </SectionCard>
     </main>
