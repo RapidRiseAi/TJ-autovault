@@ -64,7 +64,7 @@ export default async function VehicleDocumentsPage({ params }: { params: Promise
     <main className="space-y-4">
       <PageHeader title="Documents" subtitle={`${vehicle.registration_number} · Organized by type`} actions={<Button asChild variant="secondary" size="sm"><Link href={customerVehicle(vehicleId)}>Back to vehicle</Link></Button>} />
       {!docs.length ? <EmptyState title="No documents yet" description="Your workshop has not uploaded documents for this vehicle yet." /> : null}
-      <VehicleDocumentsGroups groups={groups} />
+      <VehicleDocumentsGroups groups={groups} customerMode />
     </main>
   );
 }

@@ -37,7 +37,9 @@ const requestSchema = z.object({
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
-  quoteId: z.string().uuid().optional()
+  quoteId: z.string().uuid().optional(),
+  technicianProfileId: z.string().uuid().optional(),
+  reportId: z.string().uuid().optional()
 });
 
 function canonicalDocType(docType: z.infer<typeof requestSchema>['docType']) {
@@ -176,6 +178,42 @@ export async function POST(request: NextRequest) {
         vehicle_image_doc_id: doc.id
       })
       .eq('id', payload.vehicleId);
+  }
+
+  if (payload.docType === 'inspection_report') {
+    if (!payload.technicianProfileId) {
+      return NextResponse.json({ error: 'Technician is required for inspection reports' }, { status: 400 });
+    }
+
+    const reportInsert: Record<string, unknown> = {
+      workshop_account_id: vehicle.workshop_account_id,
+      vehicle_id: payload.vehicleId,
+      mode: 'upload',
+      technician_profile_id: payload.technicianProfileId,
+      notes: payload.body || null,
+      uploaded_storage_path: payload.path,
+      created_by: user.id
+    };
+    if (payload.reportId) reportInsert.id = payload.reportId;
+
+    await supabase.from('inspection_reports').insert(reportInsert);
+
+    await supabase.from('vehicle_timeline_events').insert({
+      workshop_account_id: vehicle.workshop_account_id,
+      customer_account_id: vehicle.current_customer_account_id,
+      vehicle_id: payload.vehicleId,
+      actor_profile_id: user.id,
+      actor_role: workshopMembership ? 'admin' : 'customer',
+      event_type: 'inspection_report_added',
+      title: payload.subject || 'Inspection report uploaded',
+      description: 'Inspection report added',
+      importance: normalizedImportance,
+      metadata: {
+        mode: 'upload',
+        display_name: payload.subject || payload.originalName,
+        doc_id: doc.id
+      }
+    });
   }
 
   let linkedEntityId: string | null = null;

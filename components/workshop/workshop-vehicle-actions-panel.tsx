@@ -20,6 +20,7 @@ export function WorkshopVehicleActionsPanel({
   pendingCloseJobId,
   pendingInvoiceQuoteId,
   pendingInvoiceAmountCents,
+  technicians,
   prependTiles
 }: {
   vehicleId: string;
@@ -38,6 +39,7 @@ export function WorkshopVehicleActionsPanel({
   pendingCloseJobId?: string;
   pendingInvoiceQuoteId?: string;
   pendingInvoiceAmountCents?: number;
+  technicians: Array<{ id: string; name: string }>;
   prependTiles?: ReactNode;
 }) {
   const router = useRouter();
@@ -91,6 +93,7 @@ export function WorkshopVehicleActionsPanel({
           pendingCloseJobId={pendingCloseOnInvoiceJobId}
           linkedQuoteId={pendingInvoiceQuoteId}
           initialAmountCents={pendingInvoiceAmountCents}
+          technicians={technicians}
         />
       </Modal>
     </>

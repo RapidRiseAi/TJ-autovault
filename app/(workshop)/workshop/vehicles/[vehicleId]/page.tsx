@@ -564,6 +564,7 @@ export default async function WorkshopVehiclePage({
             pendingCloseJobId={pendingCloseJobId}
             pendingInvoiceQuoteId={pendingCloseQuote?.id}
             pendingInvoiceAmountCents={pendingCloseQuote?.totalCents}
+            technicians={technicians}
           />
         </div>
       </SectionCard>
