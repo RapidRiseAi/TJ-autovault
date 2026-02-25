@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/card';
 import { createClient } from '@/lib/supabase/server';
 import { SendMessageModal } from '@/components/messages/send-message-modal';
 import { CustomerVehicleManager } from '@/components/workshop/customer-vehicle-manager';
+import { RemoveCustomerAccountButton } from '@/components/workshop/remove-customer-account-button';
 
 type CustomerVehicleRow = {
   id: string;
@@ -29,12 +30,17 @@ async function loadCustomerVehicles({
 }): Promise<{ vehicles: CustomerVehicleRow[]; error: string | null }> {
   const withNotes = await supabase
     .from('vehicles')
-    .select('id,registration_number,make,model,year,vin,odometer_km,status,notes,primary_image_path')
+    .select(
+      'id,registration_number,make,model,year,vin,odometer_km,status,notes,primary_image_path'
+    )
     .eq('current_customer_account_id', customerAccountId)
     .eq('workshop_account_id', workshopId);
 
   if (!withNotes.error) {
-    return { vehicles: (withNotes.data ?? []) as CustomerVehicleRow[], error: null };
+    return {
+      vehicles: (withNotes.data ?? []) as CustomerVehicleRow[],
+      error: null
+    };
   }
 
   const missingNotesColumn =
@@ -47,13 +53,18 @@ async function loadCustomerVehicles({
   if (missingNotesColumn) {
     const withoutNotes = await supabase
       .from('vehicles')
-      .select('id,registration_number,make,model,year,vin,odometer_km,status,primary_image_path')
+      .select(
+        'id,registration_number,make,model,year,vin,odometer_km,status,primary_image_path'
+      )
       .eq('current_customer_account_id', customerAccountId)
       .eq('workshop_account_id', workshopId);
 
     if (!withoutNotes.error) {
       return {
-        vehicles: (withoutNotes.data ?? []).map((vehicle) => ({ ...vehicle, notes: null })) as CustomerVehicleRow[],
+        vehicles: (withoutNotes.data ?? []).map((vehicle) => ({
+          ...vehicle,
+          notes: null
+        })) as CustomerVehicleRow[],
         error: null
       };
     }
@@ -64,36 +75,95 @@ async function loadCustomerVehicles({
   return { vehicles: [], error: withNotes.error.message };
 }
 
-export default async function WorkshopCustomerPage({ params }: { params: Promise<{ customerAccountId: string }> }) {
+export default async function WorkshopCustomerPage({
+  params
+}: {
+  params: Promise<{ customerAccountId: string }>;
+}) {
   const { customerAccountId } = await params;
   const supabase = await createClient();
   const user = (await supabase.auth.getUser()).data.user;
   if (!user) redirect('/login');
 
-  const { data: profile } = await supabase.from('profiles').select('role,workshop_account_id').eq('id', user.id).single();
-  if (!profile?.workshop_account_id || (profile.role !== 'admin' && profile.role !== 'technician')) redirect('/customer/dashboard');
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role,workshop_account_id')
+    .eq('id', user.id)
+    .single();
+  if (
+    !profile?.workshop_account_id ||
+    (profile.role !== 'admin' && profile.role !== 'technician')
+  )
+    redirect('/customer/dashboard');
 
   const workshopId = profile.workshop_account_id;
   const { data: customer } = await supabase
     .from('customer_accounts')
-    .select('id,name,customer_users(profile_id,profiles(display_name,avatar_url))')
+    .select(
+      'id,name,customer_users(profile_id,profiles(display_name,avatar_url))'
+    )
     .eq('id', customerAccountId)
     .eq('workshop_account_id', workshopId)
     .single();
   if (!customer) notFound();
 
-  const customerDisplayName = customer.customer_users?.[0]?.profiles?.[0]?.display_name || customer.name;
+  const customerDisplayName =
+    customer.customer_users?.[0]?.profiles?.[0]?.display_name || customer.name;
 
-  const [{ vehicles, error: vehiclesError }, { count: unpaidInvoices }, { count: pendingQuotes }, { count: activeJobs }] = await Promise.all([
+  const [
+    { vehicles, error: vehiclesError },
+    { count: unpaidInvoices },
+    { count: pendingQuotes },
+    { count: activeJobs }
+  ] = await Promise.all([
     loadCustomerVehicles({ supabase, customerAccountId, workshopId }),
-    supabase.from('invoices').select('id', { count: 'exact', head: true }).eq('customer_account_id', customerAccountId).neq('payment_status', 'paid'),
-    supabase.from('quotes').select('id', { count: 'exact', head: true }).eq('customer_account_id', customerAccountId).in('status', ['sent', 'pending']),
-    supabase.from('job_cards').select('id', { count: 'exact', head: true }).eq('customer_account_id', customerAccountId).eq('workshop_id', workshopId).in('status', ['not_started', 'in_progress', 'waiting_parts', 'waiting_approval', 'quality_check', 'ready'])
+    supabase
+      .from('invoices')
+      .select('id', { count: 'exact', head: true })
+      .eq('customer_account_id', customerAccountId)
+      .neq('payment_status', 'paid'),
+    supabase
+      .from('quotes')
+      .select('id', { count: 'exact', head: true })
+      .eq('customer_account_id', customerAccountId)
+      .in('status', ['sent', 'pending']),
+    supabase
+      .from('job_cards')
+      .select('id', { count: 'exact', head: true })
+      .eq('customer_account_id', customerAccountId)
+      .eq('workshop_id', workshopId)
+      .in('status', [
+        'not_started',
+        'in_progress',
+        'waiting_parts',
+        'waiting_approval',
+        'quality_check',
+        'ready'
+      ])
   ]);
 
   return (
     <main className="space-y-4">
-      <PageHeader title={customerDisplayName} subtitle={`Customer account: ${customer.name}`} actions={<SendMessageModal vehicles={vehicles.map((vehicle) => ({ id: vehicle.id, registration_number: vehicle.registration_number }))} customers={[{ id: customer.id, name: customerDisplayName }]} defaultCustomerId={customer.id} />} />
+      <PageHeader
+        title={customerDisplayName}
+        subtitle={`Customer account: ${customer.name}`}
+        actions={
+          <div className="flex items-center gap-2">
+            <SendMessageModal
+              vehicles={vehicles.map((vehicle) => ({
+                id: vehicle.id,
+                registration_number: vehicle.registration_number
+              }))}
+              customers={[{ id: customer.id, name: customerDisplayName }]}
+              defaultCustomerId={customer.id}
+            />
+            <RemoveCustomerAccountButton
+              customerAccountId={customer.id}
+              customerName={customerDisplayName}
+            />
+          </div>
+        }
+      />
       <div className="grid gap-3 md:grid-cols-4">
         {[
           ['Vehicles', vehicles.length],
@@ -101,13 +171,23 @@ export default async function WorkshopCustomerPage({ params }: { params: Promise
           ['Unpaid invoices', unpaidInvoices ?? 0],
           ['Open requests', activeJobs ?? 0]
         ].map(([label, value]) => (
-          <Card key={label as string} className="rounded-3xl p-4"><p className="text-xs text-gray-500">{label}</p><p className="mt-1 text-2xl font-semibold">{value as number}</p></Card>
+          <Card key={label as string} className="rounded-3xl p-4">
+            <p className="text-xs text-gray-500">{label}</p>
+            <p className="mt-1 text-2xl font-semibold">{value as number}</p>
+          </Card>
         ))}
       </div>
 
       <Card className="rounded-3xl">
-        {vehiclesError ? <p className="px-6 pt-6 text-sm text-red-700">Could not load linked vehicles: {vehiclesError}</p> : null}
-        <CustomerVehicleManager customerAccountId={customer.id} vehicles={vehicles} />
+        {vehiclesError ? (
+          <p className="px-6 pt-6 text-sm text-red-700">
+            Could not load linked vehicles: {vehiclesError}
+          </p>
+        ) : null}
+        <CustomerVehicleManager
+          customerAccountId={customer.id}
+          vehicles={vehicles}
+        />
       </Card>
     </main>
   );
