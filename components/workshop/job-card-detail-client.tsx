@@ -24,6 +24,9 @@ type Tab =
   | 'checklist';
 
 type StatusValue = Exclude<(typeof JOB_CARD_STATUSES)[number], 'not_started'>;
+const MANUAL_STATUS_OPTIONS: StatusValue[] = JOB_CARD_STATUSES.filter(
+  (status) => !['not_started', 'completed', 'closed'].includes(status)
+) as StatusValue[];
 
 function centsToInput(cents?: number) {
   if (!cents) return '';
@@ -100,7 +103,7 @@ export function JobCardDetailClient(props: {
   const [requirementsPromptOpen, setRequirementsPromptOpen] = useState(false);
 
   const [statusDraft, setStatusDraft] = useState<StatusValue>(
-    (JOB_CARD_STATUSES.includes(props.status as never)
+    (MANUAL_STATUS_OPTIONS.includes(props.status as never)
       ? props.status
       : 'in_progress') as StatusValue
   );
@@ -128,7 +131,9 @@ export function JobCardDetailClient(props: {
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
 
   const hasCompletionStatus = ['ready', 'completed'].includes(props.status);
-  const hasCompletionPhoto = props.photos.some((photo) => photo.kind === 'after');
+  const hasCompletionPhoto = props.photos.some(
+    (photo) => photo.kind === 'after'
+  );
   const unmetCloseRequirements = [
     !hasCompletionStatus ? 'Set the job status to Ready or Completed.' : null,
     !hasCompletionPhoto ? 'Upload at least one completion photo.' : null
@@ -165,7 +170,9 @@ export function JobCardDetailClient(props: {
   }
 
   async function uploadPhotoFiles(files: File[], kind: 'before' | 'after') {
-    const selectedFiles = files.filter((file) => file.type.startsWith('image/'));
+    const selectedFiles = files.filter((file) =>
+      file.type.startsWith('image/')
+    );
     if (!selectedFiles.length) return [] as string[];
 
     setIsUploading(true);
@@ -307,19 +314,44 @@ export function JobCardDetailClient(props: {
     <div className="space-y-4">
       <div className="rounded-3xl border border-neutral-200 bg-gradient-to-br from-white to-neutral-50 p-5 shadow-[0_20px_45px_rgba(17,17,17,0.06)]">
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="secondary" disabled={props.isLocked} onClick={() => setStatusModalOpen(true)}>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={props.isLocked}
+            onClick={() => setStatusModalOpen(true)}
+          >
             Update status
           </Button>
-          <Button size="sm" variant="secondary" disabled={props.isLocked} onClick={() => setRequestModalOpen(true)}>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={props.isLocked}
+            onClick={() => setRequestModalOpen(true)}
+          >
             Request approval
           </Button>
-          <Button size="sm" variant="secondary" disabled={props.isLocked} onClick={() => setLogModalOpen(true)}>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={props.isLocked}
+            onClick={() => setLogModalOpen(true)}
+          >
             Add log entry
           </Button>
-          <Button size="sm" variant="secondary" disabled={props.isLocked} onClick={() => setReportModalOpen(true)}>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={props.isLocked}
+            onClick={() => setReportModalOpen(true)}
+          >
             Internal report
           </Button>
-          <Button size="sm" variant="secondary" disabled={props.isLocked} onClick={() => setCompleteModalOpen(true)}>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={props.isLocked}
+            onClick={() => setCompleteModalOpen(true)}
+          >
             Complete job
           </Button>
           {props.isManager ? (
@@ -333,7 +365,9 @@ export function JobCardDetailClient(props: {
                   return;
                 }
                 setInvoiceAmount(centsToInput(props.linkedQuoteAmountCents));
-                setInvoiceAmountPrefilled(Boolean(props.linkedQuoteAmountCents));
+                setInvoiceAmountPrefilled(
+                  Boolean(props.linkedQuoteAmountCents)
+                );
                 setInvoiceModalOpen(true);
               }}
             >
@@ -394,7 +428,9 @@ export function JobCardDetailClient(props: {
         {tab === 'updates' ? (
           <div className="space-y-2">
             {props.updates.length ? (
-              props.updates.map((update) => <p key={update.id}>{update.message}</p>)
+              props.updates.map((update) => (
+                <p key={update.id}>{update.message}</p>
+              ))
             ) : (
               <p>No customer updates.</p>
             )}
@@ -454,7 +490,11 @@ export function JobCardDetailClient(props: {
         ) : null}
       </div>
 
-      <Modal open={statusModalOpen} onClose={() => setStatusModalOpen(false)} title="Update job status">
+      <Modal
+        open={statusModalOpen}
+        onClose={() => setStatusModalOpen(false)}
+        title="Update job status"
+      >
         <form
           className="space-y-3"
           onSubmit={(event) => {
@@ -471,10 +511,12 @@ export function JobCardDetailClient(props: {
         >
           <select
             value={statusDraft}
-            onChange={(event) => setStatusDraft(event.target.value as StatusValue)}
+            onChange={(event) =>
+              setStatusDraft(event.target.value as StatusValue)
+            }
             className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
           >
-            {JOB_CARD_STATUSES.filter((status) => status !== 'not_started').map((status) => (
+            {MANUAL_STATUS_OPTIONS.map((status) => (
               <option value={status} key={status}>
                 {formatJobCardStatus(status)}
               </option>
@@ -484,13 +526,20 @@ export function JobCardDetailClient(props: {
         </form>
       </Modal>
 
-      <Modal open={completeModalOpen} onClose={() => setCompleteModalOpen(false)} title="Complete job">
+      <Modal
+        open={completeModalOpen}
+        onClose={() => setCompleteModalOpen(false)}
+        title="Complete job"
+      >
         <form
           className="space-y-3"
           onSubmit={(event) => {
             event.preventDefault();
             void doAction(async () => {
-              const uploadedPaths = await uploadPhotoFiles(completeFiles, 'after');
+              const uploadedPaths = await uploadPhotoFiles(
+                completeFiles,
+                'after'
+              );
               const result = await completeJobCard({
                 jobId: props.jobId,
                 endNote: completeNote,
@@ -528,7 +577,11 @@ export function JobCardDetailClient(props: {
         </form>
       </Modal>
 
-      <Modal open={requestModalOpen} onClose={() => setRequestModalOpen(false)} title="Request approval">
+      <Modal
+        open={requestModalOpen}
+        onClose={() => setRequestModalOpen(false)}
+        title="Request approval"
+      >
         <form
           className="space-y-3"
           onSubmit={(event) => {
@@ -547,7 +600,8 @@ export function JobCardDetailClient(props: {
                 const eventResult = await addJobCardEvent({
                   jobId: props.jobId,
                   eventType: 'approval_requested',
-                  note: requestNote || 'Approval requested with supporting file.',
+                  note:
+                    requestNote || 'Approval requested with supporting file.',
                   customerFacing: true
                 });
                 if (!eventResult.ok) throw new Error(eventResult.error);
@@ -557,7 +611,9 @@ export function JobCardDetailClient(props: {
                 pushToast({
                   title: 'Request failed',
                   description:
-                    error instanceof Error ? error.message : 'Could not submit request.',
+                    error instanceof Error
+                      ? error.message
+                      : 'Could not submit request.',
                   tone: 'error'
                 });
               } finally {
@@ -576,7 +632,9 @@ export function JobCardDetailClient(props: {
           <input
             type="file"
             accept="application/pdf,image/*"
-            onChange={(event) => setRequestFile(event.target.files?.[0] ?? null)}
+            onChange={(event) =>
+              setRequestFile(event.target.files?.[0] ?? null)
+            }
             className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
           />
           <Button disabled={props.isLocked || isUploading}>
@@ -585,7 +643,11 @@ export function JobCardDetailClient(props: {
         </form>
       </Modal>
 
-      <Modal open={logModalOpen} onClose={() => setLogModalOpen(false)} title="Add internal log entry">
+      <Modal
+        open={logModalOpen}
+        onClose={() => setLogModalOpen(false)}
+        title="Add internal log entry"
+      >
         <form
           className="space-y-3"
           onSubmit={(event) => {
@@ -617,11 +679,17 @@ export function JobCardDetailClient(props: {
           <p className="text-xs text-gray-500">
             This log entry is internal only and is never shown to the client.
           </p>
-          <Button disabled={props.isLocked || !logNote.trim()}>Save internal log</Button>
+          <Button disabled={props.isLocked || !logNote.trim()}>
+            Save internal log
+          </Button>
         </form>
       </Modal>
 
-      <Modal open={reportModalOpen} onClose={() => setReportModalOpen(false)} title="Upload internal report">
+      <Modal
+        open={reportModalOpen}
+        onClose={() => setReportModalOpen(false)}
+        title="Upload internal report"
+      >
         <form
           className="space-y-3"
           onSubmit={(event) => {
@@ -634,7 +702,8 @@ export function JobCardDetailClient(props: {
                     file: reportFile,
                     docType: 'other',
                     subject: 'Internal workshop report',
-                    body: reportNote || 'Internal report uploaded from job card.'
+                    body:
+                      reportNote || 'Internal report uploaded from job card.'
                   });
                 }
                 const eventResult = await addJobCardEvent({
@@ -650,7 +719,9 @@ export function JobCardDetailClient(props: {
                 pushToast({
                   title: 'Report failed',
                   description:
-                    error instanceof Error ? error.message : 'Could not submit report.',
+                    error instanceof Error
+                      ? error.message
+                      : 'Could not submit report.',
                   tone: 'error'
                 });
               } finally {
@@ -678,7 +749,11 @@ export function JobCardDetailClient(props: {
         </form>
       </Modal>
 
-      <Modal open={invoiceModalOpen} onClose={() => setInvoiceModalOpen(false)} title="Close job and upload invoice">
+      <Modal
+        open={invoiceModalOpen}
+        onClose={() => setInvoiceModalOpen(false)}
+        title="Close job and upload invoice"
+      >
         <form
           className="space-y-3"
           onSubmit={(event) => {
@@ -723,7 +798,9 @@ export function JobCardDetailClient(props: {
                 pushToast({
                   title: 'Invoice flow failed',
                   description:
-                    error instanceof Error ? error.message : 'Please try again.',
+                    error instanceof Error
+                      ? error.message
+                      : 'Please try again.',
                   tone: 'error'
                 });
               } finally {
@@ -734,7 +811,8 @@ export function JobCardDetailClient(props: {
           }}
         >
           <p className="text-xs text-gray-500">
-            Invoice upload is limited to invoice documents only and stays inside this job card view.
+            Invoice upload is limited to invoice documents only and stays inside
+            this job card view.
           </p>
           <input
             value={invoiceSubject}
@@ -778,11 +856,15 @@ export function JobCardDetailClient(props: {
             type="file"
             accept="application/pdf,image/*"
             required
-            onChange={(event) => setInvoiceFile(event.target.files?.[0] ?? null)}
+            onChange={(event) =>
+              setInvoiceFile(event.target.files?.[0] ?? null)
+            }
             className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
           />
           <Button disabled={invoiceDisabled || isClosingJob}>
-            {isUploading || isClosingJob ? 'Processing…' : 'Upload invoice and close'}
+            {isUploading || isClosingJob
+              ? 'Processing…'
+              : 'Upload invoice and close'}
           </Button>
         </form>
       </Modal>
@@ -792,7 +874,9 @@ export function JobCardDetailClient(props: {
         onClose={() => setRequirementsPromptOpen(false)}
         title="Cannot close job yet"
       >
-        <p className="text-sm text-gray-600">Complete the following before closing this job:</p>
+        <p className="text-sm text-gray-600">
+          Complete the following before closing this job:
+        </p>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-700">
           {unmetCloseRequirements.map((requirement) => (
             <li key={requirement}>{requirement}</li>

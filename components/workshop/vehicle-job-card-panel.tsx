@@ -156,7 +156,7 @@ export function VehicleJobCardPanel({
       <>
         <ActionTile
           title="Start job"
-          description="Create a new job card from an approved quote and optionally upload before photos."
+          description="Create a new job card, optionally link an approved quote, and upload before photos."
           icon={<PlayCircle className="h-4 w-4" />}
           primary
           onClick={() => setStartOpen(true)}
@@ -184,21 +184,19 @@ export function VehicleJobCardPanel({
 
               void run(
                 async () => {
-                  if (!selectedQuote)
-                    return {
-                      ok: false,
-                      error: 'Please choose an approved quote.'
-                    };
                   const beforePhotoPaths = photoFiles.length
                     ? await uploadBeforePhotos(photoFiles)
                     : [];
-                  const quoteLabel =
-                    selectedQuote.quoteNumber?.trim() ||
-                    selectedQuote.id.slice(0, 8).toUpperCase();
+                  const quoteLabel = selectedQuote
+                    ? selectedQuote.quoteNumber?.trim() ||
+                      selectedQuote.id.slice(0, 8).toUpperCase()
+                    : null;
                   return startJobCard({
                     vehicleId,
-                    quoteId: selectedQuote.id,
-                    title: `Quote ${quoteLabel}`,
+                    quoteId: selectedQuote?.id,
+                    title: quoteLabel
+                      ? `Quote ${quoteLabel}`
+                      : 'General workshop job',
                     beforePhotoPaths,
                     technicianIds
                   });
@@ -209,23 +207,17 @@ export function VehicleJobCardPanel({
           >
             <select
               name="quoteId"
-              required
               className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
-              defaultValue={approvedQuotes[0]?.id ?? ''}
+              defaultValue=""
             >
-              {approvedQuotes.length ? (
-                approvedQuotes.map((quote) => (
-                  <option key={quote.id} value={quote.id}>
-                    {quote.quoteNumber ??
-                      `#${quote.id.slice(0, 8).toUpperCase()}`}{' '}
-                    • R {(quote.totalCents / 100).toFixed(2)}
-                  </option>
-                ))
-              ) : (
-                <option value="">
-                  No approved quotes available to start a new job
+              <option value="">No quote</option>
+              {approvedQuotes.map((quote) => (
+                <option key={quote.id} value={quote.id}>
+                  {quote.quoteNumber ??
+                    `#${quote.id.slice(0, 8).toUpperCase()}`}{' '}
+                  • R {(quote.totalCents / 100).toFixed(2)}
                 </option>
-              )}
+              ))}
             </select>
             <label className="block text-xs font-medium text-gray-600">
               Before images (optional)
@@ -251,7 +243,7 @@ export function VehicleJobCardPanel({
                 </option>
               ))}
             </select>
-            <Button disabled={isSaving || !approvedQuotes.length}>
+            <Button disabled={isSaving}>
               {isSaving ? 'Starting…' : 'Start job'}
             </Button>
           </form>
