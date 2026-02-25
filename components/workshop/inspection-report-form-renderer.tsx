@@ -257,20 +257,20 @@ export function InspectionReportFormRenderer({
             <label key={field.id} className="block text-sm font-medium">
               {field.label} {field.required ? <span className="text-red-600">*</span> : null}
               {field.field_type === 'checkbox' ? (
-                <select
-                  className="mt-1 w-full rounded border p-2"
-                  value={String(answers[field.id] ?? '')}
-                  onChange={(event) =>
-                    setAnswers((current) => ({
-                      ...current,
-                      [field.id]: event.target.value === 'ok'
-                    }))
-                  }
-                >
-                  <option value="">Select result</option>
-                  <option value="ok">OK</option>
-                  <option value="issue">Issue</option>
-                </select>
+                <span className="mt-2 flex items-center gap-2 font-normal">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4"
+                    checked={answers[field.id] === true}
+                    onChange={(event) =>
+                      setAnswers((current) => ({
+                        ...current,
+                        [field.id]: event.target.checked
+                      }))
+                    }
+                  />
+                  <span>OK (leave unchecked for issue)</span>
+                </span>
               ) : null}
               {field.field_type === 'number' ? (
                 <input
