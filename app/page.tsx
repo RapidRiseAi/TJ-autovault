@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getDashboardPathForRole, type UserRole } from '@/lib/auth/role-redirect';
+import { getDashboardPathForRole } from '@/lib/auth/role-redirect';
 import { createClient } from '@/lib/supabase/server';
 
 export default async function HomePage() {
@@ -14,5 +14,5 @@ export default async function HomePage() {
 
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
 
-  redirect(getDashboardPathForRole(profile?.role as UserRole));
+  redirect(getDashboardPathForRole(profile?.role));
 }

@@ -3,9 +3,9 @@ import LoginClient from './LoginClient';
 export default async function LoginPage({
   searchParams
 }: {
-  searchParams: Promise<{ created?: string }>;
+  searchParams: Promise<{ created?: string; error?: string }>;
 }) {
-  const { created } = await searchParams;
+  const { created, error } = await searchParams;
 
-  return <LoginClient created={created === '1'} />;
+  return <LoginClient created={created === '1'} initialError={error} />;
 }
