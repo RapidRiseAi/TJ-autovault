@@ -6,6 +6,17 @@ import { Button } from '@/components/ui/button';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
+function sanitizeFileName(fileName: string) {
+  const [rawBase, ...rest] = fileName.trim().split('.');
+  const extension = rest.length ? `.${rest.pop()?.toLowerCase()}` : '';
+  const base = rawBase
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '')
+    .slice(0, 80);
+  return `${base || 'document'}${extension}`;
+}
+
 function formatCurrency(cents: number) {
   return new Intl.NumberFormat('en-ZA', {
     style: 'currency',
@@ -74,10 +85,101 @@ async function createTechnician(formData: FormData) {
   redirect('/workshop/technicians?created=1');
 }
 
+async function removeTechnician(formData: FormData) {
+  'use server';
+
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) redirect('/login');
+
+  const { data: actorProfile } = await supabase
+    .from('profiles')
+    .select('id,role,workshop_account_id')
+    .eq('id', auth.user.id)
+    .maybeSingle();
+
+  if (!actorProfile?.workshop_account_id || actorProfile.role !== 'admin') {
+    redirect('/workshop/dashboard');
+  }
+
+  const technicianId = (formData.get('technicianId')?.toString() ?? '').trim();
+  const reason = (formData.get('reason')?.toString() ?? '').trim();
+  const document = formData.get('document');
+
+  if (!technicianId || !reason) {
+    redirect('/workshop/technicians?error=remove_invalid_input');
+  }
+
+  const { data: technician } = await supabase
+    .from('profiles')
+    .select('id,role,display_name,full_name,workshop_account_id')
+    .eq('id', technicianId)
+    .eq('workshop_account_id', actorProfile.workshop_account_id)
+    .maybeSingle();
+
+  if (!technician || technician.role !== 'technician') {
+    redirect('/workshop/technicians?error=remove_not_found');
+  }
+
+  const adminSupabase = createAdminClient();
+  let documentPath: string | null = null;
+
+  if (document instanceof File && document.size > 0) {
+    const safeName = sanitizeFileName(document.name || 'document');
+    documentPath = `technician-removals/${actorProfile.workshop_account_id}/${technician.id}/${Date.now()}-${safeName}`;
+    const { error: uploadError } = await adminSupabase.storage
+      .from('private-images')
+      .upload(documentPath, document, {
+        cacheControl: '3600',
+        contentType: document.type || undefined,
+        upsert: false
+      });
+
+    if (uploadError) {
+      redirect('/workshop/technicians?error=remove_document_upload_failed');
+    }
+  }
+
+  const { error: updateError } = await adminSupabase
+    .from('profiles')
+    .update({ role: 'inactive_technician' })
+    .eq('id', technician.id)
+    .eq('workshop_account_id', actorProfile.workshop_account_id)
+    .eq('role', 'technician');
+
+  if (updateError) {
+    redirect('/workshop/technicians?error=remove_failed');
+  }
+
+  await adminSupabase.from('audit_logs').insert({
+    workshop_account_id: actorProfile.workshop_account_id,
+    actor_profile_id: actorProfile.id,
+    action: 'technician_removed',
+    entity_type: 'profile',
+    entity_id: technician.id,
+    payload: {
+      removed_technician_id: technician.id,
+      removed_technician_name:
+        technician.display_name ?? technician.full_name ?? 'Technician',
+      reason,
+      document: documentPath
+        ? {
+            bucket: 'private-images',
+            path: documentPath
+          }
+        : null
+    }
+  });
+
+  revalidatePath('/workshop/technicians');
+  revalidatePath('/workshop/workshop/vehicles');
+  redirect('/workshop/technicians?removed=1');
+}
+
 export default async function WorkshopTechniciansPage({
   searchParams
 }: {
-  searchParams: Promise<{ created?: string; error?: string }>;
+  searchParams: Promise<{ created?: string; removed?: string; error?: string }>;
 }) {
   const supabase = await createClient();
   const user = (await supabase.auth.getUser()).data.user;
@@ -125,6 +227,7 @@ export default async function WorkshopTechniciansPage({
 
   const params = await searchParams;
   const created = params.created === '1';
+  const removed = params.removed === '1';
   const error = params.error;
 
   return (
@@ -139,12 +242,25 @@ export default async function WorkshopTechniciansPage({
           Technician added successfully.
         </p>
       ) : null}
+      {removed ? (
+        <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          Technician removed successfully.
+        </p>
+      ) : null}
       {error ? (
         <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           {error === 'invalid_input'
             ? 'Please enter a name, a valid email and a password with at least 8 characters.'
             : error === 'email_exists'
               ? 'That email is already in use. Try another one.'
+              : error === 'remove_invalid_input'
+                ? 'Provide a reason before removing this technician.'
+                : error === 'remove_not_found'
+                  ? 'Could not find that technician. Refresh the page and try again.'
+                  : error === 'remove_document_upload_failed'
+                    ? 'Could not upload your supporting document. Please try again.'
+                    : error === 'remove_failed'
+                      ? 'Could not remove technician right now. Please try again.'
               : 'Could not create technician right now. Please try again.'}
         </p>
       ) : null}
@@ -231,6 +347,9 @@ export default async function WorkshopTechniciansPage({
                   <th className="py-2 pr-4">Technician</th>
                   <th className="py-2 pr-4">Inspection reports</th>
                   <th className="py-2 pr-4">Wages owed</th>
+                  {profile.role === 'admin' ? (
+                    <th className="py-2 pr-4">Actions</th>
+                  ) : null}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -245,6 +364,55 @@ export default async function WorkshopTechniciansPage({
                     <td className="py-2 pr-4 text-gray-700">
                       {formatCurrency(0)}
                     </td>
+                    {profile.role === 'admin' ? (
+                      <td className="py-2 pr-4 text-gray-700">
+                        <details>
+                          <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.12em] text-red-700">
+                            Remove
+                          </summary>
+                          <form action={removeTechnician} className="mt-2 space-y-2">
+                            <input
+                              type="hidden"
+                              name="technicianId"
+                              value={tech.id}
+                            />
+                            <div>
+                              <label
+                                htmlFor={`reason-${tech.id}`}
+                                className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-gray-500"
+                              >
+                                Reason
+                              </label>
+                              <textarea
+                                id={`reason-${tech.id}`}
+                                name="reason"
+                                required
+                                rows={3}
+                                className="w-full min-w-60 rounded-xl border border-black/15 px-3 py-2 text-xs"
+                                placeholder="Reason for removing this technician"
+                              />
+                            </div>
+                            <div>
+                              <label
+                                htmlFor={`document-${tech.id}`}
+                                className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-gray-500"
+                              >
+                                Supporting document (optional)
+                              </label>
+                              <input
+                                id={`document-${tech.id}`}
+                                name="document"
+                                type="file"
+                                className="w-full min-w-60 rounded-xl border border-black/15 bg-white px-3 py-2 text-xs"
+                              />
+                            </div>
+                            <Button type="submit" variant="destructive" size="sm">
+                              Confirm remove
+                            </Button>
+                          </form>
+                        </details>
+                      </td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>
