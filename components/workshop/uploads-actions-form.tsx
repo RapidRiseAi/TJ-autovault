@@ -6,6 +6,7 @@ import { Modal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast-provider';
 import { canCloseJobCard, closeJobCard } from '@/lib/actions/job-cards';
 import { parseAmountInputToCents } from '@/lib/money';
+import { InspectionReportFormRenderer } from '@/components/workshop/inspection-report-form-renderer';
 
 const DOCUMENT_TYPES = [
   {
@@ -36,7 +37,8 @@ export function UploadsActionsForm({
   initialSubject,
   pendingCloseJobId,
   initialAmountCents,
-  linkedQuoteId
+  linkedQuoteId,
+  technicians = []
 }: {
   vehicleId: string;
   onSuccess?: () => void;
@@ -46,6 +48,7 @@ export function UploadsActionsForm({
   pendingCloseJobId?: string;
   initialAmountCents?: number;
   linkedQuoteId?: string;
+  technicians?: Array<{ id: string; name: string }>;
 }) {
   const router = useRouter();
   const { pushToast } = useToast();
@@ -77,6 +80,7 @@ export function UploadsActionsForm({
     documentType === 'quote' || documentType === 'invoice';
   const isInvoice = documentType === 'invoice';
   const isWarning = documentType === 'warning';
+  const isInspectionReport = documentType === 'inspection_report';
 
   useEffect(() => {
     if (!initialDocumentType) return;
@@ -278,108 +282,125 @@ export function UploadsActionsForm({
           ))}
         </select>
       </label>
-      <label className="block text-sm font-medium">
-        Urgency
-        <select
-          value={urgency}
-          onChange={(event) => setUrgency(event.target.value as Urgency)}
-          className="mt-1 w-full rounded border p-2"
-        >
-          <option value="info">Info</option>
-          <option value="low">Low</option>
-          <option value="medium">Medium</option>
-          <option value="high">High</option>
-          <option value="critical">Critical</option>
-        </select>
-      </label>
-      <label className="block text-sm font-medium">
-        Subject
-        <input
-          value={subject}
-          onChange={(event) => setSubject(event.target.value)}
-          required
-          className="mt-1 w-full rounded border p-2"
+
+      {isInspectionReport ? (
+        <InspectionReportFormRenderer
+          vehicleId={vehicleId}
+          technicians={technicians}
+          onDone={() => {
+            onSuccess?.();
+            router.refresh();
+          }}
         />
-      </label>
-      {isQuoteOrInvoice ? (
-        <label className="block text-sm font-medium">
-          Amount
-          <input
-            type="text"
-            inputMode="decimal"
-            value={amount}
-            onChange={(event) => {
-              setAmount(event.target.value);
-              if (amountPrefilled) {
-                setAmountPrefilled(false);
-              }
-            }}
-            required
-            className={`mt-1 w-full rounded border p-2 transition ${
-              amountPrefilled
-                ? 'border-amber-400 bg-amber-50 ring-2 ring-amber-200'
-                : ''
-            }`}
-            placeholder="0"
-          />
-          {amountPrefilled ? (
-            <p className="mt-1 text-xs text-amber-700">
-              Prefilled from the linked quote amount.
-            </p>
+      ) : (
+        <>
+          <label className="block text-sm font-medium">
+            Urgency
+            <select
+              value={urgency}
+              onChange={(event) => setUrgency(event.target.value as Urgency)}
+              className="mt-1 w-full rounded border p-2"
+            >
+              <option value="info">Info</option>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+              <option value="critical">Critical</option>
+            </select>
+          </label>
+          <label className="block text-sm font-medium">
+            Subject
+            <input
+              value={subject}
+              onChange={(event) => setSubject(event.target.value)}
+              required
+              className="mt-1 w-full rounded border p-2"
+            />
+          </label>
+          {isQuoteOrInvoice ? (
+            <label className="block text-sm font-medium">
+              Amount
+              <input
+                type="text"
+                inputMode="decimal"
+                value={amount}
+                onChange={(event) => {
+                  setAmount(event.target.value);
+                  if (amountPrefilled) {
+                    setAmountPrefilled(false);
+                  }
+                }}
+                required
+                className={`mt-1 w-full rounded border p-2 transition ${
+                  amountPrefilled
+                    ? 'border-amber-400 bg-amber-50 ring-2 ring-amber-200'
+                    : ''
+                }`}
+                placeholder="0"
+              />
+              {amountPrefilled ? (
+                <p className="mt-1 text-xs text-amber-700">
+                  Prefilled from the linked quote amount.
+                </p>
+              ) : null}
+            </label>
           ) : null}
-        </label>
-      ) : null}
-      {isQuoteOrInvoice ? (
-        <label className="block text-sm font-medium">
-          {documentType === 'invoice'
-            ? 'Invoice reference number'
-            : 'Quote reference number'}
-          <input
-            value={referenceNumber}
-            onChange={(event) => setReferenceNumber(event.target.value)}
-            required
-            className="mt-1 w-full rounded border p-2"
-            placeholder={documentType === 'invoice' ? 'INV-0001' : 'QTE-0001'}
-          />
-        </label>
-      ) : null}
-      {isInvoice ? (
-        <label className="block text-sm font-medium">
-          Due date (optional)
-          <input
-            type="date"
-            value={dueDate}
-            onChange={(event) => setDueDate(event.target.value)}
-            className="mt-1 w-full rounded border p-2"
-          />
-        </label>
-      ) : null}
-      <label className="block text-sm font-medium">
-        Body / notes
-        <textarea
-          value={body}
-          onChange={(event) => setBody(event.target.value)}
-          className="mt-1 w-full rounded border p-2"
-          rows={3}
-        />
-      </label>
-      <label className="block text-sm font-medium">
-        File
-        <input
-          type="file"
-          accept="application/pdf,image/*"
-          required
-          className="mt-1 block w-full text-sm"
-          onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-        />
-      </label>
-      <button
-        type="submit"
-        disabled={disableSubmit}
-        className="w-full rounded bg-black px-3 py-2 text-white disabled:opacity-50"
-      >
-        {isSubmitting ? 'Uploading...' : 'Upload file'}
-      </button>
+          {isQuoteOrInvoice ? (
+            <label className="block text-sm font-medium">
+              {documentType === 'invoice'
+                ? 'Invoice reference number'
+                : 'Quote reference number'}
+              <input
+                value={referenceNumber}
+                onChange={(event) => setReferenceNumber(event.target.value)}
+                required
+                className="mt-1 w-full rounded border p-2"
+                placeholder={
+                  documentType === 'invoice' ? 'INV-0001' : 'QTE-0001'
+                }
+              />
+            </label>
+          ) : null}
+          {isInvoice ? (
+            <label className="block text-sm font-medium">
+              Due date (optional)
+              <input
+                type="date"
+                value={dueDate}
+                onChange={(event) => setDueDate(event.target.value)}
+                className="mt-1 w-full rounded border p-2"
+              />
+            </label>
+          ) : null}
+          <label className="block text-sm font-medium">
+            Body / notes
+            <textarea
+              value={body}
+              onChange={(event) => setBody(event.target.value)}
+              className="mt-1 w-full rounded border p-2"
+              rows={3}
+            />
+          </label>
+          <label className="block text-sm font-medium">
+            File
+            <input
+              type="file"
+              accept="application/pdf,image/*"
+              required
+              className="mt-1 block w-full text-sm"
+              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={disableSubmit}
+            className="w-full rounded bg-black px-3 py-2 text-white disabled:opacity-50"
+          >
+            {isSubmitting ? 'Uploading...' : 'Upload file'}
+          </button>
+        </>
+      )}
+
       {error ? <p className="text-sm text-red-700">{error}</p> : null}
       <Modal
         open={confirmOpen}

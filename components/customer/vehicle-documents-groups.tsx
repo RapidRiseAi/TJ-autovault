@@ -11,12 +11,13 @@ function toLabel(type?: string | null) {
   return (type ?? 'other').replaceAll('_', ' ');
 }
 
-function toDownloadHref(doc: VehicleDocument) {
+function toDownloadHref(doc: VehicleDocument, customerMode: boolean) {
+  if (customerMode) return `/api/customer/documents/${doc.id}/download`;
   if (!doc.storage_path) return null;
   return `/api/uploads/download?bucket=${encodeURIComponent(doc.storage_bucket ?? '')}&path=${encodeURIComponent(doc.storage_path)}`;
 }
 
-function DocumentList({ documents }: { documents: VehicleDocument[] }) {
+function DocumentList({ documents, customerMode }: { documents: VehicleDocument[]; customerMode: boolean }) {
   if (documents.length === 0) return <p className="rounded border border-dashed p-3 text-sm text-gray-600">No documents yet.</p>;
 
   return (
@@ -24,7 +25,7 @@ function DocumentList({ documents }: { documents: VehicleDocument[] }) {
       {documents.map((doc) => {
         const fallbackName = doc.storage_path?.split('/').at(-1) ?? 'Untitled file';
         const title = doc.subject ?? doc.original_name ?? fallbackName;
-        const downloadHref = toDownloadHref(doc);
+        const downloadHref = toDownloadHref(doc, customerMode);
 
         return (
           <li key={doc.id} className="rounded border p-3">
@@ -53,7 +54,7 @@ function DocumentList({ documents }: { documents: VehicleDocument[] }) {
   );
 }
 
-export function VehicleDocumentsGroups({ groups }: { groups: VehicleDocumentsGroups }) {
+export function VehicleDocumentsGroups({ groups, customerMode = false }: { groups: VehicleDocumentsGroups; customerMode?: boolean }) {
   const sections = useMemo(() => [
     { key: 'quotes', title: 'Quotes', items: groups.quotes },
     { key: 'invoices', title: 'Invoices', items: groups.invoices },
@@ -79,7 +80,7 @@ export function VehicleDocumentsGroups({ groups }: { groups: VehicleDocumentsGro
           </button>
         ))}
       </div>
-      <DocumentList documents={activeSection?.items ?? []} />
+      <DocumentList documents={activeSection?.items ?? []} customerMode={customerMode} />
     </Card>
   );
 }
