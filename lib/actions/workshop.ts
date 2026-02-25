@@ -3,18 +3,27 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { WORK_REQUEST_STATUSES, type WorkRequestStatus } from '@/lib/work-request-statuses';
+import {
+  WORK_REQUEST_STATUSES,
+  type WorkRequestStatus
+} from '@/lib/work-request-statuses';
 import { addVehicleSchema } from '@/lib/validation/vehicle';
 import { z } from 'zod';
 
-type Result = { ok: true; message?: string; vehicleId?: string } | { ok: false; error: string };
+type Result =
+  | { ok: true; message?: string; vehicleId?: string }
+  | { ok: false; error: string };
 
-function isMissingNotesColumnError(error: { code?: string; message?: string } | null) {
+function isMissingNotesColumnError(
+  error: { code?: string; message?: string } | null
+) {
   if (!error) return false;
 
   const combined = `${error.code ?? ''} ${error.message ?? ''}`.toLowerCase();
-  const mentionsNotesColumn = combined.includes('notes') && combined.includes('column');
-  const mentionsSchemaCache = combined.includes('schema cache') || combined.includes('postgrest');
+  const mentionsNotesColumn =
+    combined.includes('notes') && combined.includes('column');
+  const mentionsSchemaCache =
+    combined.includes('schema cache') || combined.includes('postgrest');
 
   return (
     (error.code === 'PGRST204' && mentionsNotesColumn) ||
@@ -36,14 +45,23 @@ async function getWorkshopContext() {
     .eq('id', user.id)
     .single();
 
-  if (!profile?.workshop_account_id || (profile.role !== 'admin' && profile.role !== 'technician')) return null;
+  if (
+    !profile?.workshop_account_id ||
+    (profile.role !== 'admin' && profile.role !== 'technician')
+  )
+    return null;
   return { supabase, profile };
 }
 
-async function getVehicleContext(ctx: NonNullable<Awaited<ReturnType<typeof getWorkshopContext>>>, vehicleId: string) {
+async function getVehicleContext(
+  ctx: NonNullable<Awaited<ReturnType<typeof getWorkshopContext>>>,
+  vehicleId: string
+) {
   return ctx.supabase
     .from('vehicles')
-    .select('id,workshop_account_id,current_customer_account_id,registration_number')
+    .select(
+      'id,workshop_account_id,current_customer_account_id,registration_number'
+    )
     .eq('id', vehicleId)
     .eq('workshop_account_id', ctx.profile.workshop_account_id)
     .maybeSingle();
@@ -57,13 +75,18 @@ const workshopVehicleUpdateSchema = addVehicleSchema.extend({
   vehicleId: z.string().uuid()
 });
 
-export async function createWorkshopCustomerVehicle(input: unknown): Promise<Result> {
+export async function createWorkshopCustomerVehicle(
+  input: unknown
+): Promise<Result> {
   const ctx = await getWorkshopContext();
   if (!ctx) return { ok: false, error: 'Unauthorized' };
 
   const parsed = workshopVehicleSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid vehicle data' };
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? 'Invalid vehicle data'
+    };
   }
 
   const payload = parsed.data;
@@ -132,7 +155,8 @@ export async function createWorkshopCustomerVehicle(input: unknown): Promise<Res
     if (!linkedVehicle?.current_customer_account_id) {
       return {
         ok: false,
-        error: 'Vehicle was created but is still not linked to this customer account. Please open the vehicle and link it manually.'
+        error:
+          'Vehicle was created but is still not linked to this customer account. Please open the vehicle and link it manually.'
       };
     }
   }
@@ -145,13 +169,24 @@ export async function createWorkshopCustomerVehicle(input: unknown): Promise<Res
   return { ok: true, message: 'Vehicle added.', vehicleId: vehicle.id };
 }
 
-export async function deleteWorkshopVehicle(input: { vehicleId: string; customerAccountId?: string }): Promise<Result> {
+export async function deleteWorkshopVehicle(input: {
+  vehicleId: string;
+  customerAccountId?: string;
+}): Promise<Result> {
   const ctx = await getWorkshopContext();
   if (!ctx) return { ok: false, error: 'Unauthorized' };
 
-  const parsed = z.object({ vehicleId: z.string().uuid(), customerAccountId: z.string().uuid().optional() }).safeParse(input);
+  const parsed = z
+    .object({
+      vehicleId: z.string().uuid(),
+      customerAccountId: z.string().uuid().optional()
+    })
+    .safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid vehicle id' };
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? 'Invalid vehicle id'
+    };
   }
 
   const payload = parsed.data;
@@ -168,7 +203,11 @@ export async function deleteWorkshopVehicle(input: { vehicleId: string; customer
     return { ok: false, error: vehicleError?.message ?? 'Vehicle not found' };
   }
 
-  const { error: deleteError } = await admin.from('vehicles').delete().eq('id', payload.vehicleId).eq('workshop_account_id', ctx.profile.workshop_account_id);
+  const { error: deleteError } = await admin
+    .from('vehicles')
+    .delete()
+    .eq('id', payload.vehicleId)
+    .eq('workshop_account_id', ctx.profile.workshop_account_id);
   if (deleteError) {
     return { ok: false, error: deleteError.message };
   }
@@ -187,13 +226,18 @@ export async function deleteWorkshopVehicle(input: { vehicleId: string; customer
   return { ok: true, message: 'Vehicle deleted.' };
 }
 
-export async function updateWorkshopVehicleInfo(input: unknown): Promise<Result> {
+export async function updateWorkshopVehicleInfo(
+  input: unknown
+): Promise<Result> {
   const ctx = await getWorkshopContext();
   if (!ctx) return { ok: false, error: 'Unauthorized' };
 
   const parsed = workshopVehicleUpdateSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid vehicle data' };
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? 'Invalid vehicle data'
+    };
   }
 
   const payload = parsed.data;
@@ -240,17 +284,149 @@ export async function updateWorkshopVehicleInfo(input: unknown): Promise<Result>
   revalidatePath(`/workshop/vehicles/${payload.vehicleId}`);
   revalidatePath(`/customer/vehicles/${payload.vehicleId}`);
   if (vehicle.current_customer_account_id) {
-    revalidatePath(`/workshop/customers/${vehicle.current_customer_account_id}`);
+    revalidatePath(
+      `/workshop/customers/${vehicle.current_customer_account_id}`
+    );
   }
   return { ok: true, message: 'Vehicle updated.' };
 }
 
-export async function createQuote(input: { vehicleId: string; totalCents: number; notes?: string }): Promise<Result> {
+async function removeCustomerAccountById(input: {
+  customerAccountId: string;
+  workshopAccountId: string;
+}): Promise<Result> {
+  const parsed = z
+    .object({
+      customerAccountId: z.string().uuid(),
+      workshopAccountId: z.string().uuid()
+    })
+    .safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? 'Invalid customer account id'
+    };
+  }
+
+  const payload = parsed.data;
+  const admin = createAdminClient();
+
+  const { data: account, error: accountError } = await admin
+    .from('customer_accounts')
+    .select('id')
+    .eq('id', payload.customerAccountId)
+    .eq('workshop_account_id', payload.workshopAccountId)
+    .maybeSingle();
+
+  if (accountError || !account) {
+    return {
+      ok: false,
+      error: accountError?.message ?? 'Customer account not found'
+    };
+  }
+
+  const { error: unlinkVehiclesError } = await admin
+    .from('vehicles')
+    .update({ current_customer_account_id: null })
+    .eq('workshop_account_id', payload.workshopAccountId)
+    .eq('current_customer_account_id', payload.customerAccountId);
+
+  if (unlinkVehiclesError) {
+    return { ok: false, error: unlinkVehiclesError.message };
+  }
+
+  const { error: membershipsDeleteError } = await admin
+    .from('customer_users')
+    .delete()
+    .eq('customer_account_id', payload.customerAccountId);
+
+  if (membershipsDeleteError) {
+    return { ok: false, error: membershipsDeleteError.message };
+  }
+
+  const { error: deleteAccountError } = await admin
+    .from('customer_accounts')
+    .delete()
+    .eq('id', payload.customerAccountId)
+    .eq('workshop_account_id', payload.workshopAccountId);
+
+  if (deleteAccountError) {
+    return {
+      ok: false,
+      error: `Could not remove customer account. Please remove linked records first. (${deleteAccountError.message})`
+    };
+  }
+
+  revalidatePath('/workshop/dashboard');
+  revalidatePath('/workshop/customers');
+  revalidatePath(`/workshop/customers/${payload.customerAccountId}`);
+  revalidatePath('/customer/dashboard');
+  revalidatePath('/customer/profile');
+
+  return { ok: true, message: 'Customer account removed.' };
+}
+
+export async function removeWorkshopCustomerAccount(input: {
+  customerAccountId: string;
+}): Promise<Result> {
+  const ctx = await getWorkshopContext();
+  if (!ctx) return { ok: false, error: 'Unauthorized' };
+
+  return removeCustomerAccountById({
+    customerAccountId: input.customerAccountId,
+    workshopAccountId: ctx.profile.workshop_account_id
+  });
+}
+
+export async function removeMyCustomerAccount(): Promise<Result> {
+  const supabase = await createClient();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
+  if (!user) return { ok: false, error: 'Unauthorized' };
+
+  const { data: membership, error: membershipError } = await supabase
+    .from('customer_users')
+    .select('customer_account_id,customer_accounts(workshop_account_id)')
+    .eq('profile_id', user.id)
+    .maybeSingle();
+
+  if (membershipError || !membership?.customer_account_id) {
+    return {
+      ok: false,
+      error: membershipError?.message ?? 'Customer account not found'
+    };
+  }
+
+  const linkedAccount = Array.isArray(membership.customer_accounts)
+    ? membership.customer_accounts[0]
+    : membership.customer_accounts;
+  const workshopAccountId = linkedAccount?.workshop_account_id;
+  if (!workshopAccountId) {
+    return {
+      ok: false,
+      error: 'Customer account is not linked to a workshop account'
+    };
+  }
+
+  return removeCustomerAccountById({
+    customerAccountId: membership.customer_account_id,
+    workshopAccountId
+  });
+}
+
+export async function createQuote(input: {
+  vehicleId: string;
+  totalCents: number;
+  notes?: string;
+}): Promise<Result> {
   const ctx = await getWorkshopContext();
   if (!ctx) return { ok: false, error: 'Unauthorized' };
 
   const { data: vehicle } = await getVehicleContext(ctx, input.vehicleId);
-  if (!vehicle?.current_customer_account_id) return { ok: false, error: 'Vehicle not found' };
+  if (!vehicle?.current_customer_account_id)
+    return { ok: false, error: 'Vehicle not found' };
 
   const { error } = await ctx.supabase.from('quotes').insert({
     workshop_account_id: vehicle.workshop_account_id,
@@ -281,12 +457,19 @@ export async function createQuote(input: { vehicleId: string; totalCents: number
   return { ok: true, message: 'Quote created.' };
 }
 
-export async function createInvoice(input: { vehicleId: string; totalCents: number; subject?: string; notes?: string; dueDate?: string }): Promise<Result> {
+export async function createInvoice(input: {
+  vehicleId: string;
+  totalCents: number;
+  subject?: string;
+  notes?: string;
+  dueDate?: string;
+}): Promise<Result> {
   const ctx = await getWorkshopContext();
   if (!ctx) return { ok: false, error: 'Unauthorized' };
 
   const { data: vehicle } = await getVehicleContext(ctx, input.vehicleId);
-  if (!vehicle?.current_customer_account_id) return { ok: false, error: 'Vehicle not found' };
+  if (!vehicle?.current_customer_account_id)
+    return { ok: false, error: 'Vehicle not found' };
 
   const { data: invoice, error } = await ctx.supabase
     .from('invoices')
@@ -303,7 +486,8 @@ export async function createInvoice(input: { vehicleId: string; totalCents: numb
     })
     .select('id')
     .single();
-  if (error || !invoice) return { ok: false, error: error?.message ?? 'Unable to create invoice' };
+  if (error || !invoice)
+    return { ok: false, error: error?.message ?? 'Unable to create invoice' };
 
   await ctx.supabase.from('vehicle_timeline_events').insert({
     workshop_account_id: vehicle.workshop_account_id,
@@ -323,7 +507,10 @@ export async function createInvoice(input: { vehicleId: string; totalCents: numb
   return { ok: true, message: 'Invoice created.' };
 }
 
-export async function updateInvoicePaymentStatus(input: { invoiceId: string; paymentStatus: 'unpaid' | 'partial' | 'paid' }): Promise<Result> {
+export async function updateInvoicePaymentStatus(input: {
+  invoiceId: string;
+  paymentStatus: 'unpaid' | 'partial' | 'paid';
+}): Promise<Result> {
   const ctx = await getWorkshopContext();
   if (!ctx) return { ok: false, error: 'Unauthorized' };
 
@@ -335,7 +522,8 @@ export async function updateInvoicePaymentStatus(input: { invoiceId: string; pay
     .select('vehicle_id,customer_account_id,workshop_account_id')
     .maybeSingle();
 
-  if (error || !data) return { ok: false, error: error?.message ?? 'Could not update invoice' };
+  if (error || !data)
+    return { ok: false, error: error?.message ?? 'Could not update invoice' };
 
   await ctx.supabase.from('vehicle_timeline_events').insert({
     workshop_account_id: data.workshop_account_id,
@@ -354,12 +542,18 @@ export async function updateInvoicePaymentStatus(input: { invoiceId: string; pay
   return { ok: true };
 }
 
-export async function createRecommendation(input: { vehicleId: string; title: string; description?: string; severity: 'low' | 'medium' | 'high' }): Promise<Result> {
+export async function createRecommendation(input: {
+  vehicleId: string;
+  title: string;
+  description?: string;
+  severity: 'low' | 'medium' | 'high';
+}): Promise<Result> {
   const ctx = await getWorkshopContext();
   if (!ctx) return { ok: false, error: 'Unauthorized' };
 
   const { data: vehicle } = await getVehicleContext(ctx, input.vehicleId);
-  if (!vehicle?.current_customer_account_id) return { ok: false, error: 'Vehicle not found' };
+  if (!vehicle?.current_customer_account_id)
+    return { ok: false, error: 'Vehicle not found' };
 
   const { error } = await ctx.supabase.from('recommendations').insert({
     workshop_account_id: vehicle.workshop_account_id,
@@ -392,7 +586,12 @@ export async function createRecommendation(input: { vehicleId: string; title: st
 
 export async function updateServiceJobStatus(input: {
   jobId: string;
-  status: 'open' | 'awaiting_approval' | 'in_progress' | 'completed' | 'cancelled';
+  status:
+    | 'open'
+    | 'awaiting_approval'
+    | 'in_progress'
+    | 'completed'
+    | 'cancelled';
 }): Promise<Result> {
   const ctx = await getWorkshopContext();
   if (!ctx) return { ok: false, error: 'Unauthorized' };
@@ -405,7 +604,8 @@ export async function updateServiceJobStatus(input: {
     .select('vehicle_id,customer_account_id,workshop_account_id')
     .maybeSingle();
 
-  if (error || !job) return { ok: false, error: error?.message ?? 'Could not update job' };
+  if (error || !job)
+    return { ok: false, error: error?.message ?? 'Could not update job' };
 
   await ctx.supabase.from('vehicle_timeline_events').insert({
     workshop_account_id: job.workshop_account_id,
@@ -423,20 +623,30 @@ export async function updateServiceJobStatus(input: {
   return { ok: true };
 }
 
-export async function updateWorkRequestStatus(input: { workRequestId: string; status: WorkRequestStatus }): Promise<Result> {
+export async function updateWorkRequestStatus(input: {
+  workRequestId: string;
+  status: WorkRequestStatus;
+}): Promise<Result> {
   const ctx = await getWorkshopContext();
   if (!ctx) return { ok: false, error: 'Unauthorized' };
-  if (!WORK_REQUEST_STATUSES.includes(input.status)) return { ok: false, error: 'Invalid status.' };
+  if (!WORK_REQUEST_STATUSES.includes(input.status))
+    return { ok: false, error: 'Invalid status.' };
 
   const { data: request, error } = await ctx.supabase
     .from('work_requests')
     .update({ status: input.status })
     .eq('id', input.workRequestId)
     .eq('workshop_account_id', ctx.profile.workshop_account_id)
-    .select('id,vehicle_id,customer_account_id,workshop_account_id,request_type,status')
+    .select(
+      'id,vehicle_id,customer_account_id,workshop_account_id,request_type,status'
+    )
     .maybeSingle();
 
-  if (error || !request) return { ok: false, error: error?.message ?? 'Could not update work request status' };
+  if (error || !request)
+    return {
+      ok: false,
+      error: error?.message ?? 'Could not update work request status'
+    };
 
   await ctx.supabase.from('vehicle_timeline_events').insert({
     workshop_account_id: request.workshop_account_id,
@@ -446,8 +656,17 @@ export async function updateWorkRequestStatus(input: { workRequestId: string; st
     actor_role: 'admin',
     event_type: 'job_status_changed',
     title: `Work request ${request.request_type} status: ${request.status}`,
-    importance: request.status === 'cancelled' ? 'urgent' : request.status === 'delivered' ? 'info' : 'warning',
-    metadata: { work_request_id: request.id, request_type: request.request_type, status: request.status }
+    importance:
+      request.status === 'cancelled'
+        ? 'urgent'
+        : request.status === 'delivered'
+          ? 'info'
+          : 'warning',
+    metadata: {
+      work_request_id: request.id,
+      request_type: request.request_type,
+      status: request.status
+    }
   });
 
   await ctx.supabase.rpc('push_notification', {
@@ -457,7 +676,11 @@ export async function updateWorkRequestStatus(input: { workRequestId: string; st
     p_title: 'Work request update',
     p_body: `Your ${request.request_type} request is now ${request.status.replaceAll('_', ' ')}.`,
     p_href: `/customer/vehicles/${request.vehicle_id}`,
-    p_data: { work_request_id: request.id, status: request.status, request_type: request.request_type }
+    p_data: {
+      work_request_id: request.id,
+      status: request.status,
+      request_type: request.request_type
+    }
   });
 
   revalidatePath(`/workshop/work-requests`);
@@ -486,7 +709,10 @@ export async function updateVehicleServiceReminders(input: {
   if (!currentVehicle) return { ok: false, error: 'Vehicle not found' };
 
   const currentMileage = currentVehicle.odometer_km ?? 0;
-  if (typeof input.odometerKm === 'number' && input.odometerKm < currentMileage) {
+  if (
+    typeof input.odometerKm === 'number' &&
+    input.odometerKm < currentMileage
+  ) {
     return {
       ok: false,
       error: `Mileage must be at least ${currentMileage.toLocaleString()} km.`
@@ -507,7 +733,8 @@ export async function updateVehicleServiceReminders(input: {
     .select('id,current_customer_account_id,workshop_account_id')
     .maybeSingle();
 
-  if (error || !vehicle?.current_customer_account_id) return { ok: false, error: error?.message ?? 'Vehicle not found' };
+  if (error || !vehicle?.current_customer_account_id)
+    return { ok: false, error: error?.message ?? 'Vehicle not found' };
 
   await ctx.supabase.from('vehicle_timeline_events').insert({
     workshop_account_id: vehicle.workshop_account_id,
@@ -526,7 +753,9 @@ export async function updateVehicleServiceReminders(input: {
   return { ok: true };
 }
 
-export async function verifyVehicle(input: { vehicleId: string }): Promise<Result> {
+export async function verifyVehicle(input: {
+  vehicleId: string;
+}): Promise<Result> {
   const ctx = await getWorkshopContext();
   if (!ctx) return { ok: false, error: 'Unauthorized' };
 
@@ -535,10 +764,13 @@ export async function verifyVehicle(input: { vehicleId: string }): Promise<Resul
     .update({ status: 'verified' })
     .eq('id', input.vehicleId)
     .eq('workshop_account_id', ctx.profile.workshop_account_id)
-    .select('id,current_customer_account_id,workshop_account_id,registration_number')
+    .select(
+      'id,current_customer_account_id,workshop_account_id,registration_number'
+    )
     .maybeSingle();
 
-  if (error || !vehicle?.current_customer_account_id) return { ok: false, error: error?.message ?? 'Vehicle not found' };
+  if (error || !vehicle?.current_customer_account_id)
+    return { ok: false, error: error?.message ?? 'Vehicle not found' };
 
   await ctx.supabase.from('vehicle_timeline_events').insert({
     workshop_account_id: vehicle.workshop_account_id,
