@@ -48,16 +48,35 @@ export async function middleware(request: NextRequest) {
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
   const role = profile?.role as UserRole | undefined;
 
-  if ((path === '/login' || path === '/signup') && role) {
-    return NextResponse.redirect(new URL(getDashboardPathForRole(role), request.url));
+  const redirectIfDifferent = (targetPath: string) => {
+    const targetUrl = new URL(targetPath, request.url);
+    const isSamePath = targetUrl.pathname === path;
+    const isSameSearch = targetUrl.search === request.nextUrl.search;
+
+    if (isSamePath && isSameSearch) {
+      return response;
+    }
+
+    return NextResponse.redirect(targetUrl);
+  };
+
+  if (role === 'inactive_technician' && path !== '/login') {
+    return redirectIfDifferent('/login?error=inactive_technician');
   }
 
-  if (isWorkshopRoute && role !== 'admin') {
-    return NextResponse.redirect(new URL(getDashboardPathForRole(role), request.url));
+  if ((path === '/login' || path === '/signup') && role && role !== 'inactive_technician') {
+    return redirectIfDifferent(getDashboardPathForRole(role));
   }
 
-  if (isCustomerRoute && role !== 'customer') {
-    return NextResponse.redirect(new URL(getDashboardPathForRole(role), request.url));
+  const hasWorkshopAccess = role === 'admin' || role === 'technician';
+  const hasCustomerAccess = role === 'customer';
+
+  if (isWorkshopRoute && !hasWorkshopAccess) {
+    return redirectIfDifferent(getDashboardPathForRole(role));
+  }
+
+  if (isCustomerRoute && !hasCustomerAccess) {
+    return redirectIfDifferent(getDashboardPathForRole(role));
   }
 
   return response;

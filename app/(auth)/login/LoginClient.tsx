@@ -4,26 +4,30 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import {
-  getDashboardPathForRole,
-  type UserRole
-} from '@/lib/auth/role-redirect';
+import { getDashboardPathForRole } from '@/lib/auth/role-redirect';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { AuthShell } from '@/components/auth/auth-shell';
 
 const showOtp = process.env.NEXT_PUBLIC_ENABLE_EMAIL_OTP === 'true';
 
+const INACTIVE_TECHNICIAN_MESSAGE =
+  'Your technician account has been deactivated. Contact your workshop admin.';
+
 export default function LoginClient({
-  created = false
+  created = false,
+  initialError
 }: {
   created?: boolean;
+  initialError?: string;
 }) {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
-  const [msg, setMsg] = useState('');
+  const [msg, setMsg] = useState(
+    initialError === 'inactive_technician' ? INACTIVE_TECHNICIAN_MESSAGE : ''
+  );
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [isOtpPending, setIsOtpPending] = useState(false);
 
@@ -70,8 +74,17 @@ export default function LoginClient({
       return;
     }
 
-    const dashboardPath = getDashboardPathForRole(profile.role as UserRole);
-    if (dashboardPath === '/customer/dashboard') {
+    const role = profile?.role;
+
+    if (role === 'inactive_technician') {
+      setMsg(INACTIVE_TECHNICIAN_MESSAGE);
+      await supabase.auth.signOut();
+      setIsSigningIn(false);
+      endAuthTransition();
+      return;
+    }
+
+    if (role === 'customer') {
       const bootstrapResponse = await fetch('/api/auth/customer/bootstrap', {
         method: 'POST'
       });
@@ -83,7 +96,7 @@ export default function LoginClient({
     }
 
     window.dispatchEvent(new Event('route-progress:start'));
-    router.push(dashboardPath);
+    router.push(getDashboardPathForRole(role));
   }
 
   async function sendOtp() {
