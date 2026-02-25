@@ -253,8 +253,8 @@ export async function POST(request: NextRequest) {
       mime_type: 'application/pdf',
       size_bytes: pdfBytes.length,
       subject: displayName,
-      importance: 'info',
-      visible_to_customer: true
+      // Customer visibility is enforced by access rules/RLS; there is no visible_to_customer column.
+      importance: 'info'
     })
     .select('id')
     .single();
