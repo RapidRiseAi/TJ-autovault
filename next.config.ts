@@ -5,6 +5,8 @@ const nextConfig: NextConfig = {
     '/api/workshop/inspection-reports/generate': [
       './assets/fonts/NotoSans-Regular.ttf',
       './assets/fonts/NotoSans-Bold.ttf',
+      './assets/fonts/DejaVuSans.ttf',
+      './assets/fonts/DejaVuSans-Bold.ttf',
       './assets/fonts/**/*.ttf',
       './node_modules/next/dist/compiled/@vercel/og/noto-sans-v27-latin-regular.ttf'
     ]
