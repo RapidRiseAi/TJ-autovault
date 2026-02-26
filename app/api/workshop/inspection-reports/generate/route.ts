@@ -104,7 +104,10 @@ async function readFontFromCandidates(label: string, relativePaths: string[]) {
     for (const fontPath of locations) {
       attempted.push(fontPath);
       try {
-        return await readFile(fontPath);
+        return {
+          bytes: await readFile(fontPath),
+          sourcePath: fontPath
+        };
       } catch {
         // try the next candidate
       }
@@ -225,22 +228,31 @@ export async function POST(request: NextRequest) {
     const pdfDoc = await PDFDocument.create();
     pdfDoc.registerFontkit(fontkit);
 
-    const [regularFontBytes, boldFontBytes] = await Promise.all([
+    const [regularFont, boldFont] = await Promise.all([
       readFontFromCandidates('regular', [
         'assets/fonts/NotoSans-Regular.ttf',
         'NotoSans-Regular.ttf',
+        'DejaVuSans.ttf',
+        'assets/fonts/DejaVuSans.ttf',
         'node_modules/next/dist/compiled/@vercel/og/noto-sans-v27-latin-regular.ttf'
       ]),
       readFontFromCandidates('bold', [
         'assets/fonts/NotoSans-Bold.ttf',
         'NotoSans-Bold.ttf',
+        'DejaVuSans-Bold.ttf',
+        'assets/fonts/DejaVuSans-Bold.ttf',
         'node_modules/next/dist/compiled/@vercel/og/noto-sans-v27-latin-regular.ttf'
       ])
     ]);
 
+    console.info('[inspection-pdf] Runtime font sources', {
+      regular: regularFont.sourcePath,
+      bold: boldFont.sourcePath
+    });
+
     let page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-    const font = await pdfDoc.embedFont(regularFontBytes, { subset: true });
-    const bold = await pdfDoc.embedFont(boldFontBytes, { subset: true });
+    const font = await pdfDoc.embedFont(regularFont.bytes, { subset: true });
+    const bold = await pdfDoc.embedFont(boldFont.bytes, { subset: true });
 
     let cursorY = PAGE_HEIGHT - MARGIN;
     const rightX = PAGE_WIDTH - MARGIN - 180;
