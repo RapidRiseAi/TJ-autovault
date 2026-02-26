@@ -10,9 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node tests/rls-sanity.test.mjs && node tests/timeline-feature.test.mjs && node tests/invoice-close-preflight.test.mjs",
     "format": "prettier --write .",
-    "db:seed": "psql \"$SUPABASE_DB_URL\" -f supabase/seed/seed.sql",
-    "prepare:pdf-fonts": "node scripts/ensure-pdf-fonts.mjs",
-    "prebuild": "npm run prepare:pdf-fonts"
+    "db:seed": "psql \"$SUPABASE_DB_URL\" -f supabase/seed/seed.sql"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
