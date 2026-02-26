@@ -66,14 +66,20 @@ export function normalizeFieldOptions(fieldType: string, input?: unknown) {
 
 export function formatInspectionResult(
   fieldType: string,
-  value: unknown
+  value: unknown,
+  options?: unknown
 ): string {
   if (fieldType === 'section_break') return '';
 
   if (fieldType === 'checkbox') {
-    if (value === true || value === 'ok') return 'OK';
-    if (value === 'x') return 'X';
-    return 'Issue';
+    const allowCross =
+      options && typeof options === 'object' && 'allowCross' in options
+        ? Boolean((options as { allowCross?: unknown }).allowCross)
+        : false;
+
+    if (value === true || value === 'ok') return '☑';
+    if (allowCross && value === 'x') return '☒';
+    return '☐';
   }
 
   if (typeof value === 'number') return String(value);

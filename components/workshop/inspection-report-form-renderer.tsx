@@ -343,7 +343,7 @@ export function InspectionReportFormRenderer({
                           }))
                         }
                       />
-                      <span>OK (leave unchecked for issue)</span>
+                      <span>Checked / empty</span>
                     </span>
                   )
                 ) : null}
