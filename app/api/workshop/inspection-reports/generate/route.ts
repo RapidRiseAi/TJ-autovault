@@ -73,6 +73,10 @@ function drawWrappedText(args: {
   return { y: currentY, lines: Math.max(lines.length, 1) };
 }
 
+function widthOfSafeTextAtSize(font: PdfFontLike, text: string, size: number) {
+  return font.widthOfTextAtSize(toPdfSafeText(font, text), size);
+}
+
 function drawSafeText(args: {
   page: PdfPageLike;
   font: PdfFontLike;
@@ -245,8 +249,8 @@ export async function POST(request: NextRequest) {
 
     const value = formatInspectionResult(field.field_type, payload.answers[field.id], field.options);
     const lineCount = Math.max(
-      Math.ceil(bold.widthOfTextAtSize(field.label, 9) / 260),
-      Math.ceil(font.widthOfTextAtSize(value || '-', 9) / 120),
+      Math.ceil(widthOfSafeTextAtSize(bold, field.label, 9) / 260),
+      Math.ceil(widthOfSafeTextAtSize(font, value || '-', 9) / 120),
       1
     );
     const rowHeight = Math.max(22, lineCount * 12 + 8);

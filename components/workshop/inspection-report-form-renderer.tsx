@@ -132,8 +132,8 @@ export function InspectionReportFormRenderer({
         }
         if (!response.ok) {
           const errorMessage =
-            (body && typeof body.error === 'string' && body.error) ||
             (body && typeof body.detail === 'string' && body.detail) ||
+            (body && typeof body.error === 'string' && body.error) ||
             raw ||
             'Could not generate report';
           throw new Error(errorMessage);
