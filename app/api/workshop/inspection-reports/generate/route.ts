@@ -2,14 +2,34 @@ import { NextRequest, NextResponse } from 'next/server';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { PDFDocument, rgb } from 'pdf-lib';
+import { createHash } from 'node:crypto';
 import fontkit from '@pdf-lib/fontkit';
 import { createClient } from '@/lib/supabase/server';
-import { inspectionGenerateSchema, formatInspectionResult } from '@/lib/inspection-reports';
+import {
+  inspectionGenerateSchema,
+  formatInspectionResult
+} from '@/lib/inspection-reports';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 const PAGE_WIDTH = 595.28;
 const PAGE_HEIGHT = 841.89;
 const MARGIN = 40;
+
+const CHECKBOX_SYMBOLS = ['☑', '☒', '☐'] as const;
+
+async function probeFontSupportsCheckboxGlyphs(bytes: Uint8Array) {
+  const probeDoc = await PDFDocument.create();
+  probeDoc.registerFontkit(fontkit);
+  const probeFont = await probeDoc.embedFont(bytes, { subset: false });
+
+  for (const symbol of CHECKBOX_SYMBOLS) {
+    probeFont.encodeText(symbol);
+  }
+}
+
+function checksum(bytes: Uint8Array) {
+  return createHash('sha256').update(bytes).digest('hex').slice(0, 12);
+}
 
 type PdfPageLike = {
   drawText: (text: string, options: Record<string, unknown>) => void;
@@ -24,7 +44,9 @@ function toPdfSafeText(font: PdfFontLike, text: string) {
   if (!text) return '';
   if (!font.encodeText) return text;
 
-  const normalized = text.replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"');
+  const normalized = text
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"');
   let safeText = '';
 
   for (const char of normalized) {
@@ -50,7 +72,17 @@ function drawWrappedText(args: {
   color?: ReturnType<typeof rgb>;
   lineHeight?: number;
 }) {
-  const { page, text, x, y, maxWidth, size, font, color = rgb(0, 0, 0), lineHeight = size + 2 } = args;
+  const {
+    page,
+    text,
+    x,
+    y,
+    maxWidth,
+    size,
+    font,
+    color = rgb(0, 0, 0),
+    lineHeight = size + 2
+  } = args;
   const safeText = toPdfSafeText(font, text || '');
   const words = safeText.split(/\s+/).filter(Boolean);
   const lines: string[] = [];
@@ -92,30 +124,39 @@ function drawSafeText(args: {
 
 async function readFontFromCandidates(label: string, relativePaths: string[]) {
   const attempted: string[] = [];
+  const rejected: string[] = [];
   const cwd = process.cwd();
 
   for (const relativePath of relativePaths) {
-    const locations = [path.resolve(cwd, relativePath)];
+    const locations = [relativePath];
 
-    if (!relativePath.includes('/')) {
-      locations.push(path.resolve(cwd, 'assets/fonts', relativePath));
+    if (!relativePath.includes('/') && !relativePath.includes('\\')) {
+      locations.push(path.join('assets', 'fonts', relativePath));
     }
 
-    for (const fontPath of locations) {
+    for (const location of locations) {
+      const fontPath = path.isAbsolute(location)
+        ? location
+        : path.resolve(cwd, location);
       attempted.push(fontPath);
       try {
+        const bytes = await readFile(fontPath);
+        await probeFontSupportsCheckboxGlyphs(bytes);
         return {
-          bytes: await readFile(fontPath),
-          sourcePath: fontPath
+          bytes,
+          sourcePath: fontPath,
+          checksum: checksum(bytes)
         };
-      } catch {
-        // try the next candidate
+      } catch (error) {
+        rejected.push(
+          `${fontPath} (${error instanceof Error ? error.message : 'unknown error'})`
+        );
       }
     }
   }
 
   throw new Error(
-    `Could not load ${label} PDF font. Expected one of: ${attempted.join(', ')}. Ensure the font file exists and is readable by the server.`
+    `Could not load ${label} PDF font with checkbox glyph support. Attempted: ${attempted.join(', ')}. Rejected: ${rejected.join(', ')}.`
   );
 }
 
@@ -131,7 +172,8 @@ export async function POST(request: NextRequest) {
     const admin = createAdminClient();
     const user = (await supabase.auth.getUser()).data.user;
 
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!user)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { data: profile } = await supabase
       .from('profiles')
@@ -144,33 +186,45 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
-    const [{ data: vehicle }, { data: workshop }, { data: template }, { data: customer }] = await Promise.all([
-    supabase
-      .from('vehicles')
-      .select('id,registration_number,make,model,vin,odometer_km,workshop_account_id,current_customer_account_id')
-      .eq('id', payload.vehicleId)
-      .eq('workshop_account_id', profile.workshop_account_id)
-      .maybeSingle(),
-    supabase
-      .from('workshop_accounts')
-      .select('id,name')
-      .eq('id', profile.workshop_account_id)
-      .maybeSingle(),
-    supabase
-      .from('inspection_templates')
-      .select('id,name,inspection_template_fields(id,sort_order,field_type,label,required,options)')
-      .eq('id', payload.templateId)
-      .eq('workshop_account_id', profile.workshop_account_id)
-      .maybeSingle(),
-    supabase
-      .from('vehicles')
-      .select('current_customer_account_id,customer_accounts(name)')
-      .eq('id', payload.vehicleId)
-      .maybeSingle()
-  ]);
+    const [
+      { data: vehicle },
+      { data: workshop },
+      { data: template },
+      { data: customer }
+    ] = await Promise.all([
+      supabase
+        .from('vehicles')
+        .select(
+          'id,registration_number,make,model,vin,odometer_km,workshop_account_id,current_customer_account_id'
+        )
+        .eq('id', payload.vehicleId)
+        .eq('workshop_account_id', profile.workshop_account_id)
+        .maybeSingle(),
+      supabase
+        .from('workshop_accounts')
+        .select('id,name')
+        .eq('id', profile.workshop_account_id)
+        .maybeSingle(),
+      supabase
+        .from('inspection_templates')
+        .select(
+          'id,name,inspection_template_fields(id,sort_order,field_type,label,required,options)'
+        )
+        .eq('id', payload.templateId)
+        .eq('workshop_account_id', profile.workshop_account_id)
+        .maybeSingle(),
+      supabase
+        .from('vehicles')
+        .select('current_customer_account_id,customer_accounts(name)')
+        .eq('id', payload.vehicleId)
+        .maybeSingle()
+    ]);
 
     if (!vehicle || !template) {
-      return NextResponse.json({ error: 'Vehicle or template not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Vehicle or template not found' },
+        { status: 404 }
+      );
     }
 
     const fields = (template.inspection_template_fields ?? []).sort(
@@ -181,14 +235,19 @@ export async function POST(request: NextRequest) {
       if (field.field_type === 'section_break') continue;
       const answer = payload.answers[field.id];
       if (field.required && (answer == null || answer === '')) {
-        return NextResponse.json({ error: `${field.label} is required` }, { status: 400 });
+        return NextResponse.json(
+          { error: `${field.label} is required` },
+          { status: 400 }
+        );
       }
     }
 
     const currentMileage = vehicle.odometer_km ?? 0;
     if (payload.odometerKm < currentMileage) {
       return NextResponse.json(
-        { error: `Mileage cannot be less than current mileage (${currentMileage.toLocaleString()} km)` },
+        {
+          error: `Mileage cannot be less than current mileage (${currentMileage.toLocaleString()} km)`
+        },
         { status: 400 }
       );
     }
@@ -201,7 +260,10 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
 
     if (!selectedTechnician) {
-      return NextResponse.json({ error: 'Technician not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Technician not found' },
+        { status: 404 }
+      );
     }
 
     const { data: report, error: reportError } = await supabase
@@ -220,32 +282,46 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (reportError || !report) {
-      return NextResponse.json({ error: reportError?.message ?? 'Could not create report' }, { status: 400 });
+      return NextResponse.json(
+        { error: reportError?.message ?? 'Could not create report' },
+        { status: 400 }
+      );
     }
 
-    await supabase.from('vehicles').update({ odometer_km: payload.odometerKm }).eq('id', vehicle.id);
+    await supabase
+      .from('vehicles')
+      .update({ odometer_km: payload.odometerKm })
+      .eq('id', vehicle.id);
 
     const pdfDoc = await PDFDocument.create();
     pdfDoc.registerFontkit(fontkit);
 
     const [regularFont, boldFont] = await Promise.all([
       readFontFromCandidates('regular', [
+        'assets/fonts/DejaVuSans.ttf',
+        'DejaVuSans.ttf',
+        '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+        '/usr/local/share/fonts/DejaVuSans.ttf',
         'assets/fonts/NotoSans-Regular.ttf',
         'NotoSans-Regular.ttf',
-        'assets/fonts/DejaVuSans.ttf',
         'node_modules/next/dist/compiled/@vercel/og/noto-sans-v27-latin-regular.ttf'
       ]),
       readFontFromCandidates('bold', [
+        'assets/fonts/DejaVuSans-Bold.ttf',
+        'DejaVuSans-Bold.ttf',
+        '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+        '/usr/local/share/fonts/DejaVuSans-Bold.ttf',
         'assets/fonts/NotoSans-Bold.ttf',
         'NotoSans-Bold.ttf',
-        'assets/fonts/DejaVuSans-Bold.ttf',
         'node_modules/next/dist/compiled/@vercel/og/noto-sans-v27-latin-regular.ttf'
       ])
     ]);
 
     console.info('[inspection-pdf] Runtime font sources', {
       regular: regularFont.sourcePath,
-      bold: boldFont.sourcePath
+      regularChecksum: regularFont.checksum,
+      bold: boldFont.sourcePath,
+      boldChecksum: boldFont.checksum
     });
 
     let page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
@@ -255,176 +331,322 @@ export async function POST(request: NextRequest) {
     let cursorY = PAGE_HEIGHT - MARGIN;
     const rightX = PAGE_WIDTH - MARGIN - 180;
 
-    drawSafeText({ page, font: bold, text: workshop?.name ?? 'Workshop', options: { x: MARGIN, y: cursorY, size: 20, font: bold } });
+    drawSafeText({
+      page,
+      font: bold,
+      text: workshop?.name ?? 'Workshop',
+      options: { x: MARGIN, y: cursorY, size: 20, font: bold }
+    });
     cursorY -= 20;
-    drawSafeText({ page, font, text: `Email: ${user.email ?? '-'}`, options: { x: MARGIN, y: cursorY, size: 10, font, color: rgb(0.3, 0.3, 0.3) } });
-  cursorY -= 14;
-  page.drawText('Generated inspection report', { x: MARGIN, y: cursorY, size: 10, font, color: rgb(0.3, 0.3, 0.3) });
+    drawSafeText({
+      page,
+      font,
+      text: `Email: ${user.email ?? '-'}`,
+      options: {
+        x: MARGIN,
+        y: cursorY,
+        size: 10,
+        font,
+        color: rgb(0.3, 0.3, 0.3)
+      }
+    });
+    cursorY -= 14;
+    page.drawText('Generated inspection report', {
+      x: MARGIN,
+      y: cursorY,
+      size: 10,
+      font,
+      color: rgb(0.3, 0.3, 0.3)
+    });
 
-  page.drawText('INSPECTION REPORT', { x: rightX, y: PAGE_HEIGHT - MARGIN, size: 16, font: bold });
-  page.drawText(new Date().toLocaleDateString('en-ZA', { timeZone: 'Africa/Johannesburg' }), { x: rightX, y: PAGE_HEIGHT - MARGIN - 18, size: 10, font });
+    page.drawText('INSPECTION REPORT', {
+      x: rightX,
+      y: PAGE_HEIGHT - MARGIN,
+      size: 16,
+      font: bold
+    });
+    page.drawText(
+      new Date().toLocaleDateString('en-ZA', {
+        timeZone: 'Africa/Johannesburg'
+      }),
+      { x: rightX, y: PAGE_HEIGHT - MARGIN - 18, size: 10, font }
+    );
 
-  cursorY -= 20;
-  page.drawRectangle({ x: MARGIN, y: cursorY - 65, width: PAGE_WIDTH - MARGIN * 2, height: 65, borderColor: rgb(0.8,0.8,0.8), borderWidth: 1 });
-  drawSafeText({ page, font: bold, text: `Reg: ${vehicle.registration_number ?? '-'}`, options: { x: MARGIN + 10, y: cursorY - 18, size: 10, font: bold } });
-  drawSafeText({ page, font, text: `Make/Model: ${[vehicle.make, vehicle.model].filter(Boolean).join(' ') || '-'}`, options: { x: MARGIN + 10, y: cursorY - 34, size: 10, font } });
-  drawSafeText({ page, font, text: `VIN: ${vehicle.vin ?? '-'}`, options: { x: MARGIN + 10, y: cursorY - 50, size: 10, font } });
-  drawSafeText({ page, font, text: `Mileage: ${payload.odometerKm} km`, options: { x: MARGIN + 280, y: cursorY - 18, size: 10, font } });
-  const customerName = (customer?.customer_accounts as { name?: string } | null)?.name ?? '-';
-  drawSafeText({ page, font, text: `Customer: ${customerName}`, options: { x: MARGIN + 280, y: cursorY - 34, size: 10, font } });
+    cursorY -= 20;
+    page.drawRectangle({
+      x: MARGIN,
+      y: cursorY - 65,
+      width: PAGE_WIDTH - MARGIN * 2,
+      height: 65,
+      borderColor: rgb(0.8, 0.8, 0.8),
+      borderWidth: 1
+    });
+    drawSafeText({
+      page,
+      font: bold,
+      text: `Reg: ${vehicle.registration_number ?? '-'}`,
+      options: { x: MARGIN + 10, y: cursorY - 18, size: 10, font: bold }
+    });
+    drawSafeText({
+      page,
+      font,
+      text: `Make/Model: ${[vehicle.make, vehicle.model].filter(Boolean).join(' ') || '-'}`,
+      options: { x: MARGIN + 10, y: cursorY - 34, size: 10, font }
+    });
+    drawSafeText({
+      page,
+      font,
+      text: `VIN: ${vehicle.vin ?? '-'}`,
+      options: { x: MARGIN + 10, y: cursorY - 50, size: 10, font }
+    });
+    drawSafeText({
+      page,
+      font,
+      text: `Mileage: ${payload.odometerKm} km`,
+      options: { x: MARGIN + 280, y: cursorY - 18, size: 10, font }
+    });
+    const customerName =
+      (customer?.customer_accounts as { name?: string } | null)?.name ?? '-';
+    drawSafeText({
+      page,
+      font,
+      text: `Customer: ${customerName}`,
+      options: { x: MARGIN + 280, y: cursorY - 34, size: 10, font }
+    });
 
-  cursorY -= 88;
+    cursorY -= 88;
 
-  const drawTableHeader = () => {
-    page.drawRectangle({ x: MARGIN, y: cursorY - 20, width: PAGE_WIDTH - MARGIN * 2, height: 20, color: rgb(0.94,0.94,0.94) });
-    page.drawText('Item', { x: MARGIN + 8, y: cursorY - 14, size: 10, font: bold });
-    page.drawText('Result', { x: MARGIN + 285, y: cursorY - 14, size: 10, font: bold });
-    page.drawText('Notes', { x: MARGIN + 420, y: cursorY - 14, size: 10, font: bold });
-    cursorY -= 22;
-  };
+    const drawTableHeader = () => {
+      page.drawRectangle({
+        x: MARGIN,
+        y: cursorY - 20,
+        width: PAGE_WIDTH - MARGIN * 2,
+        height: 20,
+        color: rgb(0.94, 0.94, 0.94)
+      });
+      page.drawText('Item', {
+        x: MARGIN + 8,
+        y: cursorY - 14,
+        size: 10,
+        font: bold
+      });
+      page.drawText('Result', {
+        x: MARGIN + 285,
+        y: cursorY - 14,
+        size: 10,
+        font: bold
+      });
+      page.drawText('Notes', {
+        x: MARGIN + 420,
+        y: cursorY - 14,
+        size: 10,
+        font: bold
+      });
+      cursorY -= 22;
+    };
 
-  drawTableHeader();
+    drawTableHeader();
 
-  for (let index = 0; index < fields.length; index += 1) {
-    const field = fields[index];
+    for (let index = 0; index < fields.length; index += 1) {
+      const field = fields[index];
 
-    if (field.field_type === 'section_break') {
-      const sectionHeight = 24;
-      if (cursorY - sectionHeight < MARGIN + 110) {
+      if (field.field_type === 'section_break') {
+        const sectionHeight = 24;
+        if (cursorY - sectionHeight < MARGIN + 110) {
+          page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+          cursorY = PAGE_HEIGHT - MARGIN;
+          drawTableHeader();
+        }
+        page.drawRectangle({
+          x: MARGIN,
+          y: cursorY - sectionHeight,
+          width: PAGE_WIDTH - MARGIN * 2,
+          height: sectionHeight,
+          color: rgb(0.93, 0.93, 0.93)
+        });
+        drawWrappedText({
+          page,
+          text: field.label,
+          x: MARGIN + 8,
+          y: cursorY - 15,
+          maxWidth: PAGE_WIDTH - MARGIN * 2 - 16,
+          size: 10,
+          font: bold
+        });
+        cursorY -= sectionHeight;
+        continue;
+      }
+
+      const value = formatInspectionResult(
+        field.field_type,
+        payload.answers[field.id],
+        field.options
+      );
+      const displayValue = value;
+      const valueFont = font;
+      const lineCount = Math.max(
+        Math.ceil(widthOfSafeTextAtSize(bold, field.label, 9) / 260),
+        Math.ceil(
+          widthOfSafeTextAtSize(valueFont, displayValue || '-', 9) / 120
+        ),
+        1
+      );
+      const rowHeight = Math.max(22, lineCount * 12 + 8);
+
+      if (cursorY - rowHeight < MARGIN + 110) {
         page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
         cursorY = PAGE_HEIGHT - MARGIN;
         drawTableHeader();
       }
-      page.drawRectangle({ x: MARGIN, y: cursorY - sectionHeight, width: PAGE_WIDTH - MARGIN * 2, height: sectionHeight, color: rgb(0.93, 0.93, 0.93) });
-      drawWrappedText({ page, text: field.label, x: MARGIN + 8, y: cursorY - 15, maxWidth: PAGE_WIDTH - MARGIN * 2 - 16, size: 10, font: bold });
-      cursorY -= sectionHeight;
-      continue;
+
+      if (index % 2 === 1) {
+        page.drawRectangle({
+          x: MARGIN,
+          y: cursorY - rowHeight,
+          width: PAGE_WIDTH - MARGIN * 2,
+          height: rowHeight,
+          color: rgb(0.985, 0.985, 0.985)
+        });
+      }
+
+      drawWrappedText({
+        page,
+        text: field.label,
+        x: MARGIN + 8,
+        y: cursorY - 14,
+        maxWidth: 260,
+        size: 9,
+        font
+      });
+      drawWrappedText({
+        page,
+        text: displayValue || '-',
+        x: MARGIN + 285,
+        y: cursorY - 14,
+        maxWidth: 120,
+        size: 9,
+        font: valueFont
+      });
+      page.drawText('', { x: MARGIN + 420, y: cursorY - 14, size: 9, font });
+
+      cursorY -= rowHeight;
     }
 
-    const value = formatInspectionResult(field.field_type, payload.answers[field.id], field.options);
-    const displayValue = value;
-    const valueFont = font;
-    const lineCount = Math.max(
-      Math.ceil(widthOfSafeTextAtSize(bold, field.label, 9) / 260),
-      Math.ceil(widthOfSafeTextAtSize(valueFont, displayValue || '-', 9) / 120),
-      1
-    );
-    const rowHeight = Math.max(22, lineCount * 12 + 8);
+    cursorY -= 16;
+    page.drawText('Inspector notes', {
+      x: MARGIN,
+      y: cursorY,
+      size: 12,
+      font: bold
+    });
+    cursorY -= 14;
+    const wrappedNotes = drawWrappedText({
+      page,
+      text: payload.notes?.trim() || 'None',
+      x: MARGIN,
+      y: cursorY,
+      maxWidth: PAGE_WIDTH - MARGIN * 2,
+      size: 10,
+      font,
+      lineHeight: 13
+    });
+    cursorY = wrappedNotes.y - 20;
 
-    if (cursorY - rowHeight < MARGIN + 110) {
-      page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-      cursorY = PAGE_HEIGHT - MARGIN;
-      drawTableHeader();
-    }
-
-    if (index % 2 === 1) {
-      page.drawRectangle({ x: MARGIN, y: cursorY - rowHeight, width: PAGE_WIDTH - MARGIN * 2, height: rowHeight, color: rgb(0.985,0.985,0.985) });
-    }
-
-    drawWrappedText({ page, text: field.label, x: MARGIN + 8, y: cursorY - 14, maxWidth: 260, size: 9, font });
-    drawWrappedText({ page, text: displayValue || '-', x: MARGIN + 285, y: cursorY - 14, maxWidth: 120, size: 9, font: valueFont });
-    page.drawText('', { x: MARGIN + 420, y: cursorY - 14, size: 9, font });
-
-    cursorY -= rowHeight;
-  }
-
-  cursorY -= 16;
-  page.drawText('Inspector notes', { x: MARGIN, y: cursorY, size: 12, font: bold });
-  cursorY -= 14;
-  const wrappedNotes = drawWrappedText({
-    page,
-    text: payload.notes?.trim() || 'None',
-    x: MARGIN,
-    y: cursorY,
-    maxWidth: PAGE_WIDTH - MARGIN * 2,
-    size: 10,
-    font,
-    lineHeight: 13
-  });
-  cursorY = wrappedNotes.y - 20;
-
-  const signatureLabel = selectedTechnician.signature_text?.trim()
-    ? selectedTechnician.signature_text.trim()
-    : '____________________';
-  const saDate = new Date().toLocaleDateString('en-ZA', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    timeZone: 'Africa/Johannesburg'
-  });
-  drawSafeText({ page, font, text: `Technician signature: ${signatureLabel}`, options: { x: MARGIN, y: cursorY, size: 11, font } });
-  drawSafeText({ page, font, text: `Date: ${saDate}`, options: { x: MARGIN + 330, y: cursorY, size: 11, font } });
-
-  page.drawText('Generated by TJ Autovault', {
-    x: PAGE_WIDTH / 2 - 60,
-    y: 20,
-    size: 8,
-    font,
-    color: rgb(0.45, 0.45, 0.45)
-  });
-
-  const pdfBytes = await pdfDoc.save();
-  const pdfPath = `workshop/${profile.workshop_account_id}/vehicles/${vehicle.id}/inspection_reports/${report.id}.pdf`;
-
-  const { error: uploadError } = await admin.storage
-    .from('vehicle-files')
-    .upload(pdfPath, Buffer.from(pdfBytes), {
-      upsert: true,
-      contentType: 'application/pdf'
+    const signatureLabel = selectedTechnician.signature_text?.trim()
+      ? selectedTechnician.signature_text.trim()
+      : '____________________';
+    const saDate = new Date().toLocaleDateString('en-ZA', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      timeZone: 'Africa/Johannesburg'
+    });
+    drawSafeText({
+      page,
+      font,
+      text: `Technician signature: ${signatureLabel}`,
+      options: { x: MARGIN, y: cursorY, size: 11, font }
+    });
+    drawSafeText({
+      page,
+      font,
+      text: `Date: ${saDate}`,
+      options: { x: MARGIN + 330, y: cursorY, size: 11, font }
     });
 
-  if (uploadError) {
-    return NextResponse.json({ error: uploadError.message }, { status: 400 });
-  }
+    page.drawText('Generated by TJ Autovault', {
+      x: PAGE_WIDTH / 2 - 60,
+      y: 20,
+      size: 8,
+      font,
+      color: rgb(0.45, 0.45, 0.45)
+    });
 
-  await supabase
-    .from('inspection_reports')
-    .update({ pdf_storage_path: pdfPath })
-    .eq('id', report.id);
+    const pdfBytes = await pdfDoc.save();
+    const pdfPath = `workshop/${profile.workshop_account_id}/vehicles/${vehicle.id}/inspection_reports/${report.id}.pdf`;
 
-  const displayName = `Inspection Report (${new Date().toISOString().slice(0, 10)})`;
+    const { error: uploadError } = await admin.storage
+      .from('vehicle-files')
+      .upload(pdfPath, Buffer.from(pdfBytes), {
+        upsert: true,
+        contentType: 'application/pdf'
+      });
 
-  const { data: document, error: documentError } = await supabase
-    .from('vehicle_documents')
-    .insert({
+    if (uploadError) {
+      return NextResponse.json({ error: uploadError.message }, { status: 400 });
+    }
+
+    await supabase
+      .from('inspection_reports')
+      .update({ pdf_storage_path: pdfPath })
+      .eq('id', report.id);
+
+    const displayName = `Inspection Report (${new Date().toISOString().slice(0, 10)})`;
+
+    const { data: document, error: documentError } = await supabase
+      .from('vehicle_documents')
+      .insert({
+        workshop_account_id: profile.workshop_account_id,
+        customer_account_id: vehicle.current_customer_account_id,
+        vehicle_id: vehicle.id,
+        document_type: 'inspection',
+        doc_type: 'inspection',
+        storage_bucket: 'vehicle-files',
+        storage_path: pdfPath,
+        original_name: `${displayName}.pdf`,
+        mime_type: 'application/pdf',
+        size_bytes: pdfBytes.length,
+        subject: displayName,
+        // Customer visibility is enforced by access rules/RLS; there is no visible_to_customer column.
+        importance: 'info'
+      })
+      .select('id')
+      .single();
+
+    if (documentError || !document) {
+      return NextResponse.json(
+        { error: documentError?.message ?? 'Could not create document' },
+        { status: 400 }
+      );
+    }
+
+    await supabase.from('vehicle_timeline_events').insert({
       workshop_account_id: profile.workshop_account_id,
       customer_account_id: vehicle.current_customer_account_id,
       vehicle_id: vehicle.id,
-      document_type: 'inspection',
-      doc_type: 'inspection',
-      storage_bucket: 'vehicle-files',
-      storage_path: pdfPath,
-      original_name: `${displayName}.pdf`,
-      mime_type: 'application/pdf',
-      size_bytes: pdfBytes.length,
-      subject: displayName,
-      // Customer visibility is enforced by access rules/RLS; there is no visible_to_customer column.
-      importance: 'info'
-    })
-    .select('id')
-    .single();
-
-  if (documentError || !document) {
-    return NextResponse.json({ error: documentError?.message ?? 'Could not create document' }, { status: 400 });
-  }
-
-  await supabase.from('vehicle_timeline_events').insert({
-    workshop_account_id: profile.workshop_account_id,
-    customer_account_id: vehicle.current_customer_account_id,
-    vehicle_id: vehicle.id,
-    actor_profile_id: user.id,
-    actor_role: profile.role,
-    event_type: 'inspection_report_added',
-    title: displayName,
-    description: 'Inspection report added',
-    importance: 'info',
-    metadata: {
-      report_id: report.id,
-      mode: 'digital',
-      display_name: displayName,
-      doc_id: document.id
-    }
-  });
+      actor_profile_id: user.id,
+      actor_role: profile.role,
+      event_type: 'inspection_report_added',
+      title: displayName,
+      description: 'Inspection report added',
+      importance: 'info',
+      metadata: {
+        report_id: report.id,
+        mode: 'digital',
+        display_name: displayName,
+        doc_id: document.id
+      }
+    });
 
     return NextResponse.json({
       ok: true,
@@ -434,7 +656,10 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
-    console.error('[api/workshop/inspection-reports/generate] Unexpected error', error);
+    console.error(
+      '[api/workshop/inspection-reports/generate] Unexpected error',
+      error
+    );
     return NextResponse.json(
       { error: 'Could not generate report', detail: message },
       { status: 500 }

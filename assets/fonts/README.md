@@ -19,6 +19,23 @@ The checkbox symbols used in inspection results must render correctly:
 
 `DejaVuSans` covers these glyphs, unlike the Latin-only Next.js OG fallback font.
 
+## Runtime fallback order
+
+The generator now probes candidate fonts and only accepts files that can encode all three checkbox glyphs. Candidates include:
+
+1. `assets/fonts/DejaVuSans*.ttf`
+2. repo root `DejaVuSans*.ttf`
+3. common Linux system font locations (`/usr/share/fonts/...`, `/usr/local/share/fonts/...`)
+4. Noto/Next fallback fonts (accepted only if they encode all glyphs)
+
+Runtime logs include:
+
+```txt
+[inspection-pdf] Runtime font sources { regular, regularChecksum, bold, boldChecksum }
+```
+
+Use those checksums to confirm the deployed container is using the expected newly-deployed font files (not stale artifacts).
+
 ## Quick local verification
 
 ```bash
