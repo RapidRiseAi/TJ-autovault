@@ -227,12 +227,12 @@ export async function POST(request: NextRequest) {
 
     const [regularFontBytes, boldFontBytes] = await Promise.all([
       readFontFromCandidates('regular', [
-        'NotoSans-Italic-VariableFont_wdth,wght.ttf',
-        'assets/fonts/NotoSans-Regular.ttf'
+        'assets/fonts/NotoSans-Regular.ttf',
+        'NotoSans-Regular.ttf'
       ]),
       readFontFromCandidates('bold', [
-        'NotoSans-Italic-VariableFont_wdth,wght.ttf',
-        'assets/fonts/NotoSans-Bold.ttf'
+        'assets/fonts/NotoSans-Bold.ttf',
+        'NotoSans-Bold.ttf'
       ])
     ]);
 
