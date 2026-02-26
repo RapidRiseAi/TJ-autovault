@@ -3,7 +3,8 @@ import type { NextConfig } from 'next';
 const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     '/api/workshop/inspection-reports/generate': [
-      './NotoSans-Italic-VariableFont_wdth,wght.ttf',
+      './assets/fonts/NotoSans-Regular.ttf',
+      './assets/fonts/NotoSans-Bold.ttf',
       './assets/fonts/**/*.ttf'
     ]
   },
