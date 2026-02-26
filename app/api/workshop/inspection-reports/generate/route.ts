@@ -212,7 +212,7 @@ export async function POST(request: NextRequest) {
       continue;
     }
 
-    const value = formatInspectionResult(field.field_type, payload.answers[field.id]);
+    const value = formatInspectionResult(field.field_type, payload.answers[field.id], field.options);
     const lineCount = Math.max(
       Math.ceil(bold.widthOfTextAtSize(field.label, 9) / 260),
       Math.ceil(font.widthOfTextAtSize(value || '-', 9) / 120),
