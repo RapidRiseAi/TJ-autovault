@@ -121,8 +121,23 @@ export function InspectionReportFormRenderer({
             answers
           })
         });
-        const body = await response.json();
-        if (!response.ok) throw new Error(body.error ?? 'Could not generate report');
+        const raw = await response.text();
+        let body: Record<string, unknown> | null = null;
+        if (raw) {
+          try {
+            body = JSON.parse(raw) as Record<string, unknown>;
+          } catch {
+            body = null;
+          }
+        }
+        if (!response.ok) {
+          const errorMessage =
+            (body && typeof body.error === 'string' && body.error) ||
+            (body && typeof body.detail === 'string' && body.detail) ||
+            raw ||
+            'Could not generate report';
+          throw new Error(errorMessage);
+        }
         pushToast({ title: 'Inspection report generated', tone: 'success' });
         onDone?.();
         router.refresh();

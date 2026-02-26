@@ -53,30 +53,31 @@ function drawWrappedText(args: {
 }
 
 export async function POST(request: NextRequest) {
-  const parsed = inspectionGenerateSchema.safeParse(await request.json());
-  if (!parsed.success) {
-    return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
-  }
+  try {
+    const parsed = inspectionGenerateSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+    }
 
-  const payload = parsed.data;
-  const supabase = await createClient();
-  const admin = createAdminClient();
-  const user = (await supabase.auth.getUser()).data.user;
+    const payload = parsed.data;
+    const supabase = await createClient();
+    const admin = createAdminClient();
+    const user = (await supabase.auth.getUser()).data.user;
 
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('id,role,workshop_account_id')
-    .eq('id', user.id)
-    .in('role', ['admin', 'technician'])
-    .maybeSingle();
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id,role,workshop_account_id')
+      .eq('id', user.id)
+      .in('role', ['admin', 'technician'])
+      .maybeSingle();
 
-  if (!profile?.workshop_account_id) {
-    return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-  }
+    if (!profile?.workshop_account_id) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
 
-  const [{ data: vehicle }, { data: workshop }, { data: template }, { data: customer }] = await Promise.all([
+    const [{ data: vehicle }, { data: workshop }, { data: template }, { data: customer }] = await Promise.all([
     supabase
       .from('vehicles')
       .select('id,registration_number,make,model,vin,odometer_km,workshop_account_id,current_customer_account_id')
@@ -101,73 +102,73 @@ export async function POST(request: NextRequest) {
       .maybeSingle()
   ]);
 
-  if (!vehicle || !template) {
-    return NextResponse.json({ error: 'Vehicle or template not found' }, { status: 404 });
-  }
-
-  const fields = (template.inspection_template_fields ?? []).sort(
-    (a, b) => a.sort_order - b.sort_order
-  );
-
-  for (const field of fields) {
-    if (field.field_type === 'section_break') continue;
-    const answer = payload.answers[field.id];
-    if (field.required && (answer == null || answer === '')) {
-      return NextResponse.json({ error: `${field.label} is required` }, { status: 400 });
+    if (!vehicle || !template) {
+      return NextResponse.json({ error: 'Vehicle or template not found' }, { status: 404 });
     }
-  }
 
-  const currentMileage = vehicle.odometer_km ?? 0;
-  if (payload.odometerKm < currentMileage) {
-    return NextResponse.json(
-      { error: `Mileage cannot be less than current mileage (${currentMileage.toLocaleString()} km)` },
-      { status: 400 }
+    const fields = (template.inspection_template_fields ?? []).sort(
+      (a, b) => a.sort_order - b.sort_order
     );
-  }
 
-  const { data: selectedTechnician } = await supabase
-    .from('profiles')
-    .select('id,display_name,full_name,signature_text,workshop_account_id')
-    .eq('id', payload.technicianProfileId)
-    .eq('workshop_account_id', profile.workshop_account_id)
-    .maybeSingle();
+    for (const field of fields) {
+      if (field.field_type === 'section_break') continue;
+      const answer = payload.answers[field.id];
+      if (field.required && (answer == null || answer === '')) {
+        return NextResponse.json({ error: `${field.label} is required` }, { status: 400 });
+      }
+    }
 
-  if (!selectedTechnician) {
-    return NextResponse.json({ error: 'Technician not found' }, { status: 404 });
-  }
+    const currentMileage = vehicle.odometer_km ?? 0;
+    if (payload.odometerKm < currentMileage) {
+      return NextResponse.json(
+        { error: `Mileage cannot be less than current mileage (${currentMileage.toLocaleString()} km)` },
+        { status: 400 }
+      );
+    }
 
-  const { data: report, error: reportError } = await supabase
-    .from('inspection_reports')
-    .insert({
-      workshop_account_id: profile.workshop_account_id,
-      vehicle_id: vehicle.id,
-      template_id: template.id,
-      mode: 'digital',
-      technician_profile_id: payload.technicianProfileId,
-      notes: payload.notes?.trim() || null,
-      answers: payload.answers,
-      created_by: user.id
-    })
-    .select('id')
-    .single();
+    const { data: selectedTechnician } = await supabase
+      .from('profiles')
+      .select('id,display_name,full_name,signature_text,workshop_account_id')
+      .eq('id', payload.technicianProfileId)
+      .eq('workshop_account_id', profile.workshop_account_id)
+      .maybeSingle();
 
-  if (reportError || !report) {
-    return NextResponse.json({ error: reportError?.message ?? 'Could not create report' }, { status: 400 });
-  }
+    if (!selectedTechnician) {
+      return NextResponse.json({ error: 'Technician not found' }, { status: 404 });
+    }
 
-  await supabase.from('vehicles').update({ odometer_km: payload.odometerKm }).eq('id', vehicle.id);
+    const { data: report, error: reportError } = await supabase
+      .from('inspection_reports')
+      .insert({
+        workshop_account_id: profile.workshop_account_id,
+        vehicle_id: vehicle.id,
+        template_id: template.id,
+        mode: 'digital',
+        technician_profile_id: payload.technicianProfileId,
+        notes: payload.notes?.trim() || null,
+        answers: payload.answers,
+        created_by: user.id
+      })
+      .select('id')
+      .single();
 
-  const pdfDoc = await PDFDocument.create();
-  let page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    if (reportError || !report) {
+      return NextResponse.json({ error: reportError?.message ?? 'Could not create report' }, { status: 400 });
+    }
 
-  let cursorY = PAGE_HEIGHT - MARGIN;
-  const rightX = PAGE_WIDTH - MARGIN - 180;
+    await supabase.from('vehicles').update({ odometer_km: payload.odometerKm }).eq('id', vehicle.id);
 
-  page.drawText(workshop?.name ?? 'Workshop', { x: MARGIN, y: cursorY, size: 20, font: bold });
-  cursorY -= 20;
-  page.drawText(`Email: ${user.email ?? '-'}`, { x: MARGIN, y: cursorY, size: 10, font, color: rgb(0.3, 0.3, 0.3) });
+    const pdfDoc = await PDFDocument.create();
+    let page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+    let cursorY = PAGE_HEIGHT - MARGIN;
+    const rightX = PAGE_WIDTH - MARGIN - 180;
+
+    page.drawText(workshop?.name ?? 'Workshop', { x: MARGIN, y: cursorY, size: 20, font: bold });
+    cursorY -= 20;
+    page.drawText(`Email: ${user.email ?? '-'}`, { x: MARGIN, y: cursorY, size: 10, font, color: rgb(0.3, 0.3, 0.3) });
   cursorY -= 14;
   page.drawText('Generated inspection report', { x: MARGIN, y: cursorY, size: 10, font, color: rgb(0.3, 0.3, 0.3) });
 
@@ -334,10 +335,18 @@ export async function POST(request: NextRequest) {
     }
   });
 
-  return NextResponse.json({
-    ok: true,
-    reportId: report.id,
-    documentId: document.id,
-    display_name: displayName
-  });
+    return NextResponse.json({
+      ok: true,
+      reportId: report.id,
+      documentId: document.id,
+      display_name: displayName
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[api/workshop/inspection-reports/generate] Unexpected error', error);
+    return NextResponse.json(
+      { error: 'Could not generate report', detail: message },
+      { status: 500 }
+    );
+  }
 }

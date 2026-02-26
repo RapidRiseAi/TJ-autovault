@@ -71,8 +71,8 @@ export function formatInspectionResult(
   if (fieldType === 'section_break') return '';
 
   if (fieldType === 'checkbox') {
-    if (value === true || value === 'ok') return '✓';
-    if (value === 'x') return '✗';
+    if (value === true || value === 'ok') return 'OK';
+    if (value === 'x') return 'X';
     return 'Issue';
   }
 
