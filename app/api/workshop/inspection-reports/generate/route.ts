@@ -92,14 +92,22 @@ function drawSafeText(args: {
 
 async function readFontFromCandidates(label: string, relativePaths: string[]) {
   const attempted: string[] = [];
+  const cwd = process.cwd();
 
   for (const relativePath of relativePaths) {
-    const fontPath = path.resolve(process.cwd(), relativePath);
-    attempted.push(fontPath);
-    try {
-      return await readFile(fontPath);
-    } catch {
-      // try the next candidate
+    const locations = [path.resolve(cwd, relativePath)];
+
+    if (!relativePath.includes('/')) {
+      locations.push(path.resolve(cwd, 'assets/fonts', relativePath));
+    }
+
+    for (const fontPath of locations) {
+      attempted.push(fontPath);
+      try {
+        return await readFile(fontPath);
+      } catch {
+        // try the next candidate
+      }
     }
   }
 
