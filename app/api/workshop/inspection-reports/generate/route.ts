@@ -228,11 +228,13 @@ export async function POST(request: NextRequest) {
     const [regularFontBytes, boldFontBytes] = await Promise.all([
       readFontFromCandidates('regular', [
         'assets/fonts/NotoSans-Regular.ttf',
-        'NotoSans-Regular.ttf'
+        'NotoSans-Regular.ttf',
+        'node_modules/next/dist/compiled/@vercel/og/noto-sans-v27-latin-regular.ttf'
       ]),
       readFontFromCandidates('bold', [
         'assets/fonts/NotoSans-Bold.ttf',
-        'NotoSans-Bold.ttf'
+        'NotoSans-Bold.ttf',
+        'node_modules/next/dist/compiled/@vercel/og/noto-sans-v27-latin-regular.ttf'
       ])
     ]);
 
