@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { PDFDocument, rgb } from 'pdf-lib';
+import type { Fontkit } from 'pdf-lib/cjs/types/fontkit';
+import rawFontkit from 'next/dist/compiled/@next/font/dist/fontkit';
 import { createClient } from '@/lib/supabase/server';
 import { inspectionGenerateSchema, formatInspectionResult } from '@/lib/inspection-reports';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 const PAGE_WIDTH = 595.28;
+const pdfFontkit: Fontkit =
+  typeof rawFontkit === 'function' ? { create: rawFontkit } : rawFontkit;
 const PAGE_HEIGHT = 841.89;
 const MARGIN = 40;
 
@@ -87,13 +93,22 @@ function drawSafeText(args: {
   page.drawText(toPdfSafeText(font, text), options);
 }
 
-function toCheckboxPdfGlyph(value: string) {
-  // WinAnsi fonts cannot encode ballot-box Unicode chars, so we map checkbox
-  // outcomes to dingbat equivalents and render them with ZapfDingbats.
-  if (value === '☑') return '✓';
-  if (value === '☒') return '✗';
-  if (value === '☐') return '❑';
-  return value;
+async function readFontFromCandidates(label: string, relativePaths: string[]) {
+  const attempted: string[] = [];
+
+  for (const relativePath of relativePaths) {
+    const fontPath = path.resolve(process.cwd(), relativePath);
+    attempted.push(fontPath);
+    try {
+      return await readFile(fontPath);
+    } catch {
+      // try the next candidate
+    }
+  }
+
+  throw new Error(
+    `Could not load ${label} PDF font. Expected one of: ${attempted.join(', ')}. Ensure the font file exists and is readable by the server.`
+  );
 }
 
 export async function POST(request: NextRequest) {
@@ -203,10 +218,22 @@ export async function POST(request: NextRequest) {
     await supabase.from('vehicles').update({ odometer_km: payload.odometerKm }).eq('id', vehicle.id);
 
     const pdfDoc = await PDFDocument.create();
+    pdfDoc.registerFontkit(pdfFontkit);
+
+    const [regularFontBytes, boldFontBytes] = await Promise.all([
+      readFontFromCandidates('regular', [
+        'NotoSans-Italic-VariableFont_wdth,wght.ttf',
+        'assets/fonts/NotoSans-Regular.ttf'
+      ]),
+      readFontFromCandidates('bold', [
+        'NotoSans-Italic-VariableFont_wdth,wght.ttf',
+        'assets/fonts/NotoSans-Bold.ttf'
+      ])
+    ]);
+
     let page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-    const symbolFont = await pdfDoc.embedFont(StandardFonts.ZapfDingbats);
+    const font = await pdfDoc.embedFont(regularFontBytes, { subset: true });
+    const bold = await pdfDoc.embedFont(boldFontBytes, { subset: true });
 
     let cursorY = PAGE_HEIGHT - MARGIN;
     const rightX = PAGE_WIDTH - MARGIN - 180;
@@ -258,8 +285,8 @@ export async function POST(request: NextRequest) {
     }
 
     const value = formatInspectionResult(field.field_type, payload.answers[field.id], field.options);
-    const displayValue = field.field_type === 'checkbox' ? toCheckboxPdfGlyph(value) : value;
-    const valueFont = field.field_type === 'checkbox' ? symbolFont : font;
+    const displayValue = value;
+    const valueFont = font;
     const lineCount = Math.max(
       Math.ceil(widthOfSafeTextAtSize(bold, field.label, 9) / 260),
       Math.ceil(widthOfSafeTextAtSize(valueFont, displayValue || '-', 9) / 120),
