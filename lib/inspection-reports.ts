@@ -4,7 +4,8 @@ export const inspectionFieldTypeSchema = z.enum([
   'checkbox',
   'number',
   'text',
-  'dropdown'
+  'dropdown',
+  'section_break'
 ]);
 
 export const inspectionTemplateFieldSchema = z.object({
@@ -12,7 +13,7 @@ export const inspectionTemplateFieldSchema = z.object({
   field_type: inspectionFieldTypeSchema,
   label: z.string().trim().min(1, 'Label is required'),
   required: z.boolean().default(false),
-  options: z.array(z.string().trim().min(1)).optional()
+  options: z.unknown().optional()
 });
 
 export const inspectionTemplateSchema = z.object({
@@ -23,7 +24,8 @@ export const inspectionTemplateSchema = z.object({
 export const inspectionAnswerValueSchema = z.union([
   z.boolean(),
   z.number(),
-  z.string()
+  z.string(),
+  z.null()
 ]);
 
 export const inspectionGenerateSchema = z.object({
@@ -49,12 +51,29 @@ export function normalizeDropdownOptions(input?: unknown) {
   return values.length ? values : null;
 }
 
+export function normalizeCheckboxOptions(input?: unknown) {
+  if (input && typeof input === 'object' && 'allowCross' in input) {
+    return { allowCross: Boolean((input as { allowCross?: unknown }).allowCross) };
+  }
+  return { allowCross: false };
+}
+
+export function normalizeFieldOptions(fieldType: string, input?: unknown) {
+  if (fieldType === 'dropdown') return normalizeDropdownOptions(input);
+  if (fieldType === 'checkbox') return normalizeCheckboxOptions(input);
+  return null;
+}
+
 export function formatInspectionResult(
   fieldType: string,
   value: unknown
 ): string {
+  if (fieldType === 'section_break') return '';
+
   if (fieldType === 'checkbox') {
-    return value === true || value === 'ok' ? 'OK' : 'Issue';
+    if (value === true || value === 'ok') return '✓';
+    if (value === 'x') return '✗';
+    return 'Issue';
   }
 
   if (typeof value === 'number') return String(value);

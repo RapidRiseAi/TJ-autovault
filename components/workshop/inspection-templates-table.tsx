@@ -6,10 +6,10 @@ import { useToast } from '@/components/ui/toast-provider';
 
 type TemplateFieldItem = {
   id: string;
-  field_type?: 'checkbox' | 'number' | 'text' | 'dropdown';
+  field_type?: 'checkbox' | 'number' | 'text' | 'dropdown' | 'section_break';
   label?: string;
   required?: boolean;
-  options?: string[] | null;
+  options?: unknown;
 };
 
 type TemplateItem = {
@@ -59,7 +59,12 @@ export function InspectionTemplatesTable({ templates }: { templates: TemplateIte
           field_type: field.field_type ?? 'text',
           label: field.label ?? 'Field',
           required: Boolean(field.required),
-          options: Array.isArray(field.options) ? field.options : []
+          options:
+            field.field_type === 'dropdown'
+              ? (Array.isArray(field.options) ? field.options : [])
+              : field.field_type === 'checkbox'
+                ? field.options
+                : null
         }))
       })
     });

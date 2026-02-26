@@ -8,10 +8,10 @@ import { useToast } from '@/components/ui/toast-provider';
 type TemplateField = {
   id: string;
   sort_order: number;
-  field_type: 'checkbox' | 'number' | 'text' | 'dropdown';
+  field_type: 'checkbox' | 'number' | 'text' | 'dropdown' | 'section_break';
   label: string;
   required: boolean;
-  options: string[] | null;
+  options: unknown;
 };
 
 type TemplateRecord = {
@@ -99,6 +99,7 @@ export function InspectionReportFormRenderer({
       }
 
       for (const field of sortedFields) {
+        if (field.field_type === 'section_break') continue;
         const value = answers[field.id];
         if (field.required && (value == null || value === '')) {
           setError(`${field.label} is required.`);
@@ -268,72 +269,117 @@ export function InspectionReportFormRenderer({
             <p className="rounded border border-dashed p-3 text-sm text-gray-600">This template has no fields.</p>
           ) : null}
 
-          {sortedFields.map((field) => (
-            <label key={field.id} className="block text-sm font-medium">
-              {field.label} {field.required ? <span className="text-red-600">*</span> : null}
-              {field.field_type === 'checkbox' ? (
-                <span className="mt-2 flex items-center gap-2 font-normal">
+          {sortedFields.map((field) => {
+            const allowCross =
+              field.field_type === 'checkbox' && field.options && typeof field.options === 'object'
+                ? Boolean((field.options as { allowCross?: unknown }).allowCross)
+                : false;
+            const checkboxValue = answers[field.id] as string | boolean | undefined;
+
+            if (field.field_type === 'section_break') {
+              return (
+                <div key={field.id} className="rounded border-l-4 border-black bg-gray-50 px-3 py-2">
+                  <p className="text-sm font-semibold uppercase tracking-wide">{field.label}</p>
+                </div>
+              );
+            }
+
+            return (
+              <label key={field.id} className="block text-sm font-medium">
+                {field.label} {field.required ? <span className="text-red-600">*</span> : null}
+                {field.field_type === 'checkbox' ? (
+                  allowCross ? (
+                    <span className="mt-2 flex items-center gap-2 font-normal">
+                      <button
+                        type="button"
+                        className={`rounded border px-3 py-1 ${checkboxValue === 'ok' || checkboxValue === true ? 'bg-black text-white' : ''}`}
+                        onClick={() =>
+                          setAnswers((current) => ({
+                            ...current,
+                            [field.id]: checkboxValue === 'ok' || checkboxValue === true ? '' : 'ok'
+                          }))
+                        }
+                      >
+                        ✓ Check
+                      </button>
+                      <button
+                        type="button"
+                        className={`rounded border px-3 py-1 ${checkboxValue === 'x' ? 'bg-black text-white' : ''}`}
+                        onClick={() =>
+                          setAnswers((current) => ({
+                            ...current,
+                            [field.id]: checkboxValue === 'x' ? '' : 'x'
+                          }))
+                        }
+                      >
+                        ✗ Cross
+                      </button>
+                    </span>
+                  ) : (
+                    <span className="mt-2 flex items-center gap-2 font-normal">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4"
+                        checked={checkboxValue === true || checkboxValue === 'ok'}
+                        onChange={(event) =>
+                          setAnswers((current) => ({
+                            ...current,
+                            [field.id]: event.target.checked
+                          }))
+                        }
+                      />
+                      <span>OK (leave unchecked for issue)</span>
+                    </span>
+                  )
+                ) : null}
+                {field.field_type === 'number' ? (
                   <input
-                    type="checkbox"
-                    className="h-4 w-4"
-                    checked={answers[field.id] === true}
+                    type="number"
+                    className="mt-1 w-full rounded border p-2"
+                    value={(answers[field.id] as number | undefined) ?? ''}
                     onChange={(event) =>
                       setAnswers((current) => ({
                         ...current,
-                        [field.id]: event.target.checked
+                        [field.id]: Number(event.target.value)
                       }))
                     }
                   />
-                  <span>OK (leave unchecked for issue)</span>
-                </span>
-              ) : null}
-              {field.field_type === 'number' ? (
-                <input
-                  type="number"
-                  className="mt-1 w-full rounded border p-2"
-                  value={(answers[field.id] as number | undefined) ?? ''}
-                  onChange={(event) =>
-                    setAnswers((current) => ({
-                      ...current,
-                      [field.id]: Number(event.target.value)
-                    }))
-                  }
-                />
-              ) : null}
-              {field.field_type === 'text' ? (
-                <textarea
-                  className="mt-1 w-full rounded border p-2"
-                  rows={3}
-                  value={(answers[field.id] as string | undefined) ?? ''}
-                  onChange={(event) =>
-                    setAnswers((current) => ({
-                      ...current,
-                      [field.id]: event.target.value
-                    }))
-                  }
-                />
-              ) : null}
-              {field.field_type === 'dropdown' ? (
-                <select
-                  className="mt-1 w-full rounded border p-2"
-                  value={(answers[field.id] as string | undefined) ?? ''}
-                  onChange={(event) =>
-                    setAnswers((current) => ({
-                      ...current,
-                      [field.id]: event.target.value
-                    }))
-                  }
-                >
-                  <option value="">Select option</option>
-                  {(field.options ?? []).map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              ) : null}
-            </label>
-          ))}
+                ) : null}
+                {field.field_type === 'text' ? (
+                  <textarea
+                    className="mt-1 w-full rounded border p-2"
+                    rows={3}
+                    value={(answers[field.id] as string | undefined) ?? ''}
+                    onChange={(event) =>
+                      setAnswers((current) => ({
+                        ...current,
+                        [field.id]: event.target.value
+                      }))
+                    }
+                  />
+                ) : null}
+                {field.field_type === 'dropdown' ? (
+                  <select
+                    className="mt-1 w-full rounded border p-2"
+                    value={(answers[field.id] as string | undefined) ?? ''}
+                    onChange={(event) =>
+                      setAnswers((current) => ({
+                        ...current,
+                        [field.id]: event.target.value
+                      }))
+                    }
+                  >
+                    <option value="">Select option</option>
+                    {(Array.isArray(field.options) ? field.options : []).map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
+              </label>
+            );
+          })}
 
           <label className="block text-sm font-medium">
             Inspector notes

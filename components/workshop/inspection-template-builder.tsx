@@ -4,20 +4,22 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/components/ui/toast-provider';
 
-type FieldType = 'checkbox' | 'number' | 'text' | 'dropdown';
+type FieldType = 'checkbox' | 'number' | 'text' | 'dropdown' | 'section_break';
 
 type TemplateField = {
   field_type: FieldType;
   label: string;
   required: boolean;
   optionsText: string;
+  checkboxTwoOptions: boolean;
 };
 
 const EMPTY_FIELD: TemplateField = {
   field_type: 'checkbox',
   label: '',
   required: false,
-  optionsText: ''
+  optionsText: '',
+  checkboxTwoOptions: false
 };
 
 export function InspectionTemplateBuilder({
@@ -52,14 +54,16 @@ export function InspectionTemplateBuilder({
     const normalizedFields = fields.map((field) => ({
       field_type: field.field_type,
       label: field.label.trim(),
-      required: field.required,
+      required: field.field_type === 'section_break' ? false : field.required,
       options:
         field.field_type === 'dropdown'
           ? field.optionsText
               .split('\n')
               .map((entry) => entry.trim())
               .filter(Boolean)
-          : undefined
+          : field.field_type === 'checkbox'
+            ? { allowCross: field.checkboxTwoOptions }
+            : undefined
     }));
 
     if (normalizedFields.some((field) => !field.label)) {
@@ -69,7 +73,7 @@ export function InspectionTemplateBuilder({
 
     if (
       normalizedFields.some(
-        (field) => field.field_type === 'dropdown' && !(field.options?.length)
+        (field) => field.field_type === 'dropdown' && !(Array.isArray(field.options) && field.options.length)
       )
     ) {
       setError('Dropdown fields must include at least one option.');
@@ -129,13 +133,14 @@ export function InspectionTemplateBuilder({
                 value={field.field_type}
                 onChange={(event) => {
                   const next = [...fields];
+                  const nextType = event.target.value as FieldType;
                   next[index] = {
                     ...next[index],
-                    field_type: event.target.value as FieldType,
-                    optionsText:
-                      event.target.value === 'dropdown'
-                        ? next[index].optionsText
-                        : ''
+                    field_type: nextType,
+                    optionsText: nextType === 'dropdown' ? next[index].optionsText : '',
+                    checkboxTwoOptions:
+                      nextType === 'checkbox' ? next[index].checkboxTwoOptions : false,
+                    required: nextType === 'section_break' ? false : next[index].required
                   };
                   setFields(next);
                 }}
@@ -145,6 +150,7 @@ export function InspectionTemplateBuilder({
                 <option value="number">Number</option>
                 <option value="text">Text</option>
                 <option value="dropdown">Dropdown</option>
+                <option value="section_break">Section break</option>
               </select>
               <input
                 value={field.label}
@@ -153,13 +159,14 @@ export function InspectionTemplateBuilder({
                   next[index] = { ...next[index], label: event.target.value };
                   setFields(next);
                 }}
-                placeholder="Field label"
+                placeholder={field.field_type === 'section_break' ? 'Section heading' : 'Field label'}
                 className="rounded border p-2 md:col-span-2"
               />
               <label className="flex items-center gap-2 rounded border p-2 text-sm">
                 <input
                   type="checkbox"
                   checked={field.required}
+                  disabled={field.field_type === 'section_break'}
                   onChange={(event) => {
                     const next = [...fields];
                     next[index] = {
@@ -187,6 +194,23 @@ export function InspectionTemplateBuilder({
                 placeholder="One option per line"
                 className="w-full rounded border p-2"
               />
+            ) : null}
+            {field.field_type === 'checkbox' ? (
+              <label className="flex items-center gap-2 rounded border p-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={field.checkboxTwoOptions}
+                  onChange={(event) => {
+                    const next = [...fields];
+                    next[index] = {
+                      ...next[index],
+                      checkboxTwoOptions: event.target.checked
+                    };
+                    setFields(next);
+                  }}
+                />
+                Checkbox 2 options (allow ✓ and ✗)
+              </label>
             ) : null}
             <div className="flex gap-2">
               <button

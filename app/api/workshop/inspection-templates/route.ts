@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import {
   inspectionTemplateSchema,
-  normalizeDropdownOptions
+  normalizeFieldOptions
 } from '@/lib/inspection-reports';
 
 async function getWorkshopContext() {
@@ -80,11 +80,8 @@ export async function POST(request: NextRequest) {
           sort_order: index,
           field_type: field.field_type,
           label: field.label,
-          required: field.required,
-          options:
-            field.field_type === 'dropdown'
-              ? normalizeDropdownOptions(field.options)
-              : null
+          required: field.field_type === 'section_break' ? false : field.required,
+          options: normalizeFieldOptions(field.field_type, field.options)
         }))
       );
 

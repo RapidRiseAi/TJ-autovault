@@ -46,10 +46,15 @@ export default async function EditInspectionTemplatePage({
           .map((field) => ({
             field_type: field.field_type,
             label: field.label,
-            required: field.required,
-            optionsText: Array.isArray(field.options)
-              ? field.options.join('\n')
-              : ''
+            required: field.field_type === 'section_break' ? false : field.required,
+            optionsText:
+              field.field_type === 'dropdown' && Array.isArray(field.options)
+                ? field.options.join('\n')
+                : '',
+            checkboxTwoOptions:
+              field.field_type === 'checkbox' && field.options && typeof field.options === 'object'
+                ? Boolean((field.options as { allowCross?: unknown }).allowCross)
+                : false
           }))}
       />
     </main>

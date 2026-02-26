@@ -110,6 +110,7 @@ export async function POST(request: NextRequest) {
   );
 
   for (const field of fields) {
+    if (field.field_type === 'section_break') continue;
     const answer = payload.answers[field.id];
     if (field.required && (answer == null || answer === '')) {
       return NextResponse.json({ error: `${field.label} is required` }, { status: 400 });
@@ -196,6 +197,20 @@ export async function POST(request: NextRequest) {
 
   for (let index = 0; index < fields.length; index += 1) {
     const field = fields[index];
+
+    if (field.field_type === 'section_break') {
+      const sectionHeight = 24;
+      if (cursorY - sectionHeight < MARGIN + 110) {
+        page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+        cursorY = PAGE_HEIGHT - MARGIN;
+        drawTableHeader();
+      }
+      page.drawRectangle({ x: MARGIN, y: cursorY - sectionHeight, width: PAGE_WIDTH - MARGIN * 2, height: sectionHeight, color: rgb(0.93, 0.93, 0.93) });
+      drawWrappedText({ page, text: field.label, x: MARGIN + 8, y: cursorY - 15, maxWidth: PAGE_WIDTH - MARGIN * 2 - 16, size: 10, font: bold });
+      cursorY -= sectionHeight;
+      continue;
+    }
+
     const value = formatInspectionResult(field.field_type, payload.answers[field.id]);
     const lineCount = Math.max(
       Math.ceil(bold.widthOfTextAtSize(field.label, 9) / 260),
