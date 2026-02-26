@@ -87,6 +87,15 @@ function drawSafeText(args: {
   page.drawText(toPdfSafeText(font, text), options);
 }
 
+function toCheckboxPdfGlyph(value: string) {
+  // WinAnsi fonts cannot encode ballot-box Unicode chars, so we map checkbox
+  // outcomes to dingbat equivalents and render them with ZapfDingbats.
+  if (value === '☑') return '✓';
+  if (value === '☒') return '✗';
+  if (value === '☐') return '❑';
+  return value;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const parsed = inspectionGenerateSchema.safeParse(await request.json());
@@ -197,6 +206,7 @@ export async function POST(request: NextRequest) {
     let page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const symbolFont = await pdfDoc.embedFont(StandardFonts.ZapfDingbats);
 
     let cursorY = PAGE_HEIGHT - MARGIN;
     const rightX = PAGE_WIDTH - MARGIN - 180;
@@ -248,9 +258,11 @@ export async function POST(request: NextRequest) {
     }
 
     const value = formatInspectionResult(field.field_type, payload.answers[field.id], field.options);
+    const displayValue = field.field_type === 'checkbox' ? toCheckboxPdfGlyph(value) : value;
+    const valueFont = field.field_type === 'checkbox' ? symbolFont : font;
     const lineCount = Math.max(
       Math.ceil(widthOfSafeTextAtSize(bold, field.label, 9) / 260),
-      Math.ceil(widthOfSafeTextAtSize(font, value || '-', 9) / 120),
+      Math.ceil(widthOfSafeTextAtSize(valueFont, displayValue || '-', 9) / 120),
       1
     );
     const rowHeight = Math.max(22, lineCount * 12 + 8);
@@ -266,7 +278,7 @@ export async function POST(request: NextRequest) {
     }
 
     drawWrappedText({ page, text: field.label, x: MARGIN + 8, y: cursorY - 14, maxWidth: 260, size: 9, font });
-    drawWrappedText({ page, text: value || '-', x: MARGIN + 285, y: cursorY - 14, maxWidth: 120, size: 9, font });
+    drawWrappedText({ page, text: displayValue || '-', x: MARGIN + 285, y: cursorY - 14, maxWidth: 120, size: 9, font: valueFont });
     page.drawText('', { x: MARGIN + 420, y: cursorY - 14, size: 9, font });
 
     cursorY -= rowHeight;
