@@ -2,15 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { PDFDocument, rgb } from 'pdf-lib';
-import type { Fontkit } from 'pdf-lib/cjs/types/fontkit';
-import rawFontkit from 'next/dist/compiled/@next/font/dist/fontkit';
+import fontkit from '@pdf-lib/fontkit';
 import { createClient } from '@/lib/supabase/server';
 import { inspectionGenerateSchema, formatInspectionResult } from '@/lib/inspection-reports';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 const PAGE_WIDTH = 595.28;
-const pdfFontkit: Fontkit =
-  typeof rawFontkit === 'function' ? { create: rawFontkit } : rawFontkit;
 const PAGE_HEIGHT = 841.89;
 const MARGIN = 40;
 
@@ -218,7 +215,7 @@ export async function POST(request: NextRequest) {
     await supabase.from('vehicles').update({ odometer_km: payload.odometerKm }).eq('id', vehicle.id);
 
     const pdfDoc = await PDFDocument.create();
-    pdfDoc.registerFontkit(pdfFontkit);
+    pdfDoc.registerFontkit(fontkit);
 
     const [regularFontBytes, boldFontBytes] = await Promise.all([
       readFontFromCandidates('regular', [
