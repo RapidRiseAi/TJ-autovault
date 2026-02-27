@@ -41,6 +41,8 @@ export function InspectionReportFormRenderer({
   const [hasLoadedTemplates, setHasLoadedTemplates] = useState(false);
   const [templateId, setTemplateId] = useState('');
   const [answers, setAnswers] = useState<Record<string, string | number | boolean>>({});
+  const [fieldNotes, setFieldNotes] = useState<Record<string, string>>({});
+  const [openFieldNotes, setOpenFieldNotes] = useState<Record<string, boolean>>({});
   const [notes, setNotes] = useState('');
   const [technicianProfileId, setTechnicianProfileId] = useState(currentProfileId ?? '');
   const [file, setFile] = useState<File | null>(null);
@@ -117,6 +119,7 @@ export function InspectionReportFormRenderer({
             templateId,
             technicianProfileId,
             notes,
+            fieldNotes,
             odometerKm,
             answers
           })
@@ -300,8 +303,24 @@ export function InspectionReportFormRenderer({
             }
 
             return (
-              <label key={field.id} className="block text-sm font-medium">
-                {field.label} {field.required ? <span className="text-red-600">*</span> : null}
+              <div key={field.id} className="block text-sm font-medium">
+                <div className="flex items-center justify-between gap-2">
+                  <span>
+                    {field.label} {field.required ? <span className="text-red-600">*</span> : null}
+                  </span>
+                  <button
+                    type="button"
+                    className="rounded border px-2 py-1 text-xs font-normal"
+                    onClick={() =>
+                      setOpenFieldNotes((current) => ({
+                        ...current,
+                        [field.id]: !current[field.id]
+                      }))
+                    }
+                  >
+                    {openFieldNotes[field.id] || (fieldNotes[field.id] ?? '').trim() ? 'Hide note' : 'Add note'}
+                  </button>
+                </div>
                 {field.field_type === 'checkbox' ? (
                   allowCross ? (
                     <span className="mt-2 flex items-center gap-2 font-normal">
@@ -392,7 +411,22 @@ export function InspectionReportFormRenderer({
                     ))}
                   </select>
                 ) : null}
-              </label>
+
+                {openFieldNotes[field.id] || (fieldNotes[field.id] ?? '').trim() ? (
+                  <textarea
+                    className="mt-2 w-full rounded border p-2 font-normal"
+                    rows={2}
+                    placeholder="Add a note for this checkpoint"
+                    value={fieldNotes[field.id] ?? ''}
+                    onChange={(event) =>
+                      setFieldNotes((current) => ({
+                        ...current,
+                        [field.id]: event.target.value
+                      }))
+                    }
+                  />
+                ) : null}
+              </div>
             );
           })}
 

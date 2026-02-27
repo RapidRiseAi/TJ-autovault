@@ -34,7 +34,8 @@ export const inspectionGenerateSchema = z.object({
   technicianProfileId: z.string().uuid(),
   odometerKm: z.number().int().nonnegative(),
   notes: z.string().optional(),
-  answers: z.record(z.string(), inspectionAnswerValueSchema)
+  answers: z.record(z.string(), inspectionAnswerValueSchema),
+  fieldNotes: z.record(z.string(), z.string()).optional()
 });
 
 export type InspectionTemplateFieldInput = z.infer<

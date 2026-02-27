@@ -230,6 +230,13 @@ export async function POST(request: NextRequest) {
     const fields = (template.inspection_template_fields ?? []).sort(
       (a, b) => a.sort_order - b.sort_order
     );
+    const cleanedFieldNotes = Object.entries(payload.fieldNotes ?? {}).reduce<
+      Record<string, string>
+    >((acc, [fieldId, note]) => {
+      const cleaned = note.trim();
+      if (cleaned) acc[fieldId] = cleaned;
+      return acc;
+    }, {});
 
     for (const field of fields) {
       if (field.field_type === 'section_break') continue;
@@ -276,6 +283,9 @@ export async function POST(request: NextRequest) {
         technician_profile_id: payload.technicianProfileId,
         notes: payload.notes?.trim() || null,
         answers: payload.answers,
+        field_notes: Object.keys(cleanedFieldNotes).length
+          ? cleanedFieldNotes
+          : null,
         created_by: user.id
       })
       .select('id')
@@ -482,6 +492,7 @@ export async function POST(request: NextRequest) {
         payload.answers[field.id],
         field.options
       );
+      const fieldNote = cleanedFieldNotes[field.id] ?? '';
       const displayValue = value;
       const valueFont = font;
       const lineCount = Math.max(
@@ -489,6 +500,7 @@ export async function POST(request: NextRequest) {
         Math.ceil(
           widthOfSafeTextAtSize(valueFont, displayValue || '-', 9) / 120
         ),
+        Math.ceil(widthOfSafeTextAtSize(font, fieldNote || '-', 9) / 120),
         1
       );
       const rowHeight = Math.max(22, lineCount * 12 + 8);
@@ -527,7 +539,15 @@ export async function POST(request: NextRequest) {
         size: 9,
         font: valueFont
       });
-      page.drawText('', { x: MARGIN + 420, y: cursorY - 14, size: 9, font });
+      drawWrappedText({
+        page,
+        text: fieldNote || '-',
+        x: MARGIN + 420,
+        y: cursorY - 14,
+        maxWidth: 120,
+        size: 9,
+        font
+      });
 
       cursorY -= rowHeight;
     }
