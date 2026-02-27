@@ -16,20 +16,79 @@ export function RequestForm({ vehicleId }: { vehicleId: string }) {
   const [msg, setMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  async function uploadAttachment(file: File) {
+    const signResponse = await fetch('/api/uploads/sign', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        vehicleId,
+        fileName: file.name,
+        contentType: file.type,
+        kind: file.type.startsWith('image/') ? 'image' : 'document',
+        documentType: 'report'
+      })
+    });
+    if (!signResponse.ok) throw new Error('Could not sign attachment upload.');
+
+    const signedPayload = (await signResponse.json()) as {
+      bucket: 'vehicle-files';
+      path: string;
+      token: string;
+      docType: 'report';
+    };
+
+    const uploadResponse = await fetch(
+      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/upload/sign/${signedPayload.bucket}/${signedPayload.path}?token=${signedPayload.token}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type, 'x-upsert': 'true' },
+        body: file
+      }
+    );
+    if (!uploadResponse.ok) throw new Error('Could not upload attachment.');
+
+    return {
+      bucket: signedPayload.bucket,
+      path: signedPayload.path,
+      fileName: file.name
+    };
+  }
+
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSubmitting(true);
     const formData = new FormData(event.currentTarget);
-    const result = await createWorkRequest({
-      vehicleId,
-      requestType:
-        (formData.get('requestType') as 'inspection' | 'service') ??
-        'inspection',
-      preferredDate: formData.get('preferredDate')?.toString(),
-      notes: formData.get('notes')?.toString()
-    });
-    setIsSubmitting(false);
-    setMsg(result.ok ? 'Request sent.' : result.error);
+    try {
+      const file = formData.get('attachment');
+      const attachment =
+        file instanceof File && file.size > 0
+          ? await uploadAttachment(file)
+          : undefined;
+      const result = await createWorkRequest({
+        vehicleId,
+        requestType:
+          (formData.get('requestType') as
+            | 'inspection'
+            | 'service'
+            | 'quote'
+            | 'diagnostic'
+            | 'repair'
+            | 'parts'
+            | 'other') ?? 'inspection',
+        subject: formData.get('subject')?.toString(),
+        body: formData.get('body')?.toString(),
+        preferredDate: formData.get('preferredDate')?.toString(),
+        notes: formData.get('notes')?.toString(),
+        attachment
+      });
+      setMsg(result.ok ? 'Request sent.' : result.error);
+    } catch (error) {
+      setMsg(
+        error instanceof Error ? error.message : 'Could not submit request.'
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -38,13 +97,21 @@ export function RequestForm({ vehicleId }: { vehicleId: string }) {
       <select name="requestType" className="w-full rounded border p-2">
         <option value="inspection">Inspection</option>
         <option value="service">Service</option>
+        <option value="quote">Quote</option>
+        <option value="diagnostic">Diagnostic</option>
+        <option value="repair">Repair</option>
+        <option value="parts">Parts request</option>
+        <option value="other">Other</option>
       </select>
+      <input name="subject" className="w-full rounded border p-2" placeholder="Subject" required />
       <input
         type="date"
         name="preferredDate"
         className="w-full rounded border p-2"
       />
+      <textarea name="body" className="w-full rounded border p-2" placeholder="Body" rows={3} required />
       <textarea name="notes" className="w-full rounded border p-2" />
+      <input name="attachment" type="file" className="w-full rounded border p-2" />
       <Button disabled={isSubmitting}>
         {isSubmitting ? (
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -55,7 +55,7 @@ export default async function VehicleTimelinePage({ params, searchParams }: { pa
   const vehicleName = `${vehicle.make?.trim() || ''} ${vehicle.model?.trim() || ''}`.trim() || 'vehicle';
   const timelineTitle = `${customerName}'s ${vehicleName} timeline`;
 
-  const [{ data: timeline }, { data: documents }, { data: deletionRequests }] = await Promise.all([
+  const [{ data: timeline }, { data: documents }, { data: deletionRequests }, { data: jobCards }] = await Promise.all([
     supabase
       .from('vehicle_timeline_events')
       .select('*')
@@ -75,7 +75,13 @@ export default async function VehicleTimelinePage({ params, searchParams }: { pa
       .select('id,target_kind,target_id,requested_by_role,reason,status')
       .eq('vehicle_id', vehicleId)
       .order('requested_at', { ascending: false })
-      .limit(300)
+      .limit(300),
+    supabase
+      .from('job_cards')
+      .select('id,title,status,last_updated_at,created_at')
+      .eq('vehicle_id', vehicleId)
+      .order('created_at', { ascending: false })
+      .limit(100)
   ]);
 
   const timelineRows = await Promise.all(
@@ -84,7 +90,17 @@ export default async function VehicleTimelinePage({ params, searchParams }: { pa
       actorLabel: await buildTimelineActorLabel(supabase as never, event)
     }))
   );
-  const activity = buildActivityStream(timelineRows, documents ?? []);
+  const syntheticJobRows = (jobCards ?? []).map((job) => ({
+    id: `job-${job.id}`,
+    created_at: job.created_at,
+    title: `Job card opened: ${job.title}`,
+    description: `Status: ${(job.status ?? 'unknown').replaceAll('_', ' ')}`,
+    importance: 'info',
+    actorLabel: 'Workshop',
+    event_type: 'job_card',
+    metadata: { job_card_id: job.id }
+  }));
+  const activity = buildActivityStream([...timelineRows, ...syntheticJobRows], documents ?? []);
 
   return (
     <main className="space-y-4">
