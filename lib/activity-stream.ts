@@ -31,6 +31,7 @@ export type ActivityItem = {
   description: string | null;
   importance: string | null;
   actorLabel: string;
+  actorType: 'workshop' | 'technician' | 'customer' | 'system';
   subtitle: string;
   downloadHref?: string;
   actionHref?: string;
@@ -39,6 +40,13 @@ export type ActivityItem = {
 
 function labelDocumentType(type?: string | null) {
   return (type ?? 'other').replaceAll('_', ' ');
+}
+
+function mapActorType(label: string): ActivityItem['actorType'] {
+  if (label.startsWith('workshop/')) return 'workshop';
+  if (label.startsWith('technician/')) return 'technician';
+  if (label.startsWith('customer/')) return 'customer';
+  return 'system';
 }
 
 function mapCategory(eventType?: string | null): ActivityItem['category'] {
@@ -93,6 +101,7 @@ export function buildActivityStream(timelineRows: TimelineEventItem[], docs: Doc
       description: event.description,
       importance: event.importance,
       actorLabel: event.actorLabel,
+      actorType: mapActorType(event.actorLabel),
       downloadHref:
         attachmentDownloadHref(event.metadata) ??
         (category === 'invoices' && invoiceId
@@ -114,6 +123,7 @@ export function buildActivityStream(timelineRows: TimelineEventItem[], docs: Doc
     description: doc.original_name,
     importance: doc.importance,
     actorLabel: 'Document upload',
+    actorType: 'system',
     downloadHref: toDownloadHref(doc)
   }));
 
