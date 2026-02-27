@@ -166,7 +166,7 @@ export async function startJobCard(input: {
   title: string;
   quoteId?: string;
   beforePhotoPaths: string[];
-  technicianIds: string[];
+  technicianIds?: string[];
 }): Promise<Result> {
   const ctx = await getWorkshopContext();
   if (!ctx) return { ok: false, error: 'Unauthorized' };
@@ -233,11 +233,38 @@ export async function startJobCard(input: {
     );
   }
 
-  if (input.technicianIds.length) {
+  const requestedTechnicianIds = (input.technicianIds ?? [])
+    .map((id) => id.trim())
+    .filter(Boolean);
+
+  let technicianIds = requestedTechnicianIds;
+  if (!technicianIds.length) {
+    if (ctx.profile.role === 'technician') {
+      technicianIds = [ctx.profile.id];
+    } else {
+      const { data: fallbackOwner } = await ctx.supabase
+        .from('profiles')
+        .select('id')
+        .eq('workshop_account_id', ctx.profile.workshop_account_id)
+        .eq('role', 'technician')
+        .or('display_name.ilike.%toy%,full_name.ilike.%toy%')
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (fallbackOwner?.id) technicianIds = [fallbackOwner.id];
+    }
+  }
+
+  if (technicianIds.length) {
     await ctx.supabase.from('job_card_assignments').insert(
-      input.technicianIds.map((id) => ({
+      technicianIds.map((id) => ({
         job_card_id: job.id,
-        technician_user_id: id
+        technician_user_id: id,
+        status: id === ctx.profile.id ? 'accepted' : 'invited',
+        accepted_at: id === ctx.profile.id ? now : null,
+        invited_by: ctx.profile.id,
+        force_assigned: false
       }))
     );
   }
@@ -266,6 +293,112 @@ export async function startJobCard(input: {
   revalidatePath(`/workshop/jobs/${job.id}`);
   revalidatePath(`/customer/vehicles/${vehicle.id}`);
   return { ok: true, jobId: job.id };
+}
+
+export async function inviteJobCardTechnician(input: {
+  jobId: string;
+  technicianId: string;
+  forceAssign?: boolean;
+}): Promise<Result> {
+  const ctx = await getWorkshopContext();
+  if (!ctx) return { ok: false, error: 'Unauthorized' };
+
+  const { data: job } = await ctx.supabase
+    .from('job_cards')
+    .select('id,vehicle_id,is_locked,workshop_id,vehicles(current_customer_account_id)')
+    .eq('id', input.jobId)
+    .eq('workshop_id', ctx.profile.workshop_account_id)
+    .maybeSingle();
+  if (!job) return { ok: false, error: 'Job not found' };
+  if (job.is_locked) return { ok: false, error: 'Job is closed and locked.' };
+
+  const { data: technician } = await ctx.supabase
+    .from('profiles')
+    .select('id,role,workshop_account_id')
+    .eq('id', input.technicianId)
+    .maybeSingle();
+
+  if (!technician || technician.role !== 'technician' || technician.workshop_account_id !== ctx.profile.workshop_account_id) {
+    return { ok: false, error: 'Technician not found in this workshop.' };
+  }
+
+  const forceAssign = Boolean(input.forceAssign && ctx.profile.role === 'admin');
+  const status = forceAssign ? 'forced' : 'invited';
+  const acceptedAt = forceAssign ? new Date().toISOString() : null;
+
+  await ctx.supabase.from('job_card_assignments').upsert(
+    {
+      job_card_id: input.jobId,
+      technician_user_id: input.technicianId,
+      status,
+      invited_by: ctx.profile.id,
+      force_assigned: forceAssign,
+      accepted_at: acceptedAt
+    },
+    { onConflict: 'job_card_id,technician_user_id' }
+  );
+
+  await ctx.supabase.from('job_card_events').insert({
+    job_card_id: input.jobId,
+    event_type: forceAssign ? 'technician_force_assigned' : 'technician_invited',
+    payload: { technicianId: input.technicianId },
+    created_by: ctx.profile.id
+  });
+
+  await appendVehicleTimeline({
+    supabase: ctx.supabase,
+    workshopId: ctx.profile.workshop_account_id,
+    vehicleId: job.vehicle_id,
+    actorId: ctx.profile.id,
+    actorRole: ctx.profile.role,
+    actorDisplay: resolveActorDisplay(ctx.profile),
+    customerAccountId: resolveVehicleCustomerAccountId(job.vehicles),
+    eventType: forceAssign ? 'job_technician_force_assigned' : 'job_technician_invited',
+    title: forceAssign ? 'Technician force assigned' : 'Technician invited',
+    metadata: { job_card_id: input.jobId, technician_id: input.technicianId }
+  });
+
+  revalidatePath(`/workshop/jobs/${input.jobId}`);
+  revalidatePath(`/workshop/vehicles/${job.vehicle_id}`);
+  revalidatePath('/workshop/dashboard');
+  return { ok: true };
+}
+
+export async function acceptJobCardAssignment(input: { jobId: string }): Promise<Result> {
+  const ctx = await getWorkshopContext();
+  if (!ctx || ctx.profile.role !== 'technician') return { ok: false, error: 'Unauthorized' };
+
+  const { data: assignment } = await ctx.supabase
+    .from('job_card_assignments')
+    .select('id,job_card_id,technician_user_id,job_cards!inner(vehicle_id,workshop_id)')
+    .eq('job_card_id', input.jobId)
+    .eq('technician_user_id', ctx.profile.id)
+    .maybeSingle();
+
+  if (!assignment) return { ok: false, error: 'Assignment not found' };
+
+  const acceptedAt = new Date().toISOString();
+  await ctx.supabase
+    .from('job_card_assignments')
+    .update({ status: 'accepted', accepted_at: acceptedAt, force_assigned: false })
+    .eq('id', assignment.id);
+
+  await ctx.supabase.from('job_card_events').insert({
+    job_card_id: input.jobId,
+    event_type: 'technician_assignment_accepted',
+    payload: {},
+    created_by: ctx.profile.id
+  });
+
+  const jobCard = Array.isArray(assignment.job_cards)
+    ? assignment.job_cards[0]
+    : assignment.job_cards;
+  const vehicleId = (jobCard as { vehicle_id?: string } | null)?.vehicle_id;
+
+  revalidatePath(`/workshop/jobs/${input.jobId}`);
+  if (vehicleId) revalidatePath(`/workshop/vehicles/${vehicleId}`);
+  revalidatePath('/workshop/dashboard');
+  return { ok: true };
 }
 
 export async function updateJobCardStatus(input: {

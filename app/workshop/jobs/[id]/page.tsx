@@ -36,12 +36,13 @@ export default async function WorkshopJobCardPage({
     parts,
     blockers,
     approvals,
-    checklist
+    checklist,
+    techniciansResult
   ] = await Promise.all([
     supabase
       .from('job_cards')
       .select(
-        'id,vehicle_id,title,status,started_at,last_updated_at,completed_at,closed_at,is_locked,customer_summary,job_card_assignments(id,technician_user_id,profiles(display_name,full_name))'
+        'id,vehicle_id,title,status,started_at,last_updated_at,completed_at,closed_at,is_locked,customer_summary,job_card_assignments(id,technician_user_id,status,force_assigned,profiles(display_name,full_name))'
       )
       .eq('id', id)
       .eq('workshop_id', profile.workshop_account_id)
@@ -81,7 +82,13 @@ export default async function WorkshopJobCardPage({
     supabase
       .from('job_card_checklist_items')
       .select('id,label,is_required,is_done,done_at')
-      .eq('job_card_id', id)
+      .eq('job_card_id', id),
+    supabase
+      .from('profiles')
+      .select('id,display_name,full_name')
+      .eq('workshop_account_id', profile.workshop_account_id)
+      .eq('role', 'technician')
+      .order('display_name', { ascending: true })
   ]);
 
   console.error('[WorkshopJobCardPage] primary_query', {
@@ -158,17 +165,26 @@ export default async function WorkshopJobCardPage({
   const assignmentChips = (job.job_card_assignments ?? []).map(
     (assignment: {
       id: string;
+      status: string;
+      technician_user_id: string;
       profiles:
         | { display_name: string | null; full_name: string | null }[]
         | null;
     }) => ({
       id: assignment.id,
+      technicianUserId: assignment.technician_user_id,
+      status: assignment.status ?? 'accepted',
       name:
         assignment.profiles?.[0]?.display_name ??
         assignment.profiles?.[0]?.full_name ??
         'Technician'
     })
   );
+
+  const technicians = (techniciansResult.data ?? []).map((technician) => ({
+    id: technician.id,
+    name: technician.display_name ?? technician.full_name ?? 'Technician'
+  }));
 
   return (
     <main className="space-y-5">
@@ -241,6 +257,8 @@ export default async function WorkshopJobCardPage({
         status={job.status}
         statusProgress={jobProgressIndex(job.status)}
         isManager={profile.role === 'admin'}
+        viewerRole={profile.role}
+        currentProfileId={profile.id}
         events={events.data ?? []}
         updates={updates.data ?? []}
         photos={photos.data ?? []}
@@ -250,6 +268,8 @@ export default async function WorkshopJobCardPage({
         checklist={checklist.data ?? []}
         linkedQuoteId={linkedQuoteId}
         linkedQuoteAmountCents={linkedQuoteAmountCents}
+        technicians={technicians}
+        assignments={assignmentChips}
       />
     </main>
   );

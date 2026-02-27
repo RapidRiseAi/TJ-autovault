@@ -10,7 +10,9 @@ import {
   closeJobCard,
   completeJobCard,
   updateJobCardStatus,
-  addJobCardPhoto
+  addJobCardPhoto,
+  acceptJobCardAssignment,
+  inviteJobCardTechnician
 } from '@/lib/actions/job-cards';
 import { formatJobCardStatus, JOB_CARD_STATUSES } from '@/lib/job-cards';
 import { parseAmountInputToCents } from '@/lib/money';
@@ -61,6 +63,10 @@ export function JobCardDetailClient(props: {
   vehicleId: string;
   isLocked: boolean;
   isManager: boolean;
+  viewerRole: 'admin' | 'technician';
+  currentProfileId: string;
+  technicians: Array<{ id: string; name: string }>;
+  assignments: Array<{ id: string; technicianUserId: string; status: string; name: string }>;
   status: string;
   statusProgress: number;
   linkedQuoteId?: string;
@@ -114,6 +120,7 @@ export function JobCardDetailClient(props: {
   const [tab, setTab] = useState<Tab>('overview');
   const [isUploading, setIsUploading] = useState(false);
   const [isClosingJob, setIsClosingJob] = useState(false);
+  const [selectedTechnicianId, setSelectedTechnicianId] = useState('');
 
   const [statusModalOpen, setStatusModalOpen] = useState(false);
   const [completeModalOpen, setCompleteModalOpen] = useState(false);
@@ -356,6 +363,17 @@ export function JobCardDetailClient(props: {
     Math.max(0, ((props.statusProgress + 1) / 5) * 100)
   );
 
+  const pendingAssignmentCount = props.assignments.filter((assignment) => assignment.status === 'invited').length;
+
+  const myPendingAssignment =
+    props.viewerRole === 'technician'
+      ? props.assignments.find(
+          (assignment) =>
+            assignment.status === 'invited' &&
+            assignment.technicianUserId === props.currentProfileId
+        )
+      : null;
+
   return (
     <div className="space-y-5">
       <section className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
@@ -446,6 +464,14 @@ export function JobCardDetailClient(props: {
                 >
                   Report entry
                 </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={props.isLocked}
+                  onClick={() => setUploadPhotoModalOpen(true)}
+                >
+                  Upload image
+                </Button>
               </div>
             </div>
             <div className="space-y-2 rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
@@ -473,19 +499,91 @@ export function JobCardDetailClient(props: {
                   size="sm"
                   variant="secondary"
                   disabled={props.isLocked}
-                  onClick={() => setUploadPhotoModalOpen(true)}
-                >
-                  Upload image
-                </Button>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  disabled={props.isLocked}
                   onClick={() => setCompleteModalOpen(true)}
                 >
                   Complete job
                 </Button>
               </div>
+            </div>
+            <div className="space-y-2 rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-600">
+                Technician assignment
+              </p>
+              <p className="text-xs text-gray-500">
+                Pending invites: {pendingAssignmentCount}
+              </p>
+              <div className="space-y-2">
+                {props.assignments.length ? (
+                  props.assignments.map((assignment) => (
+                    <p key={assignment.id} className="text-xs text-gray-600">
+                      {assignment.name} · {assignment.status}
+                    </p>
+                  ))
+                ) : (
+                  <p className="text-xs text-gray-500">No technician assigned yet.</p>
+                )}
+              </div>
+              {props.viewerRole === 'admin' ? (
+                <div className="grid gap-2">
+                  <select
+                    value={selectedTechnicianId}
+                    onChange={(event) => setSelectedTechnicianId(event.target.value)}
+                    className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
+                  >
+                    <option value="">Select technician</option>
+                    {props.technicians.map((technician) => (
+                      <option key={technician.id} value={technician.id}>
+                        {technician.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!selectedTechnicianId || props.isLocked}
+                      onClick={() =>
+                        void doAction(async () =>
+                          inviteJobCardTechnician({
+                            jobId: props.jobId,
+                            technicianId: selectedTechnicianId
+                          })
+                        )
+                      }
+                    >
+                      Invite technician
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={!selectedTechnicianId || props.isLocked}
+                      onClick={() =>
+                        void doAction(async () =>
+                          inviteJobCardTechnician({
+                            jobId: props.jobId,
+                            technicianId: selectedTechnicianId,
+                            forceAssign: true
+                          })
+                        )
+                      }
+                    >
+                      Force assign
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+              {myPendingAssignment ? (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={props.isLocked}
+                  onClick={() =>
+                    void doAction(() => acceptJobCardAssignment({ jobId: props.jobId }))
+                  }
+                >
+                  Accept assignment
+                </Button>
+              ) : null}
             </div>
             {props.isManager ? (
               <Button
@@ -976,7 +1074,7 @@ export function JobCardDetailClient(props: {
       <Modal
         open={uploadPhotoModalOpen}
         onClose={() => setUploadPhotoModalOpen(false)}
-        title="Upload image"
+        title="Upload client image"
       >
         <form
           className="space-y-3"
@@ -1001,6 +1099,13 @@ export function JobCardDetailClient(props: {
                 });
 
                 if (!result.ok) throw new Error(result.error);
+
+                await addJobCardEvent({
+                  jobId: props.jobId,
+                  eventType: 'client_image_uploaded',
+                  note: photoUploadTitle.trim(),
+                  customerFacing: true
+                });
 
                 setUploadPhotoModalOpen(false);
                 setPhotoUploadFile(null);
