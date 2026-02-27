@@ -95,6 +95,12 @@ export async function createProblemReport(input: {
   vehicleId: string;
   category: 'vehicle' | 'noise' | 'engine' | 'brakes' | 'electrical' | 'other';
   description: string;
+  subject?: string;
+  attachment?: {
+    bucket: 'vehicle-files';
+    path: string;
+    fileName?: string;
+  };
 }): Promise<ActionResult> {
   const supabase = await createClient();
   const context = await getCustomerContextOrCreate();
@@ -106,7 +112,11 @@ export async function createProblemReport(input: {
     customer_account_id: account.id,
     vehicle_id: input.vehicleId,
     category: input.category,
-    description: input.description
+    description: input.description,
+    subject: input.subject?.trim() || null,
+    attachment_bucket: input.attachment?.bucket ?? null,
+    attachment_path: input.attachment?.path ?? null,
+    attachment_name: input.attachment?.fileName ?? null
   });
 
   if (error)
@@ -120,9 +130,23 @@ export async function createProblemReport(input: {
 
 export async function createWorkRequest(input: {
   vehicleId: string;
-  requestType: 'inspection' | 'service';
+  requestType:
+    | 'inspection'
+    | 'service'
+    | 'quote'
+    | 'diagnostic'
+    | 'repair'
+    | 'parts'
+    | 'other';
+  subject?: string;
+  body?: string;
   preferredDate?: string;
   notes?: string;
+  attachment?: {
+    bucket: 'vehicle-files';
+    path: string;
+    fileName?: string;
+  };
 }): Promise<ActionResult> {
   const supabase = await createClient();
   const context = await getCustomerContextOrCreate();
@@ -135,13 +159,100 @@ export async function createWorkRequest(input: {
     customer_account_id: account.id,
     request_type: input.requestType,
     preferred_date: input.preferredDate || null,
-    notes: input.notes || null
+    notes: input.notes || input.body || null,
+    subject: input.subject?.trim() || null,
+    body: input.body?.trim() || null,
+    attachment_bucket: input.attachment?.bucket ?? null,
+    attachment_path: input.attachment?.path ?? null,
+    attachment_name: input.attachment?.fileName ?? null
   });
   if (error) return { ok: false, error: error.message };
 
   revalidatePath(customerVehicle(input.vehicleId));
   revalidatePath('/workshop/dashboard');
   return { ok: true, message: 'Request submitted.' };
+}
+
+export async function decideJobCardApproval(input: {
+  approvalId: string;
+  decision: 'approved' | 'declined';
+}): Promise<ActionResult> {
+  const supabase = await createClient();
+  const context = await getCustomerContextOrCreate();
+  if (!context) return { ok: false, error: 'Please sign in.' };
+
+  const account = context.customer_account;
+  const { data: approval, error: fetchError } = await supabase
+    .from('job_card_approvals')
+    .select('id,status,title,job_card_id')
+    .eq('id', input.approvalId)
+    .maybeSingle();
+
+  if (fetchError || !approval) {
+    return { ok: false, error: fetchError?.message ?? 'Approval not found.' };
+  }
+
+  const { data: job } = await supabase
+    .from('job_cards')
+    .select('vehicle_id,workshop_id,vehicles(current_customer_account_id)')
+    .eq('id', approval.job_card_id)
+    .maybeSingle();
+  if (!job) return { ok: false, error: 'Job card not found.' };
+
+  const vehicleCustomerId = Array.isArray(job.vehicles)
+    ? job.vehicles[0]?.current_customer_account_id ?? null
+    : (job.vehicles as { current_customer_account_id?: string } | null)
+        ?.current_customer_account_id ?? null;
+  if (vehicleCustomerId !== account.id) {
+    return { ok: false, error: 'You do not have access to this approval.' };
+  }
+
+  if ((approval.status ?? '').toLowerCase() !== 'pending') {
+    return { ok: false, error: 'This approval request is already finalized.' };
+  }
+
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from('job_card_approvals')
+    .update({ status: input.decision, decided_at: now, decided_by: null })
+    .eq('id', input.approvalId);
+  if (error) return { ok: false, error: error.message };
+
+  await supabase.from('vehicle_timeline_events').insert({
+    workshop_account_id: job.workshop_id,
+    customer_account_id: account.id,
+    vehicle_id: job.vehicle_id,
+    actor_profile_id: (await supabase.auth.getUser()).data.user?.id ?? null,
+    actor_role: 'customer',
+    event_type: 'job_approval_decided',
+    title: `Job approval ${input.decision}`,
+    description: `${approval.title ?? 'Approval request'} ${input.decision}`,
+    metadata: {
+      approval_id: approval.id,
+      job_card_id: approval.job_card_id,
+      status: input.decision
+    }
+  });
+
+  await supabase.rpc('push_notification_to_workshop', {
+    p_workshop_account_id: job.workshop_id,
+    p_kind: 'job',
+    p_title: `Customer ${input.decision} job card approval`,
+    p_body: approval.title ?? 'Approval decision submitted',
+    p_href: `/workshop/jobs/${approval.job_card_id}`,
+    p_data: {
+      approval_id: approval.id,
+      job_card_id: approval.job_card_id,
+      status: input.decision
+    }
+  });
+
+  revalidatePath(`/customer/jobs/${approval.job_card_id}`);
+  revalidatePath(`/customer/vehicles/${job.vehicle_id}`);
+  revalidatePath(`/customer/vehicles/${job.vehicle_id}/timeline`);
+  revalidatePath(`/workshop/jobs/${approval.job_card_id}`);
+  revalidatePath(`/workshop/vehicles/${job.vehicle_id}`);
+  return { ok: true, message: `Approval ${input.decision}.` };
 }
 
 export async function updateMileage(input: {
