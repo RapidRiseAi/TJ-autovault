@@ -445,7 +445,6 @@ export default async function WorkshopVehiclePage({
         <VehicleJobCardPanel
           vehicleId={vehicle.id}
           activeJob={activeJob}
-          technicians={technicians}
           approvedQuotes={approvedQuotes}
           canClose={profile.role === 'admin'}
         />
@@ -526,7 +525,6 @@ export default async function WorkshopVehiclePage({
                 <VehicleJobCardPanel
                   vehicleId={vehicle.id}
                   activeJob={null}
-                  technicians={technicians}
                   approvedQuotes={approvedQuotes}
                   canClose={profile.role === 'admin'}
                 />

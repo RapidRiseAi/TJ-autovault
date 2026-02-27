@@ -18,7 +18,6 @@ import { formatJobCardStatus } from '@/lib/job-cards';
 export function VehicleJobCardPanel({
   vehicleId,
   activeJob,
-  technicians,
   approvedQuotes,
   canClose
 }: {
@@ -31,7 +30,6 @@ export function VehicleJobCardPanel({
     last_updated_at: string;
     assignments: Array<{ id: string; name: string; avatarUrl: string | null }>;
   };
-  technicians: Array<{ id: string; name: string }>;
   approvedQuotes: Array<{
     id: string;
     quoteNumber: string | null;
@@ -178,10 +176,6 @@ export function VehicleJobCardPanel({
               const photoFiles = formData
                 .getAll('beforePhotos')
                 .filter((value): value is File => value instanceof File);
-              const technicianIds = formData
-                .getAll('technicianIds')
-                .map(String);
-
               void run(
                 async () => {
                   const beforePhotoPaths = photoFiles.length
@@ -197,8 +191,7 @@ export function VehicleJobCardPanel({
                     title: quoteLabel
                       ? `Quote ${quoteLabel}`
                       : 'General workshop job',
-                    beforePhotoPaths,
-                    technicianIds
+                    beforePhotoPaths
                   });
                 },
                 () => setStartOpen(false)
@@ -231,18 +224,11 @@ export function VehicleJobCardPanel({
               title="Before images (optional)"
               className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
             />
-            <select
-              name="technicianIds"
-              multiple
-              className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
-              defaultValue={[]}
-            >
-              {technicians.map((tech) => (
-                <option key={tech.id} value={tech.id}>
-                  {tech.name}
-                </option>
-              ))}
-            </select>
+            <p className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs text-neutral-600">
+              Technician assignment is automatic. Jobs started from the workshop
+              account default to Toy, and invited technicians can accept from
+              their own account.
+            </p>
             <Button disabled={isSaving}>
               {isSaving ? 'Starting…' : 'Start job'}
             </Button>
