@@ -219,7 +219,7 @@ export default async function WorkshopVehiclePage({
     ? await supabase
         .from('job_card_assignments')
         .select(
-          'id,technician_user_id,profiles!left(display_name,full_name,avatar_url)'
+          'id,technician_user_id,technician_profile:profiles!job_card_assignments_technician_user_id_fkey(display_name,full_name,avatar_url)'
         )
         .eq('job_card_id', activeJobRaw.id)
     : { data: [], error: null };
@@ -284,7 +284,7 @@ export default async function WorkshopVehiclePage({
         assignments: (activeJobAssignmentsResult.data ?? []).map(
           (assignment: {
             id: string;
-            profiles:
+            technician_profile:
               | {
                   display_name: string | null;
                   full_name: string | null;
@@ -294,10 +294,10 @@ export default async function WorkshopVehiclePage({
           }) => ({
             id: assignment.id,
             name:
-              assignment.profiles?.[0]?.display_name ??
-              assignment.profiles?.[0]?.full_name ??
+              assignment.technician_profile?.[0]?.display_name ??
+              assignment.technician_profile?.[0]?.full_name ??
               'Technician',
-            avatarUrl: assignment.profiles?.[0]?.avatar_url ?? null
+            avatarUrl: assignment.technician_profile?.[0]?.avatar_url ?? null
           })
         )
       }
