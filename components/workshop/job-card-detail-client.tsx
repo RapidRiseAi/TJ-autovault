@@ -9,7 +9,8 @@ import {
   canCloseJobCard,
   closeJobCard,
   completeJobCard,
-  updateJobCardStatus
+  updateJobCardStatus,
+  addJobCardPhoto
 } from '@/lib/actions/job-cards';
 import { formatJobCardStatus, JOB_CARD_STATUSES } from '@/lib/job-cards';
 import { parseAmountInputToCents } from '@/lib/money';
@@ -45,6 +46,16 @@ function formatTabLabel(value: Tab) {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
+function resolvePhotoTitle(
+  photo: { title: string | null; kind: string },
+  index: number
+) {
+  if (photo.title?.trim()) return photo.title;
+  if (photo.kind === 'before') return `Before image ${index + 1}`;
+  if (photo.kind === 'after') return `After image ${index + 1}`;
+  return `Job image ${index + 1}`;
+}
+
 export function JobCardDetailClient(props: {
   jobId: string;
   vehicleId: string;
@@ -65,6 +76,7 @@ export function JobCardDetailClient(props: {
     id: string;
     kind: string;
     storage_path: string;
+    title: string | null;
     uploaded_at: string;
   }>;
   parts: Array<{
@@ -108,6 +120,8 @@ export function JobCardDetailClient(props: {
   const [requestModalOpen, setRequestModalOpen] = useState(false);
   const [logModalOpen, setLogModalOpen] = useState(false);
   const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [clientReportModalOpen, setClientReportModalOpen] = useState(false);
+  const [uploadPhotoModalOpen, setUploadPhotoModalOpen] = useState(false);
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
   const [requirementsPromptOpen, setRequirementsPromptOpen] = useState(false);
 
@@ -125,6 +139,10 @@ export function JobCardDetailClient(props: {
 
   const [reportNote, setReportNote] = useState('');
   const [reportFile, setReportFile] = useState<File | null>(null);
+  const [clientReportNote, setClientReportNote] = useState('');
+
+  const [photoUploadTitle, setPhotoUploadTitle] = useState('');
+  const [photoUploadFile, setPhotoUploadFile] = useState<File | null>(null);
   const [logNote, setLogNote] = useState('');
 
   const [invoiceSubject, setInvoiceSubject] = useState('Invoice');
@@ -320,12 +338,23 @@ export function JobCardDetailClient(props: {
   );
 
   const openBlockers = props.blockers.filter((blocker) => !blocker.resolved_at);
-  const pendingApprovals = props.approvals.filter((approval) => approval.status !== 'approved');
+  const pendingApprovals = props.approvals.filter(
+    (approval) => approval.status !== 'approved'
+  );
   const afterPhotos = props.photos.filter((photo) => photo.kind === 'after');
-  const totalChecklistDone = props.checklist.filter((item) => item.is_done).length;
-  const requiredChecklistDone = props.checklist.filter((item) => item.is_required && item.is_done).length;
-  const requiredChecklistTotal = props.checklist.filter((item) => item.is_required).length;
-  const progressPercent = Math.min(100, Math.max(0, ((props.statusProgress + 1) / 5) * 100));
+  const totalChecklistDone = props.checklist.filter(
+    (item) => item.is_done
+  ).length;
+  const requiredChecklistDone = props.checklist.filter(
+    (item) => item.is_required && item.is_done
+  ).length;
+  const requiredChecklistTotal = props.checklist.filter(
+    (item) => item.is_required
+  ).length;
+  const progressPercent = Math.min(
+    100,
+    Math.max(0, ((props.statusProgress + 1) / 5) * 100)
+  );
 
   return (
     <div className="space-y-5">
@@ -333,26 +362,47 @@ export function JobCardDetailClient(props: {
         <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-[0_12px_30px_rgba(17,17,17,0.06)]">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500">Progress</p>
-              <p className="mt-1 text-lg font-semibold text-neutral-900">{formatJobCardStatus(props.status)}</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500">
+                Progress
+              </p>
+              <p className="mt-1 text-lg font-semibold text-neutral-900">
+                {formatJobCardStatus(props.status)}
+              </p>
             </div>
-            <p className="text-sm text-gray-500">Step {props.statusProgress + 1} of 5</p>
+            <p className="text-sm text-gray-500">
+              Step {props.statusProgress + 1} of 5
+            </p>
           </div>
           <div className="mt-3 h-2 overflow-hidden rounded-full bg-neutral-100">
-            <div className="h-full rounded-full bg-red-500 transition-all" style={{ width: `${progressPercent}%` }} />
+            <div
+              className="h-full rounded-full bg-red-500 transition-all"
+              style={{ width: `${progressPercent}%` }}
+            />
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2">
-              <p className="text-[11px] uppercase tracking-wide text-gray-500">Open blockers</p>
-              <p className="mt-1 text-xl font-semibold text-neutral-900">{openBlockers.length}</p>
+              <p className="text-[11px] uppercase tracking-wide text-gray-500">
+                Open blockers
+              </p>
+              <p className="mt-1 text-xl font-semibold text-neutral-900">
+                {openBlockers.length}
+              </p>
             </div>
             <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2">
-              <p className="text-[11px] uppercase tracking-wide text-gray-500">Pending approvals</p>
-              <p className="mt-1 text-xl font-semibold text-neutral-900">{pendingApprovals.length}</p>
+              <p className="text-[11px] uppercase tracking-wide text-gray-500">
+                Pending approvals
+              </p>
+              <p className="mt-1 text-xl font-semibold text-neutral-900">
+                {pendingApprovals.length}
+              </p>
             </div>
             <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2">
-              <p className="text-[11px] uppercase tracking-wide text-gray-500">Photos</p>
-              <p className="mt-1 text-xl font-semibold text-neutral-900">{afterPhotos.length} / {props.photos.length}</p>
+              <p className="text-[11px] uppercase tracking-wide text-gray-500">
+                Photos
+              </p>
+              <p className="mt-1 text-xl font-semibold text-neutral-900">
+                {afterPhotos.length} / {props.photos.length}
+              </p>
             </div>
           </div>
           {props.isManager && unmetCloseRequirements.length ? (
@@ -363,23 +413,80 @@ export function JobCardDetailClient(props: {
         </div>
 
         <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-[0_12px_30px_rgba(17,17,17,0.06)]">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500">Quick actions</p>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
-            <Button size="sm" variant="secondary" disabled={props.isLocked} onClick={() => setStatusModalOpen(true)}>
-              Update status
-            </Button>
-            <Button size="sm" variant="secondary" disabled={props.isLocked} onClick={() => setRequestModalOpen(true)}>
-              Request approval
-            </Button>
-            <Button size="sm" variant="secondary" disabled={props.isLocked} onClick={() => setLogModalOpen(true)}>
-              Add log entry
-            </Button>
-            <Button size="sm" variant="secondary" disabled={props.isLocked} onClick={() => setReportModalOpen(true)}>
-              Internal report
-            </Button>
-            <Button size="sm" variant="secondary" disabled={props.isLocked} onClick={() => setCompleteModalOpen(true)}>
-              Complete job
-            </Button>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500">
+            Quick actions
+          </p>
+          <div className="mt-3 space-y-3">
+            <div className="space-y-2 rounded-2xl border border-red-100 bg-red-50/50 p-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-red-700">
+                Client-visible actions
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={props.isLocked}
+                  onClick={() => setStatusModalOpen(true)}
+                >
+                  Update status
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={props.isLocked}
+                  onClick={() => setRequestModalOpen(true)}
+                >
+                  Request approval
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={props.isLocked}
+                  onClick={() => setClientReportModalOpen(true)}
+                >
+                  Report entry
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-2 rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-600">
+                Internal workshop actions
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={props.isLocked}
+                  onClick={() => setLogModalOpen(true)}
+                >
+                  Internal report
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={props.isLocked}
+                  onClick={() => setReportModalOpen(true)}
+                >
+                  Internal report upload
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={props.isLocked}
+                  onClick={() => setUploadPhotoModalOpen(true)}
+                >
+                  Upload image
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={props.isLocked}
+                  onClick={() => setCompleteModalOpen(true)}
+                >
+                  Complete job
+                </Button>
+              </div>
+            </div>
             {props.isManager ? (
               <Button
                 size="sm"
@@ -391,7 +498,9 @@ export function JobCardDetailClient(props: {
                     return;
                   }
                   setInvoiceAmount(centsToInput(props.linkedQuoteAmountCents));
-                  setInvoiceAmountPrefilled(Boolean(props.linkedQuoteAmountCents));
+                  setInvoiceAmountPrefilled(
+                    Boolean(props.linkedQuoteAmountCents)
+                  );
                   setInvoiceModalOpen(true);
                 }}
               >
@@ -421,23 +530,58 @@ export function JobCardDetailClient(props: {
         {tab === 'overview' ? (
           <div className="grid gap-3 lg:grid-cols-2">
             <div className="space-y-3 rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Current snapshot</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                Current snapshot
+              </p>
               <div className="space-y-2">
-                <div className="flex items-center justify-between"><span>Status</span><span className="font-medium text-neutral-900">{formatJobCardStatus(props.status)}</span></div>
-                <div className="flex items-center justify-between"><span>Open blockers</span><span className="font-medium text-neutral-900">{openBlockers.length}</span></div>
-                <div className="flex items-center justify-between"><span>Pending approvals</span><span className="font-medium text-neutral-900">{pendingApprovals.length}</span></div>
-                <div className="flex items-center justify-between"><span>Checklist completed</span><span className="font-medium text-neutral-900">{totalChecklistDone}/{props.checklist.length}</span></div>
+                <div className="flex items-center justify-between">
+                  <span>Status</span>
+                  <span className="font-medium text-neutral-900">
+                    {formatJobCardStatus(props.status)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Open blockers</span>
+                  <span className="font-medium text-neutral-900">
+                    {openBlockers.length}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Pending approvals</span>
+                  <span className="font-medium text-neutral-900">
+                    {pendingApprovals.length}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Checklist completed</span>
+                  <span className="font-medium text-neutral-900">
+                    {totalChecklistDone}/{props.checklist.length}
+                  </span>
+                </div>
               </div>
             </div>
             <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Timeline</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                Timeline
+              </p>
               <div className="mt-2 space-y-2">
-                {props.events.length ? props.events.slice(0, 6).map((event) => (
-                  <div key={event.id} className="rounded-xl border border-neutral-200 bg-white px-3 py-2">
-                    <p className="text-sm font-medium text-neutral-900">{event.event_type.replaceAll('_', ' ')}</p>
-                    <p className="text-xs text-gray-500">{formatDateTime(event.created_at)}</p>
-                  </div>
-                )) : <p className="text-sm text-gray-500">No events yet.</p>}
+                {props.events.length ? (
+                  props.events.slice(0, 6).map((event) => (
+                    <div
+                      key={event.id}
+                      className="rounded-xl border border-neutral-200 bg-white px-3 py-2"
+                    >
+                      <p className="text-sm font-medium text-neutral-900">
+                        {event.event_type.replaceAll('_', ' ')}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {formatDateTime(event.created_at)}
+                      </p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-gray-500">No events yet.</p>
+                )}
               </div>
             </div>
           </div>
@@ -445,83 +589,187 @@ export function JobCardDetailClient(props: {
 
         {tab === 'photos' ? (
           <div className="space-y-2">
-            {props.photos.length ? props.photos.map((photo) => (
-              <div key={photo.id} className="rounded-xl border border-neutral-200 px-3 py-2">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="font-medium text-neutral-900">{photo.kind} photo</p>
-                  <p className="text-xs text-gray-500">{formatDateTime(photo.uploaded_at)}</p>
+            {props.photos.length ? (
+              props.photos.map((photo, index) => (
+                <div
+                  key={photo.id}
+                  className="rounded-xl border border-neutral-200 px-3 py-2"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-neutral-900">
+                        {resolvePhotoTitle(photo, index)}
+                      </p>
+                      <p className="text-xs uppercase tracking-wide text-gray-500">
+                        {photo.kind}
+                      </p>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      {formatDateTime(photo.uploaded_at)}
+                    </p>
+                  </div>
+                  <div className="mt-2 flex gap-2">
+                    <Button asChild size="sm" variant="outline">
+                      <a
+                        href={`/api/workshop/job-card-photos/${photo.id}/download`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Preview
+                      </a>
+                    </Button>
+                    <Button asChild size="sm" variant="outline">
+                      <a
+                        href={`/api/workshop/job-card-photos/${photo.id}/download?download=1`}
+                      >
+                        Download
+                      </a>
+                    </Button>
+                  </div>
                 </div>
-                <p className="mt-1 truncate text-xs text-gray-500">{photo.storage_path}</p>
-              </div>
-            )) : <p>No photos uploaded.</p>}
+              ))
+            ) : (
+              <p>No photos uploaded.</p>
+            )}
           </div>
         ) : null}
 
         {tab === 'updates' ? (
           <div className="space-y-2">
-            {props.updates.length ? props.updates.map((update) => (
-              <div key={update.id} className="rounded-xl border border-neutral-200 px-3 py-2">
-                <p className="text-sm text-neutral-900">{update.message}</p>
-                <p className="mt-1 text-xs text-gray-500">{formatDateTime(update.created_at)}</p>
-              </div>
-            )) : <p>No customer updates.</p>}
+            {props.updates.length ? (
+              props.updates.map((update) => (
+                <div
+                  key={update.id}
+                  className="rounded-xl border border-neutral-200 px-3 py-2"
+                >
+                  <p className="text-sm text-neutral-900">{update.message}</p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    {formatDateTime(update.created_at)}
+                  </p>
+                </div>
+              ))
+            ) : (
+              <p>No customer updates.</p>
+            )}
           </div>
         ) : null}
 
         {tab === 'internal' ? (
           <div className="space-y-2">
-            {props.events.length ? props.events.map((event) => (
-              <div key={event.id} className="rounded-xl border border-neutral-200 px-3 py-2">
-                <p className="font-medium text-neutral-900">{event.event_type.replaceAll('_', ' ')}</p>
-                <p className="text-sm text-gray-600">{event.payload?.note ?? 'No note'}</p>
-                <p className="mt-1 text-xs text-gray-500">{formatDateTime(event.created_at)}</p>
-              </div>
-            )) : <p>No internal log yet.</p>}
+            {props.events.length ? (
+              props.events.map((event) => (
+                <div
+                  key={event.id}
+                  className="rounded-xl border border-neutral-200 px-3 py-2"
+                >
+                  <p className="font-medium text-neutral-900">
+                    {event.event_type.replaceAll('_', ' ')}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    {event.payload?.note ?? 'No note'}
+                  </p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    {formatDateTime(event.created_at)}
+                  </p>
+                </div>
+              ))
+            ) : (
+              <p>No internal log yet.</p>
+            )}
           </div>
         ) : null}
 
         {tab === 'parts' ? (
           <div className="space-y-2">
-            {props.parts.length ? props.parts.map((part) => (
-              <div key={part.id} className="rounded-xl border border-neutral-200 px-3 py-2">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="font-medium text-neutral-900">{part.name} × {part.qty}</p>
-                  <span className="rounded-full border border-neutral-200 px-2 py-0.5 text-xs text-gray-600">{part.status}</span>
+            {props.parts.length ? (
+              props.parts.map((part) => (
+                <div
+                  key={part.id}
+                  className="rounded-xl border border-neutral-200 px-3 py-2"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-medium text-neutral-900">
+                      {part.name} × {part.qty}
+                    </p>
+                    <span className="rounded-full border border-neutral-200 px-2 py-0.5 text-xs text-gray-600">
+                      {part.status}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">
+                    ETA: {part.eta ? formatDateTime(part.eta) : 'Not set'}
+                  </p>
+                  {part.notes ? (
+                    <p className="mt-1 text-sm text-gray-600">{part.notes}</p>
+                  ) : null}
                 </div>
-                <p className="mt-1 text-xs text-gray-500">ETA: {part.eta ? formatDateTime(part.eta) : 'Not set'}</p>
-                {part.notes ? <p className="mt-1 text-sm text-gray-600">{part.notes}</p> : null}
-              </div>
-            )) : <p>No parts yet.</p>}
+              ))
+            ) : (
+              <p>No parts yet.</p>
+            )}
           </div>
         ) : null}
 
         {tab === 'approvals' ? (
           <div className="space-y-2">
-            {props.approvals.length ? props.approvals.map((approval) => (
-              <div key={approval.id} className="rounded-xl border border-neutral-200 px-3 py-2">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="font-medium text-neutral-900">{approval.title}</p>
-                  <span className="rounded-full border border-neutral-200 px-2 py-0.5 text-xs text-gray-600">{approval.status}</span>
+            {props.approvals.length ? (
+              props.approvals.map((approval) => (
+                <div
+                  key={approval.id}
+                  className="rounded-xl border border-neutral-200 px-3 py-2"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-medium text-neutral-900">
+                      {approval.title}
+                    </p>
+                    <span className="rounded-full border border-neutral-200 px-2 py-0.5 text-xs text-gray-600">
+                      {approval.status}
+                    </span>
+                  </div>
+                  {approval.description ? (
+                    <p className="mt-1 text-sm text-gray-600">
+                      {approval.description}
+                    </p>
+                  ) : null}
+                  <p className="mt-1 text-xs text-gray-500">
+                    Requested {formatDateTime(approval.requested_at)}
+                  </p>
                 </div>
-                {approval.description ? <p className="mt-1 text-sm text-gray-600">{approval.description}</p> : null}
-                <p className="mt-1 text-xs text-gray-500">Requested {formatDateTime(approval.requested_at)}</p>
-              </div>
-            )) : <p>No approvals yet.</p>}
+              ))
+            ) : (
+              <p>No approvals yet.</p>
+            )}
           </div>
         ) : null}
 
         {tab === 'checklist' ? (
           <div className="space-y-3">
             <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm">
-              Required complete: <span className="font-semibold text-neutral-900">{requiredChecklistDone}/{requiredChecklistTotal}</span>
+              Required complete:{' '}
+              <span className="font-semibold text-neutral-900">
+                {requiredChecklistDone}/{requiredChecklistTotal}
+              </span>
             </div>
             <div className="space-y-2">
-              {props.checklist.length ? props.checklist.map((item) => (
-                <div key={item.id} className="rounded-xl border border-neutral-200 px-3 py-2">
-                  <p className="font-medium text-neutral-900">{item.is_done ? '✅' : '⬜'} {item.label}</p>
-                  <p className="mt-1 text-xs text-gray-500">{item.is_required ? 'Required' : 'Optional'} {item.done_at ? `• Done ${formatDateTime(item.done_at)}` : ''}</p>
-                </div>
-              )) : <p>No checklist yet.</p>}
+              {props.checklist.length ? (
+                props.checklist.map((item) => (
+                  <div
+                    key={item.id}
+                    className="rounded-xl border border-neutral-200 px-3 py-2"
+                  >
+                    <p className="font-medium text-neutral-900">
+                      {item.is_done ? '✅' : '⬜'} {item.label}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      {item.is_required ? 'Required' : 'Optional'}{' '}
+                      {item.done_at
+                        ? `• Done ${formatDateTime(item.done_at)}`
+                        : ''}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <p>No checklist yet.</p>
+              )}
             </div>
           </div>
         ) : null}
@@ -580,7 +828,10 @@ export function JobCardDetailClient(props: {
               const result = await completeJobCard({
                 jobId: props.jobId,
                 endNote: completeNote,
-                afterPhotoPaths: uploadedPaths
+                afterPhotos: uploadedPaths.map((path, index) => ({
+                  path,
+                  title: `After image ${index + 1}`
+                }))
               });
               if (result.ok) setCompleteModalOpen(false);
               return result;
@@ -676,6 +927,125 @@ export function JobCardDetailClient(props: {
           />
           <Button disabled={props.isLocked || isUploading}>
             {isUploading ? 'Uploading…' : 'Send approval request'}
+          </Button>
+        </form>
+      </Modal>
+
+      <Modal
+        open={clientReportModalOpen}
+        onClose={() => setClientReportModalOpen(false)}
+        title="Add report entry"
+      >
+        <form
+          className="space-y-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void doAction(async () => {
+              const eventResult = await addJobCardEvent({
+                jobId: props.jobId,
+                eventType: 'report_entry',
+                note: clientReportNote.trim(),
+                customerFacing: true
+              });
+
+              if (eventResult.ok) {
+                setClientReportModalOpen(false);
+                setClientReportNote('');
+              }
+              return eventResult;
+            });
+          }}
+        >
+          <textarea
+            placeholder="Report entry for the client"
+            value={clientReportNote}
+            onChange={(event) => setClientReportNote(event.target.value)}
+            className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
+            rows={4}
+            required
+          />
+          <p className="text-xs text-gray-500">
+            This report entry is visible to the client.
+          </p>
+          <Button disabled={props.isLocked || !clientReportNote.trim()}>
+            Save report entry
+          </Button>
+        </form>
+      </Modal>
+
+      <Modal
+        open={uploadPhotoModalOpen}
+        onClose={() => setUploadPhotoModalOpen(false)}
+        title="Upload image"
+      >
+        <form
+          className="space-y-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!photoUploadFile || !photoUploadTitle.trim()) return;
+
+            setIsUploading(true);
+            void (async () => {
+              try {
+                const [path] = await uploadPhotoFiles(
+                  [photoUploadFile],
+                  'after'
+                );
+                if (!path) throw new Error('Could not upload image.');
+
+                const result = await addJobCardPhoto({
+                  jobId: props.jobId,
+                  kind: 'other',
+                  storagePath: path,
+                  title: photoUploadTitle.trim()
+                });
+
+                if (!result.ok) throw new Error(result.error);
+
+                setUploadPhotoModalOpen(false);
+                setPhotoUploadFile(null);
+                setPhotoUploadTitle('');
+                window.location.reload();
+              } catch (error) {
+                pushToast({
+                  title: 'Photo upload failed',
+                  description:
+                    error instanceof Error
+                      ? error.message
+                      : 'Please try again.',
+                  tone: 'error'
+                });
+              } finally {
+                setIsUploading(false);
+              }
+            })();
+          }}
+        >
+          <input
+            value={photoUploadTitle}
+            onChange={(event) => setPhotoUploadTitle(event.target.value)}
+            placeholder="Image title"
+            required
+            className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
+          />
+          <input
+            type="file"
+            accept="image/*"
+            required
+            onChange={(event) =>
+              setPhotoUploadFile(event.target.files?.[0] ?? null)
+            }
+            className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
+          />
+          <Button
+            disabled={
+              props.isLocked ||
+              isUploading ||
+              !photoUploadTitle.trim() ||
+              !photoUploadFile
+            }
+          >
+            {isUploading ? 'Uploading…' : 'Upload image'}
           </Button>
         </form>
       </Modal>

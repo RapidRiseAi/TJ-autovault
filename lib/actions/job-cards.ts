@@ -210,10 +210,11 @@ export async function startJobCard(input: {
 
   if (beforePhotoPaths.length) {
     await ctx.supabase.from('job_card_photos').insert(
-      beforePhotoPaths.map((path) => ({
+      beforePhotoPaths.map((path, index) => ({
         job_card_id: job.id,
         kind: 'before',
         storage_path: path,
+        title: `Before image ${index + 1}`,
         uploaded_by: ctx.profile.id
       }))
     );
@@ -395,14 +396,18 @@ export async function addJobCardEvent(input: {
 export async function completeJobCard(input: {
   jobId: string;
   endNote: string;
-  afterPhotoPaths: string[];
+  afterPhotos: Array<{ path: string; title?: string }>;
 }): Promise<Result> {
   const ctx = await getWorkshopContext();
   if (!ctx) return { ok: false, error: 'Unauthorized' };
-  if (!input.endNote.trim())
-    return { ok: false, error: 'End note is required' };
-  const afterPhotoPaths = input.afterPhotoPaths
-    .map((path) => path.trim())
+  const afterPhotos = input.afterPhotos
+    .map((photo) => ({
+      path: photo.path.trim(),
+      title: photo.title?.trim()
+    }))
+    .filter((photo) => Boolean(photo.path));
+  const afterPhotoPaths = afterPhotos
+    .map((photo) => photo.path)
     .filter(Boolean);
   if (!afterPhotoPaths.length)
     return { ok: false, error: 'At least one after photo is required' };
@@ -417,10 +422,11 @@ export async function completeJobCard(input: {
   if (job.is_locked) return { ok: false, error: 'Job is closed and locked.' };
 
   await ctx.supabase.from('job_card_photos').insert(
-    afterPhotoPaths.map((path) => ({
+    afterPhotos.map((photo, index) => ({
       job_card_id: input.jobId,
       kind: 'after',
-      storage_path: path,
+      storage_path: photo.path,
+      title: photo.title || `After image ${index + 1}`,
       uploaded_by: ctx.profile.id
     }))
   );
@@ -432,13 +438,13 @@ export async function completeJobCard(input: {
       status: 'completed',
       completed_at: now,
       last_updated_at: now,
-      customer_summary: input.endNote
+      customer_summary: input.endNote.trim() || null
     })
     .eq('id', input.jobId);
   await ctx.supabase.from('job_card_events').insert({
     job_card_id: input.jobId,
     event_type: 'job_completed',
-    payload: { note: input.endNote },
+    payload: { note: input.endNote.trim() || null },
     created_by: ctx.profile.id
   });
   await ctx.supabase.from('job_card_updates').insert({
@@ -458,6 +464,50 @@ export async function completeJobCard(input: {
     title: 'Job completed',
     metadata: { job_card_id: input.jobId }
   });
+
+  revalidatePath(`/workshop/jobs/${input.jobId}`);
+  revalidatePath(`/workshop/vehicles/${job.vehicle_id}`);
+  revalidatePath(`/customer/jobs/${input.jobId}`);
+  revalidatePath(`/customer/vehicles/${job.vehicle_id}`);
+  return { ok: true };
+}
+
+export async function addJobCardPhoto(input: {
+  jobId: string;
+  kind: 'before' | 'after' | 'other';
+  storagePath: string;
+  title: string;
+}): Promise<Result> {
+  const ctx = await getWorkshopContext();
+  if (!ctx) return { ok: false, error: 'Unauthorized' };
+
+  const title = input.title.trim();
+  const storagePath = input.storagePath.trim();
+  if (!title) return { ok: false, error: 'Photo title is required' };
+  if (!storagePath) return { ok: false, error: 'Photo path is required' };
+
+  const { data: job } = await ctx.supabase
+    .from('job_cards')
+    .select('id,vehicle_id,is_locked')
+    .eq('id', input.jobId)
+    .eq('workshop_id', ctx.profile.workshop_account_id)
+    .maybeSingle();
+
+  if (!job) return { ok: false, error: 'Job not found' };
+  if (job.is_locked) return { ok: false, error: 'Job is closed and locked.' };
+
+  await ctx.supabase.from('job_card_photos').insert({
+    job_card_id: input.jobId,
+    kind: input.kind,
+    storage_path: storagePath,
+    title,
+    uploaded_by: ctx.profile.id
+  });
+
+  await ctx.supabase
+    .from('job_cards')
+    .update({ last_updated_at: new Date().toISOString() })
+    .eq('id', input.jobId);
 
   revalidatePath(`/workshop/jobs/${input.jobId}`);
   revalidatePath(`/workshop/vehicles/${job.vehicle_id}`);
