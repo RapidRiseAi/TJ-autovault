@@ -11,6 +11,13 @@ function formatDateTime(value?: string | null) {
   return new Date(value).toLocaleString();
 }
 
+function getSafeErrorMessage(message?: string) {
+  if (!message) return 'Please try again in a moment.';
+  const singleLine = message.replace(/\s+/g, ' ').trim();
+  if (!singleLine) return 'Please try again in a moment.';
+  return singleLine;
+}
+
 export default async function WorkshopJobCardPage({
   params
 }: {
@@ -42,7 +49,7 @@ export default async function WorkshopJobCardPage({
     supabase
       .from('job_cards')
       .select(
-        'id,vehicle_id,title,status,started_at,last_updated_at,completed_at,closed_at,is_locked,customer_summary,job_card_assignments(id,technician_user_id,status,force_assigned,profiles(display_name,full_name))'
+        'id,vehicle_id,title,status,started_at,last_updated_at,completed_at,closed_at,is_locked,customer_summary,job_card_assignments(id,technician_user_id,status,force_assigned,technician_profile:profiles!job_card_assignments_technician_user_id_fkey(display_name,full_name))'
       )
       .eq('id', id)
       .eq('workshop_id', profile.workshop_account_id)
@@ -111,6 +118,18 @@ export default async function WorkshopJobCardPage({
     checklistCount: checklist.data?.length ?? null
   });
 
+  if (jobError)
+    return (
+      <main>
+        <Card>
+          <h1 className="text-lg font-semibold">Unable to load job card</h1>
+          <p className="mt-2 text-sm text-gray-600">
+            {getSafeErrorMessage(jobError.message)}
+          </p>
+        </Card>
+      </main>
+    );
+
   if (!job)
     return (
       <main>
@@ -167,7 +186,7 @@ export default async function WorkshopJobCardPage({
       id: string;
       status: string;
       technician_user_id: string;
-      profiles:
+      technician_profile:
         | { display_name: string | null; full_name: string | null }[]
         | null;
     }) => ({
@@ -175,8 +194,8 @@ export default async function WorkshopJobCardPage({
       technicianUserId: assignment.technician_user_id,
       status: assignment.status ?? 'accepted',
       name:
-        assignment.profiles?.[0]?.display_name ??
-        assignment.profiles?.[0]?.full_name ??
+        assignment.technician_profile?.[0]?.display_name ??
+        assignment.technician_profile?.[0]?.full_name ??
         'Technician'
     })
   );
