@@ -90,16 +90,26 @@ export default async function VehicleTimelinePage({ params, searchParams }: { pa
       actorLabel: await buildTimelineActorLabel(supabase as never, event)
     }))
   );
-  const syntheticJobRows = (jobCards ?? []).map((job) => ({
-    id: `job-${job.id}`,
-    created_at: job.created_at,
-    title: `Job card opened: ${job.title}`,
-    description: `Status: ${(job.status ?? 'unknown').replaceAll('_', ' ')}`,
-    importance: 'info',
-    actorLabel: 'Workshop',
-    event_type: 'job_card',
-    metadata: { job_card_id: job.id }
-  }));
+  const activeStatuses = new Set([
+    'not_started',
+    'in_progress',
+    'waiting_parts',
+    'waiting_approval',
+    'quality_check',
+    'ready'
+  ]);
+  const syntheticJobRows = (jobCards ?? [])
+    .filter((job) => activeStatuses.has(job.status ?? ''))
+    .map((job) => ({
+      id: `job-${job.id}`,
+      created_at: job.created_at,
+      title: `Job card opened: ${job.title}`,
+      description: `Status: ${(job.status ?? 'unknown').replaceAll('_', ' ')}`,
+      importance: 'info',
+      actorLabel: 'workshop/system',
+      event_type: 'job_card',
+      metadata: { job_card_id: job.id }
+    }));
   const activity = buildActivityStream([...timelineRows, ...syntheticJobRows], documents ?? []);
 
   return (

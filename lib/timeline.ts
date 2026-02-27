@@ -5,45 +5,52 @@ type TimelineEvent = {
   actor_profile_id?: string | null;
   workshop_account_id?: string | null;
   customer_account_id?: string | null;
+  metadata?: Record<string, unknown> | null;
 };
 
-export async function buildTimelineActorLabel(supabase: SupabaseClient, event: TimelineEvent) {
-  if (!event.actor_profile_id && event.actor_role !== 'customer') return 'System';
+function clean(value?: string | null) {
+  return value?.trim() || null;
+}
+
+export async function buildTimelineActorLabel(
+  supabase: SupabaseClient,
+  event: TimelineEvent
+) {
+  const actorFlag = clean(
+    typeof event.metadata?.actor_flag === 'string' ? event.metadata.actor_flag : null
+  );
+  if (actorFlag) return actorFlag;
+  if (!event.actor_profile_id && event.actor_role !== 'customer') return 'system/automation';
 
   const { data: actor } = event.actor_profile_id
     ? await supabase
         .from('profiles')
-        .select('display_name,role')
+        .select('display_name,full_name,role,id')
         .eq('id', event.actor_profile_id)
         .maybeSingle()
     : { data: null };
 
   const role = actor?.role ?? event.actor_role;
-  if (role === 'admin' || role === 'technician') {
-    if (!event.workshop_account_id) return 'TJ Service & Repairs';
+  const actorName =
+    clean(actor?.display_name) || clean(actor?.full_name) || clean(actor?.id) || 'unknown';
 
-    const { data: workshop } = await supabase
-      .from('workshop_accounts')
-      .select('name')
-      .eq('id', event.workshop_account_id)
-      .maybeSingle();
-    return workshop?.name || 'TJ Service & Repairs';
-  }
+  if (role === 'admin') return `workshop/${actorName}`;
+  if (role === 'technician') return `technician/${actorName}`;
 
   if (role === 'customer') {
-    if (actor?.display_name) return actor.display_name;
+    if (actorName !== 'unknown') return `customer/${actorName}`;
 
-    if (!event.customer_account_id) return 'Customer';
+    if (!event.customer_account_id) return 'customer/unknown';
 
     const { data: customer } = await supabase
       .from('customer_accounts')
       .select('name')
       .eq('id', event.customer_account_id)
       .maybeSingle();
-    return customer?.name || 'Customer';
+    return `customer/${clean(customer?.name) || 'unknown'}`;
   }
 
-  return actor?.display_name || 'Unknown actor';
+  return `system/${actorName}`;
 }
 
 export function importanceBadgeClass(importance?: string | null) {

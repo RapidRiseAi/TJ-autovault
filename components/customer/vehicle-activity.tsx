@@ -31,6 +31,8 @@ type DeletionRequest = {
 export function WorldTimeline({ activities, vehicleId, viewerRole, deletionRequests = [], highlightedDeletionRequestId }: { activities: ActivityItem[]; vehicleId?: string; viewerRole?: 'customer' | 'workshop'; deletionRequests?: DeletionRequest[]; highlightedDeletionRequestId?: string }) {
   const router = useRouter();
   const [filter, setFilter] = useState<'all' | ActivityItem['category']>('all');
+  const [actorFilter, setActorFilter] = useState<'all' | ActivityItem['actorType']>('all');
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
   const [visibleCount, setVisibleCount] = useState(12);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState<ActivityItem | null>(null);
@@ -38,9 +40,19 @@ export function WorldTimeline({ activities, vehicleId, viewerRole, deletionReque
   const [deleteError, setDeleteError] = useState('');
 
   const filtered = useMemo(() => {
-    if (filter === 'all') return activities;
-    return activities.filter((item) => item.category === filter);
-  }, [activities, filter]);
+    const categoryFiltered = filter === 'all'
+      ? activities
+      : activities.filter((item) => item.category === filter);
+    const actorFiltered = actorFilter === 'all'
+      ? categoryFiltered
+      : categoryFiltered.filter((item) => item.actorType === actorFilter);
+    const sorted = [...actorFiltered].sort((a, b) => {
+      const left = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const right = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return sortOrder === 'newest' ? right - left : left - right;
+    });
+    return sorted;
+  }, [activities, filter, actorFilter, sortOrder]);
 
   const visible = filtered.slice(0, visibleCount);
   const pendingRequests = deletionRequests.filter((request) => request.status === 'pending');
@@ -100,6 +112,16 @@ export function WorldTimeline({ activities, vehicleId, viewerRole, deletionReque
             {chip.label}
           </Button>
         ))}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {(['all', 'workshop', 'technician', 'customer', 'system'] as const).map((chip) => (
+          <Button key={chip} size="sm" variant={actorFilter === chip ? 'primary' : 'secondary'} onClick={() => { setActorFilter(chip); setVisibleCount(12); }}>
+            {chip === 'all' ? 'All actors' : chip}
+          </Button>
+        ))}
+        <Button size="sm" variant="secondary" onClick={() => setSortOrder((prev) => (prev === 'newest' ? 'oldest' : 'newest'))}>
+          Sort: {sortOrder === 'newest' ? 'Newest first' : 'Oldest first'}
+        </Button>
       </div>
 
       {highlightedRequest ? (

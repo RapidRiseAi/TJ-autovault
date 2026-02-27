@@ -46,7 +46,7 @@ async function getWorkshopContext() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id,role,workshop_account_id')
+    .select('id,role,display_name,full_name,workshop_account_id')
     .eq('id', user.id)
     .maybeSingle();
   if (
@@ -57,11 +57,21 @@ async function getWorkshopContext() {
   return { supabase, profile };
 }
 
+function resolveActorDisplay(profile: {
+  display_name?: string | null;
+  full_name?: string | null;
+  id: string;
+}) {
+  return profile.display_name?.trim() || profile.full_name?.trim() || profile.id;
+}
+
 async function appendVehicleTimeline(args: {
   supabase: Awaited<ReturnType<typeof createClient>>;
   workshopId: string;
   vehicleId: string;
   actorId: string;
+  actorRole: 'admin' | 'technician' | 'customer';
+  actorDisplay: string | null;
   title: string;
   eventType: string;
   customerAccountId: string | null;
@@ -72,10 +82,13 @@ async function appendVehicleTimeline(args: {
     customer_account_id: args.customerAccountId,
     vehicle_id: args.vehicleId,
     actor_profile_id: args.actorId,
-    actor_role: 'admin',
+    actor_role: args.actorRole,
     event_type: args.eventType,
     title: args.title,
-    metadata: args.metadata ?? {}
+    metadata: {
+      actor_flag: `${args.actorRole === 'customer' ? 'customer' : args.actorRole === 'technician' ? 'technician' : 'workshop'}/${args.actorDisplay || 'unknown'}`,
+      ...(args.metadata ?? {})
+    }
   });
 }
 
@@ -241,6 +254,8 @@ export async function startJobCard(input: {
     workshopId: ctx.profile.workshop_account_id,
     vehicleId: vehicle.id,
     actorId: ctx.profile.id,
+    actorRole: ctx.profile.role,
+    actorDisplay: resolveActorDisplay(ctx.profile),
     customerAccountId: vehicle.current_customer_account_id,
     eventType: 'job_started',
     title: `Job started: ${input.title}`,
@@ -295,6 +310,8 @@ export async function updateJobCardStatus(input: {
       workshopId: ctx.profile.workshop_account_id,
       vehicleId: job.vehicle_id,
       actorId: ctx.profile.id,
+      actorRole: ctx.profile.role,
+      actorDisplay: resolveActorDisplay(ctx.profile),
       customerAccountId: resolveVehicleCustomerAccountId(job.vehicles),
       eventType: 'job_status_waiting',
       title: `Job waiting: ${input.status.replaceAll('_', ' ')}`,
@@ -374,6 +391,8 @@ export async function addJobCardEvent(input: {
         workshopId: ctx.profile.workshop_account_id,
         vehicleId: job.vehicle_id,
         actorId: ctx.profile.id,
+        actorRole: ctx.profile.role,
+        actorDisplay: resolveActorDisplay(ctx.profile),
         customerAccountId,
         eventType: 'job_approval_requested',
         title: `Approval requested: ${job.title}`,
@@ -459,6 +478,8 @@ export async function completeJobCard(input: {
     workshopId: ctx.profile.workshop_account_id,
     vehicleId: job.vehicle_id,
     actorId: ctx.profile.id,
+    actorRole: ctx.profile.role,
+    actorDisplay: resolveActorDisplay(ctx.profile),
     customerAccountId: resolveVehicleCustomerAccountId(job.vehicles),
     eventType: 'job_completed',
     title: 'Job completed',
@@ -550,10 +571,25 @@ export async function closeJobCard(input: {
     workshopId: ctx.profile.workshop_account_id,
     vehicleId: job.vehicle_id,
     actorId: ctx.profile.id,
+    actorRole: ctx.profile.role,
+    actorDisplay: resolveActorDisplay(ctx.profile),
     customerAccountId: resolveVehicleCustomerAccountId(job.vehicles),
     eventType: 'job_closed',
     title: 'Job card closed',
     metadata: { job_card_id: input.jobId }
+  });
+
+  await appendVehicleTimeline({
+    supabase: ctx.supabase,
+    workshopId: ctx.profile.workshop_account_id,
+    vehicleId: job.vehicle_id,
+    actorId: ctx.profile.id,
+    actorRole: ctx.profile.role,
+    actorDisplay: resolveActorDisplay(ctx.profile),
+    customerAccountId: resolveVehicleCustomerAccountId(job.vehicles),
+    eventType: 'job_archive_ready',
+    title: 'Job file ready',
+    metadata: { job_card_id: input.jobId, grouped_by_job: true }
   });
 
   revalidatePath(`/workshop/jobs/${input.jobId}`);
