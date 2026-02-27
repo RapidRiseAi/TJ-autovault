@@ -18,4 +18,9 @@ assert.match(uploadSignRoute, /Unsupported file type/, 'Upload signing should re
 const timelinePage = fs.readFileSync('app/customer/vehicles/[vehicleId]/timeline/page.tsx', 'utf8');
 assert.match(timelinePage, /highlightedDeletionRequestId=\{deletionRequest\}/, 'Timeline should wire deletionRequest query param to highlighting context.');
 
+assert.match(timelinePage, /job_card_snapshot/, 'Timeline should synthesize job card cards when timeline events are missing.');
+
+const activityStream = fs.readFileSync('lib/activity-stream.ts', 'utf8');
+assert.match(activityStream, /actionLabel: jobCardId \? 'View job'/, 'Job-linked timeline entries should expose a View job CTA.');
+
 console.log('timeline-feature tests passed');

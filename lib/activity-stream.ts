@@ -51,6 +51,7 @@ function mapActorType(label: string): ActivityItem['actorType'] {
 
 function mapCategory(eventType?: string | null): ActivityItem['category'] {
   const value = (eventType ?? '').toLowerCase();
+  if (value.includes('job')) return 'system';
   if (value.includes('request')) return 'requests';
   if (value.includes('quote')) return 'quotes';
   if (value.includes('invoice')) return 'invoices';
@@ -89,6 +90,12 @@ export function buildActivityStream(timelineRows: TimelineEventItem[], docs: Doc
     const category = mapCategory(event.event_type);
     const invoiceId = typeof event.metadata?.invoice_id === 'string' ? event.metadata.invoice_id : undefined;
     const jobCardId = typeof event.metadata?.job_card_id === 'string' ? event.metadata.job_card_id : undefined;
+    const jobStatus = typeof event.metadata?.job_status === 'string'
+      ? event.metadata.job_status.replaceAll('_', ' ')
+      : null;
+    const subtitle = event.event_type === 'job_card_snapshot'
+      ? `Job card snapshot${jobStatus ? ` · ${jobStatus}` : ''}`
+      : event.event_type.replaceAll('_', ' ');
 
     return {
       id: event.id,
@@ -97,7 +104,7 @@ export function buildActivityStream(timelineRows: TimelineEventItem[], docs: Doc
       category,
       createdAt: event.created_at,
       title: event.title,
-      subtitle: event.event_type.replaceAll('_', ' '),
+      subtitle,
       description: event.description,
       importance: event.importance,
       actorLabel: event.actorLabel,
@@ -108,7 +115,7 @@ export function buildActivityStream(timelineRows: TimelineEventItem[], docs: Doc
           ? toDownloadHref(docsByInvoiceId.get(invoiceId))
           : undefined),
       actionHref: jobCardId ? `/customer/jobs/${jobCardId}` : undefined,
-      actionLabel: jobCardId ? 'Open job card' : undefined
+      actionLabel: jobCardId ? 'View job' : undefined
     };
   });
 
