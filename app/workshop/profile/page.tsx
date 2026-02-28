@@ -6,58 +6,239 @@ import { SectionCard } from '@/components/ui/section-card';
 import { SignaturePanel } from '@/components/workshop/signature-panel';
 import { createClient } from '@/lib/supabase/server';
 
+function sanitizeOptionalField(formData: FormData, key: string) {
+  const value = formData.get(key)?.toString().trim() ?? '';
+  return value || null;
+}
+
 async function updateProfile(formData: FormData) {
   'use server';
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
   if (!user) redirect('/login');
+
   const displayName = (formData.get('displayName')?.toString() ?? '').trim();
   if (!displayName) return;
+
   await supabase
     .from('profiles')
-    .update({
-      display_name: displayName
-    })
+    .update({ display_name: displayName })
     .eq('id', user.id);
+
+  const { data: actorProfile } = await supabase
+    .from('profiles')
+    .select('workshop_account_id,role')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (actorProfile?.workshop_account_id && actorProfile.role === 'admin') {
+    await supabase
+      .from('workshop_accounts')
+      .update({
+        contact_email: sanitizeOptionalField(formData, 'contactEmail'),
+        contact_phone: sanitizeOptionalField(formData, 'contactPhone'),
+        website_url: sanitizeOptionalField(formData, 'websiteUrl'),
+        booking_url: sanitizeOptionalField(formData, 'bookingUrl'),
+        contact_signature: sanitizeOptionalField(formData, 'contactSignature')
+      })
+      .eq('id', actorProfile.workshop_account_id);
+  }
+
   revalidatePath('/workshop/profile');
+  revalidatePath('/contact');
 }
 
 export default async function WorkshopProfilePage() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
   if (!user) redirect('/login');
-  const { data: profile } = await supabase.from('profiles').select('id,display_name,full_name,avatar_url,workshop_account_id,role,signature_updated_at').eq('id', user.id).maybeSingle();
-  const { data: workshop } = profile?.workshop_account_id ? await supabase.from('workshop_accounts').select('name').eq('id', profile.workshop_account_id).maybeSingle() : { data: null };
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select(
+      'id,display_name,full_name,avatar_url,workshop_account_id,role,signature_updated_at'
+    )
+    .eq('id', user.id)
+    .maybeSingle();
+  const { data: workshop } = profile?.workshop_account_id
+    ? await supabase
+        .from('workshop_accounts')
+        .select(
+          'name,contact_email,contact_phone,website_url,booking_url,contact_signature'
+        )
+        .eq('id', profile.workshop_account_id)
+        .maybeSingle()
+    : { data: null };
 
   return (
     <main className="space-y-4">
-      <PageHeader title="Workshop profile" subtitle="Manage your workshop account identity." />
+      <PageHeader
+        title="Workshop profile"
+        subtitle="Manage your workshop account identity."
+      />
       <SectionCard className="rounded-3xl p-6">
         <form action={updateProfile} className="grid gap-5 md:grid-cols-2">
           <div>
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500" htmlFor="displayName">Display name</label>
-            <input id="displayName" name="displayName" defaultValue={profile?.display_name ?? ''} required spellCheck autoCorrect="on" autoCapitalize="words" className="w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm shadow-[0_3px_12px_rgba(0,0,0,0.04)]" />
+            <label
+              className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500"
+              htmlFor="displayName"
+            >
+              Display name
+            </label>
+            <input
+              id="displayName"
+              name="displayName"
+              defaultValue={profile?.display_name ?? ''}
+              required
+              spellCheck
+              autoCorrect="on"
+              autoCapitalize="words"
+              className="w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm shadow-[0_3px_12px_rgba(0,0,0,0.04)]"
+            />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500" htmlFor="fullName">Full name</label>
-            <input id="fullName" value={profile?.full_name ?? ''} readOnly className="w-full rounded-2xl border border-black/10 bg-gray-50 px-4 py-2.5 text-sm text-gray-600" />
+            <label
+              className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500"
+              htmlFor="fullName"
+            >
+              Full name
+            </label>
+            <input
+              id="fullName"
+              value={profile?.full_name ?? ''}
+              readOnly
+              className="w-full rounded-2xl border border-black/10 bg-gray-50 px-4 py-2.5 text-sm text-gray-600"
+            />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500" htmlFor="businessName">Business name</label>
-            <input id="businessName" value={workshop?.name ?? ''} readOnly className="w-full rounded-2xl border border-black/10 bg-gray-50 px-4 py-2.5 text-sm text-gray-600" />
+            <label
+              className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500"
+              htmlFor="businessName"
+            >
+              Business name
+            </label>
+            <input
+              id="businessName"
+              value={workshop?.name ?? ''}
+              readOnly
+              className="w-full rounded-2xl border border-black/10 bg-gray-50 px-4 py-2.5 text-sm text-gray-600"
+            />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500" htmlFor="email">Email</label>
-            <input id="email" value={user.email ?? ''} readOnly spellCheck={false} autoCorrect="off" autoCapitalize="off" className="w-full rounded-2xl border border-black/10 bg-gray-50 px-4 py-2.5 text-sm text-gray-600" />
+            <label
+              className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500"
+              htmlFor="email"
+            >
+              Login email
+            </label>
+            <input
+              id="email"
+              value={user.email ?? ''}
+              readOnly
+              spellCheck={false}
+              autoCorrect="off"
+              autoCapitalize="off"
+              className="w-full rounded-2xl border border-black/10 bg-gray-50 px-4 py-2.5 text-sm text-gray-600"
+            />
           </div>
-          {(profile?.role === 'technician' || profile?.role === 'admin') && profile.workshop_account_id ? (
+
+          {profile?.role === 'admin' ? (
+            <>
+              <div>
+                <label
+                  className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500"
+                  htmlFor="contactEmail"
+                >
+                  Public contact email
+                </label>
+                <input
+                  id="contactEmail"
+                  name="contactEmail"
+                  type="email"
+                  defaultValue={workshop?.contact_email ?? ''}
+                  className="w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm"
+                  placeholder="service@yourworkshop.com"
+                />
+              </div>
+              <div>
+                <label
+                  className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500"
+                  htmlFor="contactPhone"
+                >
+                  Public contact phone
+                </label>
+                <input
+                  id="contactPhone"
+                  name="contactPhone"
+                  defaultValue={workshop?.contact_phone ?? ''}
+                  className="w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm"
+                  placeholder="+27 ..."
+                />
+              </div>
+              <div>
+                <label
+                  className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500"
+                  htmlFor="websiteUrl"
+                >
+                  Website URL
+                </label>
+                <input
+                  id="websiteUrl"
+                  name="websiteUrl"
+                  type="url"
+                  defaultValue={workshop?.website_url ?? ''}
+                  className="w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm"
+                  placeholder="https://..."
+                />
+              </div>
+              <div>
+                <label
+                  className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500"
+                  htmlFor="bookingUrl"
+                >
+                  Booking URL
+                </label>
+                <input
+                  id="bookingUrl"
+                  name="bookingUrl"
+                  type="url"
+                  defaultValue={workshop?.booking_url ?? ''}
+                  className="w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm"
+                  placeholder="https://..."
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label
+                  className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500"
+                  htmlFor="contactSignature"
+                >
+                  Contact signature / sign-off
+                </label>
+                <textarea
+                  id="contactSignature"
+                  name="contactSignature"
+                  defaultValue={workshop?.contact_signature ?? ''}
+                  className="min-h-24 w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm"
+                  placeholder="e.g. TJ Service Team – Fast, transparent repairs."
+                />
+              </div>
+            </>
+          ) : null}
+
+          {(profile?.role === 'technician' || profile?.role === 'admin') &&
+          profile.workshop_account_id ? (
             <SignaturePanel
               workshopId={profile.workshop_account_id}
               profileId={profile.id}
               lastUpdatedAt={profile.signature_updated_at}
             />
           ) : null}
-          <div className="md:col-span-2"><Button type="submit">Save profile</Button></div>
+          <div className="md:col-span-2">
+            <Button type="submit">Save profile</Button>
+          </div>
         </form>
       </SectionCard>
     </main>

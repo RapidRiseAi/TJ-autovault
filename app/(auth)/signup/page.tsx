@@ -21,9 +21,16 @@ export default async function SignupPage({
   return (
     <AuthShell>
       <Card className="relative w-full space-y-5 overflow-hidden rounded-3xl border border-black/10 bg-gradient-to-b from-white to-zinc-50/90 p-6 shadow-[0_34px_90px_rgba(15,23,42,0.22)] sm:p-10">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-0.5 bg-brand-red" aria-hidden />
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">Create your portal access</p>
-        <h1 className="text-3xl font-bold text-gray-900 sm:text-[2rem]">Create account</h1>
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 h-0.5 bg-brand-red"
+          aria-hidden
+        />
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">
+          Create your portal access
+        </p>
+        <h1 className="text-3xl font-bold text-gray-900 sm:text-[2rem]">
+          Create account
+        </h1>
         <p className="text-sm text-gray-700">
           Track service history, quotes, invoices and documents.
         </p>
@@ -38,7 +45,10 @@ export default async function SignupPage({
 
         <form action={signupCustomerAction} className="space-y-4">
           <div className="space-y-2">
-            <label htmlFor="display-name" className="text-sm font-medium text-gray-700">
+            <label
+              htmlFor="display-name"
+              className="text-sm font-medium text-gray-700"
+            >
               Display name
             </label>
             <input
@@ -50,7 +60,10 @@ export default async function SignupPage({
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="signup-email" className="text-sm font-medium text-gray-700">
+            <label
+              htmlFor="signup-email"
+              className="text-sm font-medium text-gray-700"
+            >
               Email
             </label>
             <input
@@ -67,7 +80,10 @@ export default async function SignupPage({
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="signup-password" className="text-sm font-medium text-gray-700">
+            <label
+              htmlFor="signup-password"
+              className="text-sm font-medium text-gray-700"
+            >
               Password
             </label>
             <input
@@ -82,7 +98,10 @@ export default async function SignupPage({
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="phone-number" className="text-sm font-medium text-gray-700">
+            <label
+              htmlFor="phone-number"
+              className="text-sm font-medium text-gray-700"
+            >
               Phone number (optional)
             </label>
             <input
@@ -98,7 +117,9 @@ export default async function SignupPage({
           </div>
 
           <SignupPlanSelector plans={plans} />
-          <p className="text-xs font-medium text-gray-500">Choose a plan. You can upgrade anytime.</p>
+          <p className="text-xs font-medium text-gray-500">
+            Choose a plan. You can upgrade anytime.
+          </p>
 
           <FormSubmitButton
             idleLabel="Create account"
@@ -107,14 +128,26 @@ export default async function SignupPage({
           />
 
           <p className="text-xs text-gray-500">
-            By continuing you agree to <Link href="#" className="underline-offset-4 hover:underline">Terms</Link> and{' '}
-            <Link href="#" className="underline-offset-4 hover:underline">Privacy</Link>
+            By continuing you agree to{' '}
+            <Link href="#" className="underline-offset-4 hover:underline">
+              Terms
+            </Link>{' '}
+            and{' '}
+            <Link
+              href="/privacy"
+              className="underline-offset-4 hover:underline"
+            >
+              Privacy
+            </Link>
           </p>
         </form>
 
         <p className="text-sm text-gray-700">
           Already have an account?{' '}
-          <Link href="/login" className="font-semibold text-brand-red underline-offset-4 hover:underline">
+          <Link
+            href="/login"
+            className="font-semibold text-brand-red underline-offset-4 hover:underline"
+          >
             Sign in
           </Link>
         </p>

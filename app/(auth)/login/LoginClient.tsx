@@ -125,8 +125,13 @@ export default function LoginClient({
   return (
     <AuthShell>
       <Card className="relative w-full space-y-4 overflow-hidden rounded-3xl border border-black/10 bg-gradient-to-b from-white to-zinc-50/90 p-6 shadow-[0_34px_90px_rgba(15,23,42,0.2)] sm:p-10">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-0.5 bg-brand-red" aria-hidden />
-        <h1 className="text-3xl font-bold text-gray-900 sm:text-[2rem]">Welcome back</h1>
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 h-0.5 bg-brand-red"
+          aria-hidden
+        />
+        <h1 className="text-3xl font-bold text-gray-900 sm:text-[2rem]">
+          Welcome back
+        </h1>
         <p className="text-sm text-gray-700">
           Sign in to manage quotes, invoices and service updates.
         </p>
@@ -137,7 +142,10 @@ export default function LoginClient({
         ) : null}
 
         <div className="space-y-3">
-          <label htmlFor="login-email" className="text-sm font-medium text-gray-700">
+          <label
+            htmlFor="login-email"
+            className="text-sm font-medium text-gray-700"
+          >
             Email
           </label>
           <input
@@ -150,7 +158,10 @@ export default function LoginClient({
         </div>
 
         <div className="space-y-3">
-          <label htmlFor="login-password" className="text-sm font-medium text-gray-700">
+          <label
+            htmlFor="login-password"
+            className="text-sm font-medium text-gray-700"
+          >
             Password
           </label>
           <input
@@ -175,7 +186,10 @@ export default function LoginClient({
           <Link href="#" className="underline-offset-4 hover:underline">
             Forgot password
           </Link>
-          <Link href="/signup" className="font-semibold text-brand-red underline-offset-4 hover:underline">
+          <Link
+            href="/signup"
+            className="font-semibold text-brand-red underline-offset-4 hover:underline"
+          >
             Create account
           </Link>
         </div>
@@ -186,7 +200,11 @@ export default function LoginClient({
               Email verification (OTP)
             </summary>
             <div className="mt-2 space-y-2">
-              <Button variant="secondary" onClick={sendOtp} disabled={isOtpPending}>
+              <Button
+                variant="secondary"
+                onClick={sendOtp}
+                disabled={isOtpPending}
+              >
                 {isOtpPending ? 'Sending...' : 'Send OTP'}
               </Button>
               <input
@@ -195,7 +213,11 @@ export default function LoginClient({
                 value={otp}
                 onChange={(e) => setOtp(e.target.value)}
               />
-              <Button variant="secondary" onClick={verifyOtp} disabled={isOtpPending}>
+              <Button
+                variant="secondary"
+                onClick={verifyOtp}
+                disabled={isOtpPending}
+              >
                 {isOtpPending ? 'Verifying...' : 'Verify OTP'}
               </Button>
             </div>
@@ -207,8 +229,14 @@ export default function LoginClient({
         </div>
 
         <p className="text-xs text-gray-500">
-          By continuing you agree to <Link href="#" className="underline-offset-4 hover:underline">Terms</Link> and{' '}
-          <Link href="#" className="underline-offset-4 hover:underline">Privacy</Link>
+          By continuing you agree to{' '}
+          <Link href="#" className="underline-offset-4 hover:underline">
+            Terms
+          </Link>{' '}
+          and{' '}
+          <Link href="/privacy" className="underline-offset-4 hover:underline">
+            Privacy
+          </Link>
         </p>
       </Card>
     </AuthShell>
