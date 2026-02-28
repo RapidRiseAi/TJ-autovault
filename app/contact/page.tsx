@@ -16,15 +16,15 @@ export default async function ContactPage() {
         .maybeSingle()
     : { data: null };
 
+  const workshopQuery = supabase
+    .from('workshop_accounts')
+    .select(
+      'name,contact_email,contact_phone,website_url,booking_url,contact_signature'
+    );
+
   const { data: workshop } = profile?.workshop_account_id
-    ? await supabase
-        .from('workshop_accounts')
-        .select(
-          'name,contact_email,contact_phone,website_url,booking_url,contact_signature'
-        )
-        .eq('id', profile.workshop_account_id)
-        .maybeSingle()
-    : { data: null };
+    ? await workshopQuery.eq('id', profile.workshop_account_id).maybeSingle()
+    : await workshopQuery.limit(1).maybeSingle();
 
   return (
     <main className="mx-auto w-full max-w-3xl space-y-5 px-4 py-10">
