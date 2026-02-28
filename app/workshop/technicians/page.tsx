@@ -569,7 +569,7 @@ export default async function WorkshopTechniciansPage({
           <h2 className="text-base font-semibold text-gray-900">Add technician</h2>
           <form action={createTechnician} className="mt-4 grid gap-4 md:grid-cols-3">
             <input name="displayName" required className="w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm" placeholder="Technician name" />
-            <input name="email" type="email" required className="w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm" placeholder="tech@workshop.com" />
+            <input name="email" type="email" required spellCheck={false} autoCorrect="off" autoCapitalize="off" className="w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm" placeholder="tech@workshop.com" />
             <input name="password" type="password" minLength={8} required className="w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm" placeholder="Temporary password" />
             <div className="md:col-span-3"><Button type="submit">Create technician</Button></div>
           </form>
@@ -613,7 +613,7 @@ export default async function WorkshopTechniciansPage({
                           <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">Pay technician (requires proof)</label>
                           <input name="amount" type="number" min="0.01" step="0.01" placeholder="Amount" className="mb-2 w-full rounded-xl border border-black/15 px-3 py-2 text-sm" />
                           <input name="proof" type="file" required className="mb-2 w-full rounded-xl border border-black/15 px-3 py-2 text-xs" />
-                          <textarea name="notes" rows={2} placeholder="Optional internal note" className="mb-2 w-full rounded-xl border border-black/15 px-3 py-2 text-xs" />
+                          <textarea spellCheck autoCorrect="on" autoCapitalize="sentences" name="notes" rows={2} placeholder="Optional internal note" className="mb-2 w-full rounded-xl border border-black/15 px-3 py-2 text-xs" />
                           <Button type="submit" size="sm">Submit payment</Button>
                         </form>
                       </div>
@@ -686,7 +686,7 @@ export default async function WorkshopTechniciansPage({
                       <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.12em] text-red-700">Remove technician</summary>
                       <form action={removeTechnician} className="mt-2 space-y-2 rounded-xl border border-red-200 bg-red-50 p-3">
                         <input type="hidden" name="technicianId" value={tech.id} />
-                        <textarea name="reason" required rows={3} className="w-full rounded-xl border border-black/15 px-3 py-2 text-xs" placeholder="Reason for removing this technician" />
+                        <textarea spellCheck autoCorrect="on" autoCapitalize="sentences" name="reason" required rows={3} className="w-full rounded-xl border border-black/15 px-3 py-2 text-xs" placeholder="Reason for removing this technician" />
                         <input name="document" type="file" className="w-full rounded-xl border border-black/15 bg-white px-3 py-2 text-xs" />
                         <Button type="submit" variant="destructive" size="sm">Confirm remove</Button>
                       </form>

@@ -73,17 +73,17 @@ export function EditVehicleForm({ vehicle }: { vehicle: Vehicle }) {
 
   return (
     <form className="space-y-3" onSubmit={onSubmit}>
-      <input name="registrationNumber" defaultValue={vehicle.registration_number} required className="w-full rounded border p-2 uppercase" />
+      <input name="registrationNumber" defaultValue={vehicle.registration_number} required spellCheck={false} autoCorrect="off" autoCapitalize="characters" className="w-full rounded border p-2 uppercase" />
       <div className="grid gap-3 md:grid-cols-2">
         <input name="make" defaultValue={vehicle.make ?? ''} required className="w-full rounded border p-2" placeholder="Make" />
         <input name="model" defaultValue={vehicle.model ?? ''} required className="w-full rounded border p-2" placeholder="Model" />
       </div>
       <div className="grid gap-3 md:grid-cols-3">
         <input name="year" type="number" defaultValue={vehicle.year ?? ''} className="w-full rounded border p-2" placeholder="Year" />
-        <input name="vin" defaultValue={vehicle.vin ?? ''} className="w-full rounded border p-2 uppercase" placeholder="VIN" />
+        <input name="vin" defaultValue={vehicle.vin ?? ''} spellCheck={false} autoCorrect="off" autoCapitalize="characters" className="w-full rounded border p-2 uppercase" placeholder="VIN" />
         <input name="currentMileage" type="number" defaultValue={vehicle.odometer_km ?? ''} className="w-full rounded border p-2" placeholder="Mileage" />
       </div>
-      <textarea name="notes" className="w-full rounded border p-2" rows={3} placeholder="Notes" />
+      <textarea spellCheck autoCorrect="on" autoCapitalize="sentences" name="notes" className="w-full rounded border p-2" rows={3} placeholder="Notes" />
       <div>
         <label className="mb-1 block text-sm font-medium">Replace vehicle photo (optional)</label>
         <div className="flex items-center gap-3">

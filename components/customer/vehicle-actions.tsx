@@ -109,8 +109,8 @@ export function RequestForm({ vehicleId }: { vehicleId: string }) {
         name="preferredDate"
         className="w-full rounded border p-2"
       />
-      <textarea name="body" className="w-full rounded border p-2" placeholder="Body" rows={3} required />
-      <textarea name="notes" className="w-full rounded border p-2" />
+      <textarea spellCheck autoCorrect="on" autoCapitalize="sentences" name="body" className="w-full rounded border p-2" placeholder="Body" rows={3} required />
+      <textarea spellCheck autoCorrect="on" autoCapitalize="sentences" name="notes" className="w-full rounded border p-2" />
       <input name="attachment" type="file" className="w-full rounded border p-2" />
       <Button disabled={isSubmitting}>
         {isSubmitting ? (

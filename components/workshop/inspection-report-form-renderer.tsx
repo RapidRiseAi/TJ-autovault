@@ -142,6 +142,9 @@ export function InspectionReportFormRenderer({
           throw new Error(errorMessage);
         }
         pushToast({ title: 'Inspection report generated', tone: 'success' });
+        if (body && typeof body.warning === 'string' && body.warning) {
+          pushToast({ title: 'Signature reminder', description: body.warning, tone: 'error' });
+        }
         onDone?.();
         router.refresh();
       } catch (submitError) {
@@ -383,6 +386,9 @@ export function InspectionReportFormRenderer({
                   <textarea
                     className="mt-1 w-full rounded border p-2"
                     rows={3}
+                    spellCheck
+                    autoCorrect="on"
+                    autoCapitalize="sentences"
                     value={(answers[field.id] as string | undefined) ?? ''}
                     onChange={(event) =>
                       setAnswers((current) => ({
@@ -416,6 +422,9 @@ export function InspectionReportFormRenderer({
                   <textarea
                     className="mt-2 w-full rounded border p-2 font-normal"
                     rows={2}
+                    spellCheck
+                    autoCorrect="on"
+                    autoCapitalize="sentences"
                     placeholder="Add a note for this checkpoint"
                     value={fieldNotes[field.id] ?? ''}
                     onChange={(event) =>
@@ -435,6 +444,9 @@ export function InspectionReportFormRenderer({
             <textarea
               className="mt-1 w-full rounded border p-2"
               rows={3}
+              spellCheck
+              autoCorrect="on"
+              autoCapitalize="sentences"
               value={notes}
               onChange={(event) => setNotes(event.target.value)}
             />

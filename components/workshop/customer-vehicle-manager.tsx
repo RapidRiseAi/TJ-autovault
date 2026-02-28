@@ -281,10 +281,10 @@ function VehicleForm({ values, setValues, onSubmit, isLoading, cta, vehiclePhoto
       </div>
       <div className="grid grid-cols-3 gap-2">
         <input className="w-full rounded border p-2" type="number" placeholder="Year" min={1900} max={new Date().getFullYear() + 1} value={values.year} onChange={(event) => setValues({ ...values, year: event.target.value })} />
-        <input className="w-full rounded border p-2 uppercase" placeholder="VIN" maxLength={17} value={values.vin} onChange={(event) => setValues({ ...values, vin: event.target.value })} />
+        <input className="w-full rounded border p-2 uppercase" placeholder="VIN" spellCheck={false} autoCorrect="off" autoCapitalize="characters" maxLength={17} value={values.vin} onChange={(event) => setValues({ ...values, vin: event.target.value })} />
         <input className="w-full rounded border p-2" type="number" placeholder="Mileage km" min={0} value={values.currentMileage} onChange={(event) => setValues({ ...values, currentMileage: event.target.value })} />
       </div>
-      <textarea className="w-full rounded border p-2" placeholder="Notes" maxLength={500} value={values.notes} onChange={(event) => setValues({ ...values, notes: event.target.value })} />
+      <textarea spellCheck autoCorrect="on" autoCapitalize="sentences" className="w-full rounded border p-2" placeholder="Notes" maxLength={500} value={values.notes} onChange={(event) => setValues({ ...values, notes: event.target.value })} />
       {setVehiclePhoto && photoRef ? (
         <div>
           <label className="mb-1 block text-sm font-medium">Vehicle photo (optional)</label>
