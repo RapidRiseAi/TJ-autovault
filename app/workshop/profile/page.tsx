@@ -1,8 +1,8 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { PageHeader } from '@/components/layout/page-header';
-import { Button } from '@/components/ui/button';
 import { SectionCard } from '@/components/ui/section-card';
+import { WorkshopProfileSubmitButton } from '@/components/workshop/workshop-profile-submit-button';
 import { SignaturePanel } from '@/components/workshop/signature-panel';
 import { createClient } from '@/lib/supabase/server';
 
@@ -48,9 +48,16 @@ async function updateProfile(formData: FormData) {
 
   revalidatePath('/workshop/profile');
   revalidatePath('/contact');
+  redirect('/workshop/profile?saved=1');
 }
 
-export default async function WorkshopProfilePage() {
+export default async function WorkshopProfilePage({
+  searchParams
+}: {
+  searchParams?: Promise<{ saved?: string }>;
+}) {
+  const resolvedSearchParams = await searchParams;
+  const profileSaved = resolvedSearchParams?.saved === '1';
   const supabase = await createClient();
   const {
     data: { user }
@@ -79,6 +86,11 @@ export default async function WorkshopProfilePage() {
         title="Workshop profile"
         subtitle="Manage your workshop account identity."
       />
+      {profileSaved ? (
+        <p className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          Workshop profile saved.
+        </p>
+      ) : null}
       <SectionCard className="rounded-3xl p-6">
         <form action={updateProfile} className="grid gap-5 md:grid-cols-2">
           <div>
@@ -237,7 +249,7 @@ export default async function WorkshopProfilePage() {
             />
           ) : null}
           <div className="md:col-span-2">
-            <Button type="submit">Save profile</Button>
+            <WorkshopProfileSubmitButton />
           </div>
         </form>
       </SectionCard>
