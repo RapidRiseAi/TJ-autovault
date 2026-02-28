@@ -57,6 +57,9 @@ export default async function SignupPage({
               id="signup-email"
               name="email"
               type="email"
+              spellCheck={false}
+              autoCorrect="off"
+              autoCapitalize="off"
               required
               className="w-full rounded-xl border border-black/15 bg-white/95 p-3 text-base transition focus:border-brand-red focus:outline-none focus:ring-2 focus:ring-brand-red/20"
               placeholder="Email"
@@ -86,6 +89,9 @@ export default async function SignupPage({
               id="phone-number"
               name="phone"
               type="tel"
+              spellCheck={false}
+              autoCorrect="off"
+              autoCapitalize="off"
               className="w-full rounded-xl border border-black/15 bg-white/95 p-3 text-base transition focus:border-brand-red focus:outline-none focus:ring-2 focus:ring-brand-red/20"
               placeholder="Phone number"
             />

@@ -94,7 +94,7 @@ export function MessageThreadPanel({ conversationId, open, onClose }: { conversa
             }}
           >
             <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Reply</label>
-            <textarea className="min-h-24 w-full rounded-lg border px-3 py-2" value={reply} onChange={(event) => setReply(event.target.value)} required />
+            <textarea spellCheck autoCorrect="on" autoCapitalize="sentences" className="min-h-24 w-full rounded-lg border px-3 py-2" value={reply} onChange={(event) => setReply(event.target.value)} required />
             <Button type="submit" disabled={isPending || !reply.trim()}>
               <MessageSquareMore className="mr-1 h-4 w-4" />
               {isPending ? 'Sending...' : 'Send reply'}

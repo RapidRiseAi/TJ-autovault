@@ -197,7 +197,7 @@ export function WorldTimeline({ activities, vehicleId, viewerRole, deletionReque
         confirmLabel="Send request"
       >
         <p className="text-xs text-gray-600">Item: {selectedActivity?.title ?? 'Unknown item'}</p>
-        <textarea value={deletionReason} onChange={(event) => setDeletionReason(event.target.value)} rows={3} className="w-full rounded border p-2 text-sm" placeholder="Reason for deletion request" />
+        <textarea spellCheck autoCorrect="on" autoCapitalize="sentences" value={deletionReason} onChange={(event) => setDeletionReason(event.target.value)} rows={3} className="w-full rounded border p-2 text-sm" placeholder="Reason for deletion request" />
         {deleteError ? <p className="text-xs text-red-700">{deleteError}</p> : null}
       </ConfirmModal>
     </div>

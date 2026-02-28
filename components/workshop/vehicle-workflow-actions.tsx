@@ -54,7 +54,7 @@ export function VehicleWorkflowActions({ vehicleId, invoices, workRequests, curr
         <form onSubmit={(event) => { event.preventDefault(); const formData = new FormData(event.currentTarget); void on(() => createRecommendation({ vehicleId, title: String(formData.get('title') || ''), description: String(formData.get('description') || ''), severity: String(formData.get('severity') || 'medium') as 'low' | 'medium' | 'high' })); }}>
           <ModalFormShell>
             <input required name="title" placeholder="Recommendation title" />
-            <textarea name="description" placeholder="Description" />
+            <textarea spellCheck autoCorrect="on" autoCapitalize="sentences" name="description" placeholder="Description" />
             <select name="severity"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select>
             <Button disabled={isLoading}>{isLoading ? 'Saving...' : 'Add'}</Button>
             {msg ? <p className="text-xs text-red-700">{msg}</p> : null}

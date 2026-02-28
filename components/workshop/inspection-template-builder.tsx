@@ -120,6 +120,9 @@ export function InspectionTemplateBuilder({
         Template name
         <input
           className="mt-1 w-full rounded border p-2"
+          spellCheck
+          autoCorrect="on"
+          autoCapitalize="sentences"
           value={name}
           onChange={(event) => setName(event.target.value)}
         />
@@ -161,6 +164,9 @@ export function InspectionTemplateBuilder({
                 }}
                 placeholder={field.field_type === 'section_break' ? 'Section heading' : 'Field label'}
                 className="rounded border p-2 md:col-span-2"
+                spellCheck
+                autoCorrect="on"
+                autoCapitalize="sentences"
               />
               <label className="flex items-center gap-2 rounded border p-2 text-sm">
                 <input
@@ -193,6 +199,9 @@ export function InspectionTemplateBuilder({
                 rows={3}
                 placeholder="One option per line"
                 className="w-full rounded border p-2"
+                spellCheck
+                autoCorrect="on"
+                autoCapitalize="sentences"
               />
             ) : null}
             {field.field_type === 'checkbox' ? (

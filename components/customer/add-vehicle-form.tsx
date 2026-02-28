@@ -168,7 +168,7 @@ export function AddVehicleForm() {
     <form className="space-y-3" onSubmit={onSubmit}>
       <div>
         <label htmlFor="registrationNumber" className="mb-1 block text-sm font-medium">Registration / Plate number</label>
-        <input id="registrationNumber" name="registrationNumber" className="w-full rounded border p-2 uppercase" required minLength={4} maxLength={12} />
+        <input id="registrationNumber" name="registrationNumber" spellCheck={false} autoCorrect="off" autoCapitalize="characters" className="w-full rounded border p-2 uppercase" required minLength={4} maxLength={12} />
         {fieldErrors.registrationNumber ? <p className="text-sm text-red-700">{fieldErrors.registrationNumber}</p> : null}
       </div>
 
@@ -207,11 +207,11 @@ export function AddVehicleForm() {
 
       <div className="grid gap-3 md:grid-cols-3">
         <div><label htmlFor="year" className="mb-1 block text-sm font-medium">Year</label><input id="year" name="year" type="number" min={1900} max={new Date().getFullYear() + 1} className="w-full rounded border p-2" />{fieldErrors.year ? <p className="text-sm text-red-700">{fieldErrors.year}</p> : null}</div>
-        <div><label htmlFor="vin" className="mb-1 block text-sm font-medium">VIN (optional)</label><input id="vin" name="vin" className="w-full rounded border p-2 uppercase" maxLength={17} />{fieldErrors.vin ? <p className="text-sm text-red-700">{fieldErrors.vin}</p> : null}</div>
+        <div><label htmlFor="vin" className="mb-1 block text-sm font-medium">VIN (optional)</label><input id="vin" name="vin" spellCheck={false} autoCorrect="off" autoCapitalize="characters" className="w-full rounded border p-2 uppercase" maxLength={17} />{fieldErrors.vin ? <p className="text-sm text-red-700">{fieldErrors.vin}</p> : null}</div>
         <div><label htmlFor="currentMileage" className="mb-1 block text-sm font-medium">Current mileage (km)</label><input id="currentMileage" name="currentMileage" type="number" min={0} className="w-full rounded border p-2" />{fieldErrors.currentMileage ? <p className="text-sm text-red-700">{fieldErrors.currentMileage}</p> : null}</div>
       </div>
 
-      <textarea name="notes" className="w-full rounded border p-2" rows={3} placeholder="Notes" />
+      <textarea spellCheck autoCorrect="on" autoCapitalize="sentences" name="notes" className="w-full rounded border p-2" rows={3} placeholder="Notes" />
       <div>
         <label className="mb-1 block text-sm font-medium">Vehicle photo (optional)</label>
         <div className="flex items-center gap-3">

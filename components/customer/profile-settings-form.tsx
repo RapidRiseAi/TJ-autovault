@@ -154,7 +154,7 @@ export function ProfileSettingsForm({
               <label className="mb-1 block text-sm font-medium" htmlFor="phone">
                 Phone
               </label>
-              <input id="phone" name="phone" defaultValue={defaults.phone} className="w-full rounded-xl border border-black/15 px-3 py-2 text-sm" />
+              <input id="phone" name="phone" defaultValue={defaults.phone} spellCheck={false} autoCorrect="off" autoCapitalize="off" className="w-full rounded-xl border border-black/15 px-3 py-2 text-sm" />
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium" htmlFor="preferred_contact_method">
@@ -170,7 +170,7 @@ export function ProfileSettingsForm({
               <label className="mb-1 block text-sm font-medium" htmlFor="email">
                 Email
               </label>
-              <input id="email" value={email} readOnly className="w-full rounded-xl border border-black/10 bg-gray-100 px-3 py-2 text-sm text-gray-600" />
+              <input id="email" value={email} readOnly spellCheck={false} autoCorrect="off" autoCapitalize="off" className="w-full rounded-xl border border-black/10 bg-gray-100 px-3 py-2 text-sm text-gray-600" />
             </div>
           </div>
         </div>
@@ -193,7 +193,7 @@ export function ProfileSettingsForm({
           <label className="mb-1 block text-sm font-medium" htmlFor="billing_address">
             Address
           </label>
-          <textarea id="billing_address" name="billing_address" defaultValue={defaults.billing_address} rows={3} className="w-full rounded-xl border border-black/15 px-3 py-2 text-sm" />
+          <textarea spellCheck autoCorrect="on" autoCapitalize="sentences" id="billing_address" name="billing_address" defaultValue={defaults.billing_address} rows={3} className="w-full rounded-xl border border-black/15 px-3 py-2 text-sm" />
         </div>
       </section>
 

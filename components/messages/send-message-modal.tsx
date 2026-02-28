@@ -91,7 +91,7 @@ export function SendMessageModal({
 
           <div className="space-y-1">
             <label className="text-xs font-semibold uppercase tracking-wide text-gray-600">Body</label>
-            <textarea className="min-h-28 w-full rounded-lg border px-3 py-2 text-black" value={body} onChange={(event) => setBody(event.target.value)} required />
+            <textarea spellCheck autoCorrect="on" autoCapitalize="sentences" className="min-h-28 w-full rounded-lg border px-3 py-2 text-black" value={body} onChange={(event) => setBody(event.target.value)} required />
           </div>
 
           {error ? <p className="text-xs text-red-600">{error}</p> : null}

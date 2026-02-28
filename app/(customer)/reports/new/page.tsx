@@ -13,7 +13,7 @@ export default function NewReportPage() {
           <option>High</option>
           <option>Critical</option>
         </select>
-        <textarea className="w-full rounded border p-2" placeholder="Description" rows={5} />
+        <textarea spellCheck autoCorrect="on" autoCapitalize="sentences" className="w-full rounded border p-2" placeholder="Description" rows={5} />
         <input className="w-full rounded border p-2" type="file" multiple />
         <button className="rounded bg-brand-red px-4 py-2 text-white">Submit</button>
       </form>
