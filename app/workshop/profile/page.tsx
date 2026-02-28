@@ -2,7 +2,10 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { PageHeader } from '@/components/layout/page-header';
 import { SectionCard } from '@/components/ui/section-card';
-import { WorkshopProfileSubmitButton } from '@/components/workshop/workshop-profile-submit-button';
+import {
+  WorkshopProfileForm,
+  type WorkshopProfileActionState
+} from '@/components/workshop/workshop-profile-form';
 import { SignaturePanel } from '@/components/workshop/signature-panel';
 import { createClient } from '@/lib/supabase/server';
 
@@ -11,7 +14,10 @@ function sanitizeOptionalField(formData: FormData, key: string) {
   return value || null;
 }
 
-async function updateProfile(formData: FormData) {
+async function updateProfile(
+  _state: WorkshopProfileActionState,
+  formData: FormData
+): Promise<WorkshopProfileActionState> {
   'use server';
   const supabase = await createClient();
   const {
@@ -20,21 +26,40 @@ async function updateProfile(formData: FormData) {
   if (!user) redirect('/login');
 
   const displayName = (formData.get('displayName')?.toString() ?? '').trim();
-  if (!displayName) return;
+  if (!displayName) {
+    return {
+      status: 'error',
+      message: 'Display name is required.'
+    };
+  }
 
-  await supabase
+  const { error: profileError } = await supabase
     .from('profiles')
     .update({ display_name: displayName })
     .eq('id', user.id);
 
-  const { data: actorProfile } = await supabase
+  if (profileError) {
+    return {
+      status: 'error',
+      message: `Could not save profile: ${profileError.message}`
+    };
+  }
+
+  const { data: actorProfile, error: actorProfileError } = await supabase
     .from('profiles')
     .select('workshop_account_id,role')
     .eq('id', user.id)
     .maybeSingle();
 
+  if (actorProfileError) {
+    return {
+      status: 'error',
+      message: `Could not load workshop context: ${actorProfileError.message}`
+    };
+  }
+
   if (actorProfile?.workshop_account_id && actorProfile.role === 'admin') {
-    await supabase
+    const { error: workshopError } = await supabase
       .from('workshop_accounts')
       .update({
         contact_email: sanitizeOptionalField(formData, 'contactEmail'),
@@ -44,20 +69,25 @@ async function updateProfile(formData: FormData) {
         contact_signature: sanitizeOptionalField(formData, 'contactSignature')
       })
       .eq('id', actorProfile.workshop_account_id);
+
+    if (workshopError) {
+      return {
+        status: 'error',
+        message: `Could not save workshop contact details: ${workshopError.message}`
+      };
+    }
   }
 
   revalidatePath('/workshop/profile');
   revalidatePath('/contact');
-  redirect('/workshop/profile?saved=1');
+
+  return {
+    status: 'success',
+    message: 'Workshop profile saved.'
+  };
 }
 
-export default async function WorkshopProfilePage({
-  searchParams
-}: {
-  searchParams?: Promise<{ saved?: string }>;
-}) {
-  const resolvedSearchParams = await searchParams;
-  const profileSaved = resolvedSearchParams?.saved === '1';
+export default async function WorkshopProfilePage() {
   const supabase = await createClient();
   const {
     data: { user }
@@ -86,13 +116,8 @@ export default async function WorkshopProfilePage({
         title="Workshop profile"
         subtitle="Manage your workshop account identity."
       />
-      {profileSaved ? (
-        <p className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          Workshop profile saved.
-        </p>
-      ) : null}
       <SectionCard className="rounded-3xl p-6">
-        <form action={updateProfile} className="grid gap-5 md:grid-cols-2">
+        <WorkshopProfileForm action={updateProfile}>
           <div>
             <label
               className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500"
@@ -248,10 +273,7 @@ export default async function WorkshopProfilePage({
               lastUpdatedAt={profile.signature_updated_at}
             />
           ) : null}
-          <div className="md:col-span-2">
-            <WorkshopProfileSubmitButton />
-          </div>
-        </form>
+        </WorkshopProfileForm>
       </SectionCard>
     </main>
   );
