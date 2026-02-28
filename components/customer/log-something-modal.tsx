@@ -165,6 +165,9 @@ export function LogSomethingModal({
             placeholder="Example: Replaced brake pads"
             className="w-full rounded border p-2"
             maxLength={120}
+            spellCheck
+            autoCorrect="on"
+            autoCapitalize="sentences"
           />
         </div>
         <div>
@@ -175,6 +178,9 @@ export function LogSomethingModal({
             rows={4}
             placeholder="Add optional notes about the service or repair."
             className="w-full rounded border p-2"
+            spellCheck
+            autoCorrect="on"
+            autoCapitalize="sentences"
           />
         </div>
         <div>

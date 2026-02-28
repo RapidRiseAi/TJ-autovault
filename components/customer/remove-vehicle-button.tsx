@@ -53,6 +53,9 @@ export function RemoveVehicleButton({ vehicleId }: { vehicleId: string }) {
               rows={3}
               className="mt-1 w-full rounded border border-red-300 p-2 text-sm"
               placeholder="Reason for removing this vehicle"
+              spellCheck
+              autoCorrect="on"
+              autoCapitalize="sentences"
             />
           </label>
           <div className="flex gap-2">

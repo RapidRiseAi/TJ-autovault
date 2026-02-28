@@ -178,6 +178,9 @@ export function WorkflowUploadPanel({
           required={isQuoteOrInvoice || isOther}
           className="mt-1 w-full rounded border p-2"
           placeholder="Document subject"
+          spellCheck
+          autoCorrect="on"
+          autoCapitalize="sentences"
         />
       </label>
 
@@ -191,6 +194,9 @@ export function WorkflowUploadPanel({
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
             required
+            spellCheck={false}
+            autoCorrect="off"
+            autoCapitalize="off"
             className="mt-1 w-full rounded border p-2"
           />
         </label>
@@ -203,6 +209,9 @@ export function WorkflowUploadPanel({
           onChange={(event) => setBody(event.target.value)}
           className="mt-1 w-full rounded border p-2"
           rows={3}
+          spellCheck
+          autoCorrect="on"
+          autoCapitalize="sentences"
         />
       </label>
 
