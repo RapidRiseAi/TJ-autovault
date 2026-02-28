@@ -942,6 +942,9 @@ export function JobCardDetailClient(props: {
             onChange={(event) => setCompleteNote(event.target.value)}
             className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
             rows={3}
+            spellCheck
+            autoCorrect="on"
+            autoCapitalize="sentences"
           />
           <input
             type="file"
@@ -1014,6 +1017,9 @@ export function JobCardDetailClient(props: {
             onChange={(event) => setRequestNote(event.target.value)}
             className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
             rows={3}
+            spellCheck
+            autoCorrect="on"
+            autoCapitalize="sentences"
           />
           <input
             type="file"
@@ -1061,6 +1067,9 @@ export function JobCardDetailClient(props: {
             className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
             rows={4}
             required
+            spellCheck
+            autoCorrect="on"
+            autoCapitalize="sentences"
           />
           <p className="text-xs text-gray-500">
             This report entry is visible to the client.
@@ -1132,6 +1141,9 @@ export function JobCardDetailClient(props: {
             placeholder="Image title"
             required
             className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
+            spellCheck
+            autoCorrect="on"
+            autoCapitalize="sentences"
           />
           <input
             type="file"
@@ -1187,6 +1199,9 @@ export function JobCardDetailClient(props: {
             className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
             rows={4}
             required
+            spellCheck
+            autoCorrect="on"
+            autoCapitalize="sentences"
           />
           <p className="text-xs text-gray-500">
             This log entry is internal only and is never shown to the client.
@@ -1248,6 +1263,9 @@ export function JobCardDetailClient(props: {
             onChange={(event) => setReportNote(event.target.value)}
             className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
             rows={3}
+            spellCheck
+            autoCorrect="on"
+            autoCapitalize="sentences"
           />
           <input
             type="file"
@@ -1332,6 +1350,9 @@ export function JobCardDetailClient(props: {
             placeholder="Invoice subject"
             required
             className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
+            spellCheck
+            autoCorrect="on"
+            autoCapitalize="sentences"
           />
           <input
             type="text"
@@ -1342,6 +1363,9 @@ export function JobCardDetailClient(props: {
             }}
             placeholder="Amount"
             required
+            spellCheck={false}
+            autoCorrect="off"
+            autoCapitalize="off"
             className={`w-full rounded-xl border px-3 py-2 text-sm ${invoiceAmountPrefilled ? 'border-amber-300 bg-amber-50 ring-1 ring-amber-200' : 'border-neutral-300'}`}
           />
           <input
@@ -1349,6 +1373,9 @@ export function JobCardDetailClient(props: {
             onChange={(event) => setInvoiceReference(event.target.value)}
             placeholder="Invoice reference number"
             required
+            spellCheck={false}
+            autoCorrect="off"
+            autoCapitalize="off"
             className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
           />
           <input
@@ -1363,6 +1390,9 @@ export function JobCardDetailClient(props: {
             placeholder="Invoice note (optional)"
             className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
             rows={3}
+            spellCheck
+            autoCorrect="on"
+            autoCapitalize="sentences"
           />
           <input
             type="file"

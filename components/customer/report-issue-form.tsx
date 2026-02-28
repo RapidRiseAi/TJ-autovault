@@ -99,7 +99,7 @@ export function ReportIssueForm({ vehicleId }: { vehicleId: string }) {
         <option value="electrical">Electrical</option>
         <option value="other">Other</option>
       </select>
-      <input className="w-full rounded border p-2" value={subject} onChange={(e) => setSubject(e.target.value)} required placeholder="Subject" />
+      <input className="w-full rounded border p-2" value={subject} onChange={(e) => setSubject(e.target.value)} required placeholder="Subject" spellCheck autoCorrect="on" autoCapitalize="sentences" />
       <textarea
         className="w-full rounded border p-2"
         value={message}
@@ -107,6 +107,9 @@ export function ReportIssueForm({ vehicleId }: { vehicleId: string }) {
         rows={4}
         required
         placeholder="Describe the issue"
+        spellCheck
+        autoCorrect="on"
+        autoCapitalize="sentences"
       />
       <input type="file" className="w-full rounded border p-2" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
       <button

@@ -9,6 +9,8 @@ const payloadSchema = z.object({
   profileId: z.string().uuid()
 });
 
+const MAX_SIGNATURE_BYTES = 2 * 1024 * 1024;
+
 export async function POST(request: Request) {
   const payload = payloadSchema.safeParse(await request.json());
   if (!payload.success) {
@@ -38,9 +40,21 @@ export async function POST(request: Request) {
   }
 
   const base64Content = payload.data.dataUrl.replace('data:image/png;base64,', '');
+  if (!/^[A-Za-z0-9+/=\s]+$/.test(base64Content)) {
+    return NextResponse.json({ error: 'Malformed signature image payload.' }, { status: 400 });
+  }
+
+  const estimatedBytes = Math.floor((base64Content.replace(/\s+/g, '').length * 3) / 4);
+  if (estimatedBytes > MAX_SIGNATURE_BYTES) {
+    return NextResponse.json({ error: 'Signature image is too large.' }, { status: 400 });
+  }
+
   const bytes = Buffer.from(base64Content, 'base64');
   if (!bytes.length) {
     return NextResponse.json({ error: 'Signature image is empty.' }, { status: 400 });
+  }
+  if (bytes.length > MAX_SIGNATURE_BYTES) {
+    return NextResponse.json({ error: 'Signature image is too large.' }, { status: 400 });
   }
 
   const storagePath = `workshop/${payload.data.workshopId}/technicians/${payload.data.profileId}/signature.png`;
@@ -55,7 +69,7 @@ export async function POST(request: Request) {
   }
 
   const now = new Date().toISOString();
-  const { error: updateError } = await supabase
+  const { error: updateError } = await admin
     .from('profiles')
     .update({
       signature_image_path: storagePath,

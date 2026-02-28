@@ -320,6 +320,9 @@ export function UploadsActionsForm({
               value={subject}
               onChange={(event) => setSubject(event.target.value)}
               required
+              spellCheck
+              autoCorrect="on"
+              autoCapitalize="sentences"
               className="mt-1 w-full rounded border p-2"
             />
           </label>
@@ -337,6 +340,9 @@ export function UploadsActionsForm({
                   }
                 }}
                 required
+                spellCheck={false}
+                autoCorrect="off"
+                autoCapitalize="off"
                 className={`mt-1 w-full rounded border p-2 transition ${
                   amountPrefilled
                     ? 'border-amber-400 bg-amber-50 ring-2 ring-amber-200'
@@ -360,6 +366,9 @@ export function UploadsActionsForm({
                 value={referenceNumber}
                 onChange={(event) => setReferenceNumber(event.target.value)}
                 required
+                spellCheck={false}
+                autoCorrect="off"
+                autoCapitalize="off"
                 className="mt-1 w-full rounded border p-2"
                 placeholder={
                   documentType === 'invoice' ? 'INV-0001' : 'QTE-0001'
@@ -385,6 +394,9 @@ export function UploadsActionsForm({
               onChange={(event) => setBody(event.target.value)}
               className="mt-1 w-full rounded border p-2"
               rows={3}
+              spellCheck
+              autoCorrect="on"
+              autoCapitalize="sentences"
             />
           </label>
           <label className="block text-sm font-medium">

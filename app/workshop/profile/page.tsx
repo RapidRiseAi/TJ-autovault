@@ -50,7 +50,7 @@ export default async function WorkshopProfilePage() {
             <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500" htmlFor="email">Email</label>
             <input id="email" value={user.email ?? ''} readOnly spellCheck={false} autoCorrect="off" autoCapitalize="off" className="w-full rounded-2xl border border-black/10 bg-gray-50 px-4 py-2.5 text-sm text-gray-600" />
           </div>
-          {profile?.role === 'technician' && profile.workshop_account_id ? (
+          {(profile?.role === 'technician' || profile?.role === 'admin') && profile.workshop_account_id ? (
             <SignaturePanel
               workshopId={profile.workshop_account_id}
               profileId={profile.id}

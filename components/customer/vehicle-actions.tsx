@@ -294,6 +294,9 @@ export function QuoteDecisionButtons({
             rows={3}
             className="w-full rounded-xl border border-black/15 p-2"
             placeholder="Reason for decline"
+            spellCheck
+            autoCorrect="on"
+            autoCapitalize="sentences"
           />
         </label>
       </ConfirmModal>
