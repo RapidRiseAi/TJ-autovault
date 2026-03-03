@@ -17,6 +17,32 @@ function isMissingProspectColumnsError(
   );
 }
 
+async function reassignCustomerAccountReferences(input: {
+  admin: ReturnType<typeof createAdminClient>;
+  obsoleteAccountId: string;
+  linkedAccountId: string;
+}) {
+  const { admin, obsoleteAccountId, linkedAccountId } = input;
+
+  const updates: Array<[string, string]> = [
+    ['vehicles', 'current_customer_account_id'],
+    ['work_orders', 'customer_account_id'],
+    ['customer_reports', 'customer_account_id'],
+    ['work_requests', 'customer_account_id'],
+    ['quotes', 'customer_account_id'],
+    ['invoices', 'customer_account_id'],
+    ['job_cards', 'customer_account_id'],
+    ['vehicle_timeline_events', 'customer_account_id'],
+    ['notifications', 'to_customer_account_id']
+  ];
+
+  for (const [table, column] of updates) {
+    await admin
+      .from(table)
+      .update({ [column]: linkedAccountId })
+      .eq(column, obsoleteAccountId);
+  }
+}
 
 async function tryDeleteObsoleteCustomerAccount(input: {
   admin: ReturnType<typeof createAdminClient>;
@@ -25,24 +51,19 @@ async function tryDeleteObsoleteCustomerAccount(input: {
 }) {
   const { admin, obsoleteAccountId, linkedAccountId } = input;
 
-  // Move any accidentally attached vehicle ownership to the canonical linked account.
-  await admin
-    .from('vehicles')
-    .update({ current_customer_account_id: linkedAccountId })
-    .eq('current_customer_account_id', obsoleteAccountId);
+  await reassignCustomerAccountReferences({ admin, obsoleteAccountId, linkedAccountId });
 
-  // Remove obsolete membership row(s) before deleting account.
   await admin
     .from('customer_users')
     .delete()
     .eq('customer_account_id', obsoleteAccountId);
 
-  const { count: vehicleCount } = await admin
+  const { count: remainingVehicleRefs } = await admin
     .from('vehicles')
     .select('id', { count: 'exact', head: true })
     .eq('current_customer_account_id', obsoleteAccountId);
 
-  if ((vehicleCount ?? 0) > 0) return;
+  if ((remainingVehicleRefs ?? 0) > 0) return;
 
   await admin
     .from('customer_accounts')
@@ -78,24 +99,22 @@ async function linkCustomerAccountFromWorkshopEmail(input: {
     null;
   if (!linkedCustomer?.id || !linkedCustomer.workshop_account_id) return;
 
-  const { data: existingByAuth } = await admin
+  const { data: duplicatesByAuth } = await admin
     .from('customer_accounts')
     .select('id')
     .eq('auth_user_id', input.userId)
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle();
+    .neq('id', linkedCustomer.id);
 
-  if (existingByAuth?.id && existingByAuth.id !== linkedCustomer.id) {
+  for (const duplicate of duplicatesByAuth ?? []) {
     await admin
       .from('customer_accounts')
       .update({ auth_user_id: null })
-      .eq('id', existingByAuth.id)
+      .eq('id', duplicate.id)
       .eq('auth_user_id', input.userId);
 
     await tryDeleteObsoleteCustomerAccount({
       admin,
-      obsoleteAccountId: existingByAuth.id,
+      obsoleteAccountId: duplicate.id,
       linkedAccountId: linkedCustomer.id
     });
   }
