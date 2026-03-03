@@ -34,11 +34,12 @@ export async function signupCustomerAction(formData: FormData) {
 
   const context = await getCustomerContextOrCreate({
     displayName,
-    tier
+    tier,
+    allowAutoCreate: false
   });
 
   if (!context) {
-    redirect('/signup?error=Unable%20to%20create%20your%20customer%20account.');
+    redirect('/signup?error=Your%20email%20is%20not%20linked%20to%20a%20workshop%20customer%20record%20yet.%20Please%20ask%20the%20workshop%20to%20link%20your%20email.');
   }
 
   redirect('/login?created=1');
