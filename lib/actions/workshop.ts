@@ -56,6 +56,63 @@ function isMissingProspectColumnsError(
   );
 }
 
+
+type InvoiceFinanceSyncInput = {
+  workshopAccountId: string;
+  invoiceId: string;
+  paymentStatus: 'unpaid' | 'partial' | 'paid';
+  totalCents: number;
+  occurredOnIso?: string | null;
+  actorId?: string | null;
+};
+
+async function syncInvoiceIncomeEntry(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  input: InvoiceFinanceSyncInput
+) {
+  const occurredOn = (input.occurredOnIso ?? new Date().toISOString()).slice(0, 10);
+
+  if (input.paymentStatus === 'paid') {
+    const { error } = await supabase.from('workshop_finance_entries').upsert(
+      {
+        workshop_account_id: input.workshopAccountId,
+        entry_kind: 'income',
+        source_type: 'job_income',
+        category: 'jobs',
+        description: 'Invoice payment',
+        amount_cents: Math.max(input.totalCents ?? 0, 0),
+        occurred_on: occurredOn,
+        external_ref_type: 'invoice',
+        external_ref_id: input.invoiceId,
+        metadata: { invoice_id: input.invoiceId },
+        created_by: input.actorId ?? null
+      },
+      { onConflict: 'workshop_account_id,source_type,external_ref_type,external_ref_id' }
+    );
+
+    if (!error) return;
+    const combined = `${error.message} ${error.details ?? ''} ${error.hint ?? ''}`.toLowerCase();
+    if (!combined.includes('workshop_finance_entries') && !combined.includes('does not exist')) {
+      throw error;
+    }
+    return;
+  }
+
+  const { error } = await supabase
+    .from('workshop_finance_entries')
+    .delete()
+    .eq('workshop_account_id', input.workshopAccountId)
+    .eq('source_type', 'job_income')
+    .eq('external_ref_type', 'invoice')
+    .eq('external_ref_id', input.invoiceId);
+
+  if (!error) return;
+  const combined = `${error.message} ${error.details ?? ''} ${error.hint ?? ''}`.toLowerCase();
+  if (!combined.includes('workshop_finance_entries') && !combined.includes('does not exist')) {
+    throw error;
+  }
+}
+
 async function getWorkshopContext() {
   const supabase = await createClient();
   const {
@@ -670,7 +727,7 @@ export async function updateInvoicePaymentStatus(input: {
     .update({ payment_status: input.paymentStatus })
     .eq('id', input.invoiceId)
     .eq('workshop_account_id', ctx.profile.workshop_account_id)
-    .select('vehicle_id,customer_account_id,workshop_account_id')
+    .select('vehicle_id,customer_account_id,workshop_account_id,total_cents,updated_at')
     .maybeSingle();
 
   if (error || !data)
@@ -686,6 +743,15 @@ export async function updateInvoicePaymentStatus(input: {
     title: `Payment ${input.paymentStatus}`,
     importance: input.paymentStatus === 'paid' ? 'info' : 'warning',
     metadata: { invoice_id: input.invoiceId }
+  });
+
+  await syncInvoiceIncomeEntry(ctx.supabase, {
+    workshopAccountId: data.workshop_account_id,
+    invoiceId: input.invoiceId,
+    paymentStatus: input.paymentStatus,
+    totalCents: Number(data.total_cents ?? 0),
+    occurredOnIso: data.updated_at,
+    actorId: ctx.profile.id
   });
 
   revalidatePath(`/workshop/vehicles/${data.vehicle_id}`);

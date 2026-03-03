@@ -71,7 +71,7 @@ function TrendBars({
       <div className="mt-4 grid grid-cols-12 items-end gap-2">
         {rows.map((row) => {
           const value = Math.max(0, row[keyName]);
-          const height = Math.max(10, Math.round((value / max) * 128));
+          const height = value === 0 ? 0 : Math.max(10, Math.round((value / max) * 128));
           return (
             <div key={`${title}-${row.monthKey}`} className="space-y-2 text-center">
               <div className="mx-auto flex h-36 items-end justify-center">
