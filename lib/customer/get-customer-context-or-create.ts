@@ -48,17 +48,32 @@ async function claimCustomerAccountByEmailFallback(input: {
 
   const admin = createAdminClient();
 
-  const { data: account } = await admin
+  const { data: candidate } = await admin
     .from('customer_accounts')
-    .update({ auth_user_id: input.userId })
+    .select('id,workshop_account_id')
     .is('auth_user_id', null)
     .ilike('linked_email', normalizedEmail)
-    .select('id,workshop_account_id')
+    .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle();
 
+  const candidateAccount = (candidate as CustomerAccountRow | null) ?? null;
+  if (!candidateAccount?.id || !candidateAccount.workshop_account_id) return null;
+
+  const { data: account } = await admin
+    .from('customer_accounts')
+    .update({ auth_user_id: input.userId })
+    .eq('id', candidateAccount.id)
+    .is('auth_user_id', null)
+    .select('id,workshop_account_id')
+    .maybeSingle();
+
   const claimed = (account as CustomerAccountRow | null) ?? null;
-  if (!claimed?.id || !claimed.workshop_account_id) return null;
+  if (!claimed?.id || !claimed.workshop_account_id) {
+    const existing = await resolveCustomerAccountForUser(input.userId);
+    if (existing?.id) return existing;
+    return null;
+  }
 
   const preferredDisplayName =
     input.displayName?.trim() || normalizedEmail.split('@')[0] || 'Customer';
@@ -73,9 +88,10 @@ async function claimCustomerAccountByEmailFallback(input: {
     { onConflict: 'id' }
   );
 
-  await admin
-    .from('customer_users')
-    .insert({ customer_account_id: claimed.id, profile_id: input.userId });
+  await admin.from('customer_users').upsert(
+    { customer_account_id: claimed.id, profile_id: input.userId },
+    { onConflict: 'customer_account_id,profile_id' }
+  );
 
   return claimed;
 }

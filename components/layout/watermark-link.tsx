@@ -36,6 +36,7 @@ export function WatermarkLink() {
           className="watermark-logo"
         />
         <span>{appConfig.branding.defaultWatermarkText}</span>
+        <span className="watermark-version">Preview v{appConfig.branding.previewVersion}</span>
       </button>
 
       <Modal

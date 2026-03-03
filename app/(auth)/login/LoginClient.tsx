@@ -84,7 +84,7 @@ export default function LoginClient({
       return;
     }
 
-    if (role === 'customer') {
+    if (role === 'customer' || !role) {
       const bootstrapResponse = await fetch('/api/auth/customer/bootstrap', {
         method: 'POST'
       });
@@ -96,7 +96,7 @@ export default function LoginClient({
     }
 
     window.dispatchEvent(new Event('route-progress:start'));
-    router.push(getDashboardPathForRole(role));
+    router.push(role ? getDashboardPathForRole(role) : '/customer/dashboard');
   }
 
   async function sendOtp() {

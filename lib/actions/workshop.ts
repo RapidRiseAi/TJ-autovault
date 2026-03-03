@@ -115,7 +115,7 @@ export async function createWorkshopCustomerAccount(input: unknown): Promise<Res
   if (linkedEmail) {
     const { data: existingEmail, error: existingEmailError } = await admin
       .from('customer_accounts')
-      .select('id')
+      .select('id,auth_user_id')
       .eq('workshop_account_id', ctx.profile.workshop_account_id)
       .ilike('linked_email', linkedEmail)
       .limit(1)
@@ -125,8 +125,63 @@ export async function createWorkshopCustomerAccount(input: unknown): Promise<Res
       return { ok: false, error: existingEmailError.message };
     }
 
-    if (existingEmail) {
+    if (existingEmail?.id) {
+      if (!existingEmail.auth_user_id) {
+        const { data: reused, error: reuseError } = await admin
+          .from('customer_accounts')
+          .update({
+            name: payload.name.trim(),
+            onboarding_status: payload.onboardingStatus
+          })
+          .eq('id', existingEmail.id)
+          .eq('workshop_account_id', ctx.profile.workshop_account_id)
+          .select('id')
+          .single();
+
+        if (!reuseError && reused) {
+          revalidatePath('/workshop/dashboard');
+          revalidatePath('/workshop/customers');
+          revalidatePath(`/workshop/customers/${reused.id}`);
+          return { ok: true, message: 'Customer account updated.', customerAccountId: reused.id };
+        }
+      }
+
       return { ok: false, error: 'A customer with that linked email already exists in your workshop.' };
+    }
+
+    const { data: matchingNameUnlinked, error: matchingNameError } = await admin
+      .from('customer_accounts')
+      .select('id')
+      .eq('workshop_account_id', ctx.profile.workshop_account_id)
+      .is('auth_user_id', null)
+      .is('linked_email', null)
+      .ilike('name', payload.name.trim())
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (matchingNameError && !isMissingProspectColumnsError(matchingNameError)) {
+      return { ok: false, error: matchingNameError.message };
+    }
+
+    if (matchingNameUnlinked?.id) {
+      const { data: linkedExisting, error: linkExistingError } = await admin
+        .from('customer_accounts')
+        .update({
+          linked_email: linkedEmail,
+          onboarding_status: payload.onboardingStatus
+        })
+        .eq('id', matchingNameUnlinked.id)
+        .eq('workshop_account_id', ctx.profile.workshop_account_id)
+        .select('id')
+        .single();
+
+      if (!linkExistingError && linkedExisting) {
+        revalidatePath('/workshop/dashboard');
+        revalidatePath('/workshop/customers');
+        revalidatePath(`/workshop/customers/${linkedExisting.id}`);
+        return { ok: true, message: 'Existing customer linked to email.', customerAccountId: linkedExisting.id };
+      }
     }
   }
 

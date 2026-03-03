@@ -31,5 +31,7 @@ export async function signupCustomerAction(formData: FormData) {
     redirect('/signup?error=Signup%20failed.%20Please%20try%20again.');
   }
 
+  await supabase.auth.signOut();
+
   redirect('/login?created=1');
 }

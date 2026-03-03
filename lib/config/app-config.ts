@@ -26,7 +26,8 @@ export const appConfig = {
   },
   branding: {
     defaultWatermarkEnabled: true,
-    defaultWatermarkText: 'Powered by Rapid Rise AI'
+    defaultWatermarkText: 'Powered by Rapid Rise AI',
+    previewVersion: 2
   },
   email: {
     from: process.env.RESEND_FROM_EMAIL ?? 'AutoVault <noreply@example.com>'
