@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 
 const workshopLinks = [
   { href: '/workshop/dashboard', label: 'Dashboard' },
+  { href: '/workshop/management', label: 'Management' },
   { href: '/workshop/customers', label: 'Customers' },
   { href: '/workshop/work-requests', label: 'Work requests' },
   { href: '/workshop/technicians', label: 'Technicians' },
