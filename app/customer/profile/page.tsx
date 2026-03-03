@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { HeroHeader } from '@/components/layout/hero-header';
 import { ProfileSettingsForm } from '@/components/customer/profile-settings-form';
 import { RemoveCustomerAccountButton } from '@/components/customer/remove-customer-account-button';
@@ -94,6 +95,7 @@ async function updateProfile(
 
     const currentEmail = (user.email ?? '').trim().toLowerCase();
     const emailChanged = loginEmail !== currentEmail;
+    let usedAdminEmailFallback = false;
 
     if (emailChanged) {
       const { error: authUpdateError } = await supabase.auth.updateUser({
@@ -101,10 +103,40 @@ async function updateProfile(
       });
 
       if (authUpdateError) {
-        return {
-          status: 'error',
-          message: `Profile saved, but email could not be updated: ${authUpdateError.message}`
-        };
+        const invalidCurrentEmail = authUpdateError.message
+          .toLowerCase()
+          .includes('is invalid');
+
+        if (!invalidCurrentEmail) {
+          return {
+            status: 'error',
+            message: `Profile saved, but email could not be updated: ${authUpdateError.message}`
+          };
+        }
+
+        try {
+          const admin = createAdminClient();
+          usedAdminEmailFallback = true;
+          const { error: adminAuthUpdateError } = await admin.auth.admin.updateUserById(
+            user.id,
+            { email: loginEmail, email_confirm: true }
+          );
+
+          if (adminAuthUpdateError) {
+            return {
+              status: 'error',
+              message: `Profile saved, but email could not be updated: ${adminAuthUpdateError.message}`
+            };
+          }
+        } catch (adminError) {
+          return {
+            status: 'error',
+            message:
+              adminError instanceof Error
+                ? `Profile saved, but email could not be updated: ${adminError.message}`
+                : 'Profile saved, but email could not be updated right now.'
+          };
+        }
       }
     }
 
@@ -112,7 +144,9 @@ async function updateProfile(
     return {
       status: 'success',
       message: emailChanged
-        ? 'Profile saved. Check your inbox to confirm the new login email.'
+        ? usedAdminEmailFallback
+          ? 'Profile saved and login email updated.'
+          : 'Profile saved. Check your inbox to confirm the new login email.'
         : 'Profile saved successfully.'
     };
   } catch (error) {

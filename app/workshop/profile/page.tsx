@@ -8,6 +8,7 @@ import {
 } from '@/components/workshop/workshop-profile-form';
 import { SignaturePanel } from '@/components/workshop/signature-panel';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 function sanitizeOptionalField(formData: FormData, key: string) {
   const value = formData.get(key)?.toString().trim() ?? '';
@@ -69,6 +70,7 @@ async function updateProfile(
 
   const currentEmail = (user.email ?? '').trim().toLowerCase();
   const emailChanged = loginEmail !== currentEmail;
+  let usedAdminEmailFallback = false;
 
   if (emailChanged) {
     const { error: authUpdateError } = await supabase.auth.updateUser({
@@ -76,10 +78,40 @@ async function updateProfile(
     });
 
     if (authUpdateError) {
-      return {
-        status: 'error',
-        message: `Profile saved, but login email could not be updated: ${authUpdateError.message}`
-      };
+      const invalidCurrentEmail = authUpdateError.message
+        .toLowerCase()
+        .includes('is invalid');
+
+      if (!invalidCurrentEmail) {
+        return {
+          status: 'error',
+          message: `Profile saved, but login email could not be updated: ${authUpdateError.message}`
+        };
+      }
+
+      try {
+        const admin = createAdminClient();
+        usedAdminEmailFallback = true;
+        const { error: adminAuthUpdateError } = await admin.auth.admin.updateUserById(
+          user.id,
+          { email: loginEmail, email_confirm: true }
+        );
+
+        if (adminAuthUpdateError) {
+          return {
+            status: 'error',
+            message: `Profile saved, but login email could not be updated: ${adminAuthUpdateError.message}`
+          };
+        }
+      } catch (adminError) {
+        return {
+          status: 'error',
+          message:
+            adminError instanceof Error
+              ? `Profile saved, but login email could not be updated: ${adminError.message}`
+              : 'Profile saved, but login email could not be updated right now.'
+        };
+      }
     }
   }
 
@@ -109,7 +141,9 @@ async function updateProfile(
   return {
     status: 'success',
     message: emailChanged
-      ? 'Workshop profile saved. Check your inbox to confirm your new login email.'
+      ? usedAdminEmailFallback
+        ? 'Workshop profile saved and login email updated.'
+        : 'Workshop profile saved. Check your inbox to confirm your new login email.'
       : 'Workshop profile saved.'
   };
 }
