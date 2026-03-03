@@ -28,14 +28,38 @@ function defaultDisplayName(email?: string, displayName?: string | null) {
 
 async function resolveCustomerAccountForUser(userId: string) {
   const supabase = await createClient();
-  const { data } = await supabase
+  const { data: byAuth } = await supabase
     .from('customer_accounts')
     .select('id,workshop_account_id')
     .eq('auth_user_id', userId)
     .order('created_at', { ascending: true })
     .maybeSingle();
 
-  return (data as CustomerAccountRow | null) ?? null;
+  const accountByAuth = (byAuth as CustomerAccountRow | null) ?? null;
+  if (accountByAuth?.id && accountByAuth.workshop_account_id) {
+    return accountByAuth;
+  }
+
+  const { data: byMembership } = await supabase
+    .from('customer_users')
+    .select('customer_accounts!inner(id,workshop_account_id)')
+    .eq('profile_id', userId)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  const membershipAccount = (byMembership as {
+    customer_accounts?: { id: string; workshop_account_id: string | null } | null;
+  } | null)?.customer_accounts;
+
+  if (!membershipAccount?.id || !membershipAccount.workshop_account_id) {
+    return null;
+  }
+
+  return {
+    id: membershipAccount.id,
+    workshop_account_id: membershipAccount.workshop_account_id
+  };
 }
 
 async function reassignCustomerAccountReferences(input: {
@@ -91,6 +115,88 @@ async function tryDeleteObsoleteCustomerAccount(input: {
     .delete()
     .eq('id', obsoleteAccountId)
     .eq('auth_user_id', null);
+}
+
+
+async function reconcileLinkedEmailCustomer(input: {
+  userId: string;
+  email?: string;
+  displayName?: string;
+}): Promise<CustomerAccountRow | null> {
+  const normalizedEmail = input.email?.trim().toLowerCase();
+  if (!normalizedEmail) {
+    return resolveCustomerAccountForUser(input.userId);
+  }
+
+  const admin = createAdminClient();
+  const { data: linked } = await admin
+    .from('customer_accounts')
+    .select('id,workshop_account_id')
+    .ilike('linked_email', normalizedEmail)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  const canonical = (linked as CustomerAccountRow | null) ?? null;
+  if (!canonical?.id || !canonical.workshop_account_id) {
+    return resolveCustomerAccountForUser(input.userId);
+  }
+
+  const { data: duplicateMemberships } = await admin
+    .from('customer_users')
+    .select('customer_account_id')
+    .eq('profile_id', input.userId)
+    .neq('customer_account_id', canonical.id);
+
+  for (const membership of duplicateMemberships ?? []) {
+    await admin
+      .from('customer_users')
+      .delete()
+      .eq('profile_id', input.userId)
+      .eq('customer_account_id', membership.customer_account_id);
+
+    await tryDeleteObsoleteCustomerAccount({
+      admin,
+      obsoleteAccountId: membership.customer_account_id,
+      linkedAccountId: canonical.id
+    });
+  }
+
+  const { data: duplicatesByAuth } = await admin
+    .from('customer_accounts')
+    .select('id')
+    .eq('auth_user_id', input.userId)
+    .neq('id', canonical.id);
+
+  for (const duplicate of duplicatesByAuth ?? []) {
+    await admin
+      .from('customer_accounts')
+      .update({ auth_user_id: null })
+      .eq('id', duplicate.id)
+      .eq('auth_user_id', input.userId);
+
+    await tryDeleteObsoleteCustomerAccount({
+      admin,
+      obsoleteAccountId: duplicate.id,
+      linkedAccountId: canonical.id
+    });
+  }
+
+  await admin
+    .from('customer_accounts')
+    .update({
+      auth_user_id: input.userId,
+      onboarding_status: 'registered_unpaid',
+      name: input.displayName?.trim() || undefined
+    })
+    .eq('id', canonical.id);
+
+  await admin.from('customer_users').upsert(
+    { customer_account_id: canonical.id, profile_id: input.userId },
+    { onConflict: 'customer_account_id,profile_id' }
+  );
+
+  return canonical;
 }
 
 async function claimCustomerAccountByEmailFallback(input: {
@@ -233,6 +339,13 @@ export async function getCustomerContextOrCreate(
   if (!customerAccount) {
     customerAccount = await resolveCustomerAccountForUser(user.id);
   }
+
+  customerAccount =
+    (await reconcileLinkedEmailCustomer({
+      userId: user.id,
+      email: user.email ?? undefined,
+      displayName: input?.displayName
+    })) ?? customerAccount;
 
   if (!customerAccount && input?.allowAutoCreate) {
     const displayName = defaultDisplayName(
