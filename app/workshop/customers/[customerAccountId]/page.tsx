@@ -19,6 +19,33 @@ type CustomerVehicleRow = {
   primary_image_path: string | null;
 };
 
+type CustomerDetail = {
+  id: string;
+  name: string;
+  linked_email?: string | null;
+  onboarding_status?: string | null;
+  customer_users?: Array<{
+    profile_id?: string;
+    profiles?: Array<{
+      display_name: string | null;
+      avatar_url: string | null;
+    }>;
+  }>;
+};
+
+function isMissingProspectColumnsError(
+  error: { code?: string; message?: string } | null
+) {
+  if (!error) return false;
+  const combined = `${error.code ?? ''} ${error.message ?? ''}`.toLowerCase();
+  return (
+    error.code === 'PGRST204' ||
+    error.code === '42703' ||
+    combined.includes('linked_email') ||
+    combined.includes('onboarding_status')
+  );
+}
+
 async function loadCustomerVehicles({
   supabase,
   customerAccountId,
@@ -97,14 +124,28 @@ export default async function WorkshopCustomerPage({
     redirect('/customer/dashboard');
 
   const workshopId = profile.workshop_account_id;
-  const { data: customer } = await supabase
+
+  const withProspectColumns = await supabase
     .from('customer_accounts')
     .select(
-      'id,name,customer_users(profile_id,profiles(display_name,avatar_url))'
+      'id,name,linked_email,onboarding_status,customer_users(profile_id,profiles(display_name,avatar_url))'
     )
     .eq('id', customerAccountId)
     .eq('workshop_account_id', workshopId)
     .single();
+
+  const customerQuery =
+    withProspectColumns.error &&
+    isMissingProspectColumnsError(withProspectColumns.error)
+      ? await supabase
+          .from('customer_accounts')
+          .select('id,name,customer_users(profile_id,profiles(display_name,avatar_url))')
+          .eq('id', customerAccountId)
+          .eq('workshop_account_id', workshopId)
+          .single()
+      : withProspectColumns;
+
+  const customer = customerQuery.data as CustomerDetail | null;
   if (!customer) notFound();
 
   const customerDisplayName =
@@ -146,7 +187,7 @@ export default async function WorkshopCustomerPage({
     <main className="space-y-4">
       <PageHeader
         title={customerDisplayName}
-        subtitle={`Customer account: ${customer.name}`}
+        subtitle={`Customer account: ${customer.name}${customer.linked_email ? ` • ${customer.linked_email}` : ''}`}
         actions={
           <div className="flex items-center gap-2">
             <SendMessageModal
@@ -169,11 +210,19 @@ export default async function WorkshopCustomerPage({
           ['Vehicles', vehicles.length],
           ['Pending quotes', pendingQuotes ?? 0],
           ['Unpaid invoices', unpaidInvoices ?? 0],
-          ['Open requests', activeJobs ?? 0]
+          ['Open requests', activeJobs ?? 0],
+          [
+            'Portal status',
+            customer.onboarding_status === 'active_paid'
+              ? 'Paid'
+              : customer.onboarding_status === 'registered_unpaid'
+                ? 'Registered unpaid'
+                : 'Prospect unpaid'
+          ]
         ].map(([label, value]) => (
           <Card key={label as string} className="rounded-3xl p-4">
             <p className="text-xs text-gray-500">{label}</p>
-            <p className="mt-1 text-2xl font-semibold">{value as number}</p>
+            <p className="mt-1 text-2xl font-semibold">{value as number | string}</p>
           </Card>
         ))}
       </div>
@@ -184,10 +233,7 @@ export default async function WorkshopCustomerPage({
             Could not load linked vehicles: {vehiclesError}
           </p>
         ) : null}
-        <CustomerVehicleManager
-          customerAccountId={customer.id}
-          vehicles={vehicles}
-        />
+        <CustomerVehicleManager customerAccountId={customer.id} vehicles={vehicles} />
       </Card>
     </main>
   );

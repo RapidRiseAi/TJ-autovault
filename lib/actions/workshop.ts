@@ -11,7 +11,7 @@ import { addVehicleSchema } from '@/lib/validation/vehicle';
 import { z } from 'zod';
 
 type Result =
-  | { ok: true; message?: string; vehicleId?: string }
+  | { ok: true; message?: string; vehicleId?: string; customerAccountId?: string }
   | { ok: false; error: string };
 
 function isMissingNotesColumnError(
@@ -29,6 +29,30 @@ function isMissingNotesColumnError(
     (error.code === 'PGRST204' && mentionsNotesColumn) ||
     (mentionsNotesColumn && mentionsSchemaCache) ||
     combined.includes("could not find the 'notes' column")
+  );
+}
+
+
+function isMissingProspectColumnsError(
+  error: { code?: string; message?: string } | null
+) {
+  if (!error) return false;
+
+  const combined = `${error.code ?? ''} ${error.message ?? ''}`.toLowerCase();
+  const mentionsLinkedEmail =
+    combined.includes('linked_email') ||
+    combined.includes("'linked_email'") ||
+    combined.includes('customer_accounts.linked_email');
+  const mentionsOnboardingStatus =
+    combined.includes('onboarding_status') ||
+    combined.includes("'onboarding_status'") ||
+    combined.includes('customer_accounts.onboarding_status');
+
+  return (
+    error.code === 'PGRST204' ||
+    error.code === '42703' ||
+    mentionsLinkedEmail ||
+    mentionsOnboardingStatus
   );
 }
 
@@ -65,6 +89,78 @@ async function getVehicleContext(
     .eq('id', vehicleId)
     .eq('workshop_account_id', ctx.profile.workshop_account_id)
     .maybeSingle();
+}
+
+
+const createWorkshopCustomerSchema = z.object({
+  name: z.string().trim().min(2, 'Customer name is required').max(120),
+  linkedEmail: z.string().trim().email('Enter a valid email').max(255).optional().or(z.literal('')),
+  onboardingStatus: z.enum(['prospect_unpaid', 'registered_unpaid', 'active_paid']).default('prospect_unpaid')
+});
+
+export async function createWorkshopCustomerAccount(input: unknown): Promise<Result> {
+  const ctx = await getWorkshopContext();
+  if (!ctx) return { ok: false, error: 'Unauthorized' };
+
+  const parsed = createWorkshopCustomerSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid customer data' };
+  }
+
+  const payload = parsed.data;
+  const linkedEmail = payload.linkedEmail?.trim().toLowerCase() || null;
+
+  const admin = createAdminClient();
+
+  if (linkedEmail) {
+    const { data: existingEmail, error: existingEmailError } = await admin
+      .from('customer_accounts')
+      .select('id')
+      .eq('workshop_account_id', ctx.profile.workshop_account_id)
+      .ilike('linked_email', linkedEmail)
+      .limit(1)
+      .maybeSingle();
+
+    if (existingEmailError && !isMissingProspectColumnsError(existingEmailError)) {
+      return { ok: false, error: existingEmailError.message };
+    }
+
+    if (existingEmail) {
+      return { ok: false, error: 'A customer with that linked email already exists in your workshop.' };
+    }
+  }
+
+  let { data: customer, error } = await admin
+    .from('customer_accounts')
+    .insert({
+      workshop_account_id: ctx.profile.workshop_account_id,
+      name: payload.name.trim(),
+      linked_email: linkedEmail,
+      onboarding_status: payload.onboardingStatus
+    })
+    .select('id')
+    .single();
+
+  if (isMissingProspectColumnsError(error)) {
+    ({ data: customer, error } = await admin
+      .from('customer_accounts')
+      .insert({
+        workshop_account_id: ctx.profile.workshop_account_id,
+        name: payload.name.trim()
+      })
+      .select('id')
+      .single());
+  }
+
+  if (error || !customer) {
+    return { ok: false, error: error?.message ?? 'Could not create customer account' };
+  }
+
+  revalidatePath('/workshop/dashboard');
+  revalidatePath('/workshop/customers');
+  revalidatePath(`/workshop/customers/${customer.id}`);
+
+  return { ok: true, message: 'Customer account created.', customerAccountId: customer.id };
 }
 
 const workshopVehicleSchema = addVehicleSchema.extend({

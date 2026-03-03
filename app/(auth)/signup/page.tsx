@@ -32,7 +32,7 @@ export default async function SignupPage({
           Create account
         </h1>
         <p className="text-sm text-gray-700">
-          Track service history, quotes, invoices and documents.
+          Create your login using the same email your workshop linked to your customer record to unlock your full history instantly.
         </p>
 
         <div className="min-h-10">

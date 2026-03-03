@@ -2,8 +2,6 @@ import 'server-only';
 
 import { createClient } from '@/lib/supabase/server';
 
-const DEFAULT_WORKSHOP_ACCOUNT_ID = '11111111-1111-1111-1111-111111111111';
-
 type CustomerAccountRow = {
   id: string;
   workshop_account_id: string | null;
@@ -27,7 +25,21 @@ function defaultDisplayName(email?: string, displayName?: string | null) {
   return prefix || 'Customer';
 }
 
-export async function getCustomerContextOrCreate(input?: { displayName?: string; tier?: string }): Promise<CustomerContext | null> {
+async function resolveCustomerAccountForUser(userId: string) {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('customer_accounts')
+    .select('id,workshop_account_id')
+    .eq('auth_user_id', userId)
+    .order('created_at', { ascending: true })
+    .maybeSingle();
+
+  return (data as CustomerAccountRow | null) ?? null;
+}
+
+export async function getCustomerContextOrCreate(
+  input?: { displayName?: string; tier?: string; allowAutoCreate?: boolean }
+): Promise<CustomerContext | null> {
   const supabase = await createClient();
   const {
     data: { user }
@@ -45,35 +57,52 @@ export async function getCustomerContextOrCreate(input?: { displayName?: string;
     return null;
   }
 
-  const displayName = defaultDisplayName(user.email ?? undefined, input?.displayName);
-  const tier = normalizeTier(input?.tier);
+  const { data: claimed, error: claimError } = await supabase.rpc(
+    'claim_customer_account_for_current_user',
+    { p_email: user.email ?? null }
+  );
 
-  const { data: ensured, error: rpcError } = await supabase.rpc('ensure_customer_account', {
-    p_display_name: displayName,
-    p_tier: tier
-  });
+  const isMissingClaimRpc =
+    claimError?.code === 'PGRST202' ||
+    claimError?.message?.toLowerCase().includes('claim_customer_account_for_current_user') ||
+    false;
 
-  let customerAccount: CustomerAccountRow | null = (ensured as CustomerAccountRow | null) ?? null;
+  let customerAccount: CustomerAccountRow | null =
+    !claimError || isMissingClaimRpc
+      ? ((claimed as CustomerAccountRow | null) ?? null)
+      : null;
 
-  if (rpcError || !customerAccount) {
-    const { data: fallback } = await supabase
-      .from('customer_accounts')
-      .select('id,workshop_account_id')
-      .eq('auth_user_id', user.id)
-      .order('created_at', { ascending: true })
-      .maybeSingle();
-
-    customerAccount = (fallback as CustomerAccountRow | null) ?? null;
+  if (!customerAccount) {
+    customerAccount = await resolveCustomerAccountForUser(user.id);
   }
 
-  if (!customerAccount) return null;
+  if (!customerAccount && input?.allowAutoCreate) {
+    const displayName = defaultDisplayName(
+      user.email ?? undefined,
+      input?.displayName
+    );
+    const tier = normalizeTier(input?.tier);
+
+    const { data: ensured } = await supabase.rpc('ensure_customer_account', {
+      p_display_name: displayName,
+      p_tier: tier
+    });
+
+    customerAccount = (ensured as CustomerAccountRow | null) ?? null;
+
+    if (!customerAccount) {
+      customerAccount = await resolveCustomerAccountForUser(user.id);
+    }
+  }
+
+  if (!customerAccount?.workshop_account_id) return null;
 
   return {
     user: { id: user.id, email: user.email ?? undefined },
     customer_account: {
       id: customerAccount.id,
-      workshop_account_id: customerAccount.workshop_account_id ?? DEFAULT_WORKSHOP_ACCOUNT_ID
+      workshop_account_id: customerAccount.workshop_account_id
     },
-    workshop_account_id: customerAccount.workshop_account_id ?? DEFAULT_WORKSHOP_ACCOUNT_ID
+    workshop_account_id: customerAccount.workshop_account_id
   };
 }
