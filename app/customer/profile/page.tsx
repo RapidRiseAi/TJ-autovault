@@ -17,6 +17,14 @@ import {
   validateAvatarFile
 } from '@/lib/customer/avatar-upload';
 
+const GB_IN_BYTES = 1024 * 1024 * 1024;
+const EXTRA_STORAGE_PRICE_CENTS_PER_GB = 2000;
+
+function formatStorage(bytes: number) {
+  if (bytes >= GB_IN_BYTES) return `${(bytes / GB_IN_BYTES).toFixed(2)} GB`;
+  return `${(bytes / (1024 * 1024)).toFixed(0)} MB`;
+}
+
 const initialProfileUpdateState: ProfileUpdateState = {
   status: 'idle',
   message: ''
@@ -154,6 +162,143 @@ async function updateProfile(
   }
 }
 
+async function addStorage(formData: FormData) {
+  'use server';
+
+  const supabase = await createClient();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+  if (!user) redirect('/login');
+
+  const requestedGb = Number(formData.get('add_storage_gb')?.toString() ?? '0');
+  const roundedGb = Math.floor(requestedGb);
+  if (!Number.isFinite(roundedGb) || roundedGb <= 0) {
+    return;
+  }
+
+  const { data: customerUser } = await supabase
+    .from('customer_users')
+    .select('customer_account_id')
+    .eq('profile_id', user.id)
+    .maybeSingle();
+
+  if (!customerUser?.customer_account_id) return;
+
+  const admin = createAdminClient();
+  const { data: account, error: accountError } = await admin
+    .from('customer_accounts')
+    .select('extra_storage_gb,plan_price_cents')
+    .eq('id', customerUser.customer_account_id)
+    .maybeSingle();
+
+  if (accountError || !account) {
+    throw new Error(accountError?.message ?? 'Could not load account for storage upgrade.');
+  }
+
+  const { error: updateError } = await admin
+    .from('customer_accounts')
+    .update({
+      extra_storage_gb: (account.extra_storage_gb ?? 0) + roundedGb,
+      plan_price_cents:
+        (account.plan_price_cents ?? 0) +
+        roundedGb * EXTRA_STORAGE_PRICE_CENTS_PER_GB
+    })
+    .eq('id', customerUser.customer_account_id);
+
+  if (updateError) {
+    throw new Error(updateError.message);
+  }
+
+  revalidatePath('/customer/profile');
+  revalidatePath('/customer/plan');
+}
+
+async function reduceStorage(formData: FormData) {
+  'use server';
+
+  const supabase = await createClient();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+  if (!user) redirect('/login');
+
+  const requestedGb = Number(formData.get('reduce_storage_gb')?.toString() ?? '0');
+  const roundedGb = Math.floor(requestedGb);
+  if (!Number.isFinite(roundedGb) || roundedGb <= 0) {
+    return;
+  }
+
+  const { data: customerUser } = await supabase
+    .from('customer_users')
+    .select('customer_account_id')
+    .eq('profile_id', user.id)
+    .maybeSingle();
+
+  if (!customerUser?.customer_account_id) return;
+
+  const admin = createAdminClient();
+
+  const [{ data: account, error: accountError }, { data: storageDocs, error: docsError }] = await Promise.all([
+    admin
+      .from('customer_accounts')
+      .select('extra_storage_gb,plan_price_cents,included_storage_bytes')
+      .eq('id', customerUser.customer_account_id)
+      .maybeSingle(),
+    admin
+      .from('vehicle_documents')
+      .select('size_bytes')
+      .eq('customer_account_id', customerUser.customer_account_id)
+      .limit(5000)
+  ]);
+
+  if (accountError || !account) {
+    throw new Error(accountError?.message ?? 'Could not load account for storage downgrade.');
+  }
+  if (docsError) {
+    throw new Error(docsError.message);
+  }
+
+  const storageUsedBytes = (storageDocs ?? []).reduce(
+    (sum, item) => sum + Number(item.size_bytes ?? 0),
+    0
+  );
+
+  const includedBytes = Number(account.included_storage_bytes ?? 0);
+  const requiredExtraGb = Math.max(
+    0,
+    Math.ceil((storageUsedBytes - includedBytes) / GB_IN_BYTES)
+  );
+  const currentExtraGb = Math.max(0, Number(account.extra_storage_gb ?? 0));
+  const maxRemovableGb = Math.max(0, currentExtraGb - requiredExtraGb);
+  const removeGb = Math.min(roundedGb, maxRemovableGb);
+
+  if (removeGb <= 0) {
+    revalidatePath('/customer/profile');
+    return;
+  }
+
+  const { error: updateError } = await admin
+    .from('customer_accounts')
+    .update({
+      extra_storage_gb: currentExtraGb - removeGb,
+      plan_price_cents:
+        Math.max(
+          0,
+          Number(account.plan_price_cents ?? 0) -
+            removeGb * EXTRA_STORAGE_PRICE_CENTS_PER_GB
+        )
+    })
+    .eq('id', customerUser.customer_account_id);
+
+  if (updateError) {
+    throw new Error(updateError.message);
+  }
+
+  revalidatePath('/customer/profile');
+  revalidatePath('/customer/plan');
+}
+
 export default async function CustomerProfilePage() {
   const supabase = await createClient();
   const {
@@ -178,19 +323,40 @@ export default async function CustomerProfilePage() {
 
   const customerAccountId = customerUser?.customer_account_id;
 
-  const [{ data: account }, { count: vehicleCount }] = customerAccountId
+  const [{ data: account }, { count: vehicleCount }, { data: storageDocs }] = customerAccountId
     ? await Promise.all([
         supabase
           .from('customer_accounts')
-          .select('tier,vehicle_limit')
+          .select('tier,vehicle_limit,included_storage_bytes,extra_storage_gb,plan_price_cents')
           .eq('id', customerAccountId)
           .maybeSingle(),
         supabase
           .from('vehicles')
           .select('id', { count: 'exact', head: true })
-          .eq('current_customer_account_id', customerAccountId)
+          .eq('current_customer_account_id', customerAccountId),
+        supabase
+          .from('vehicle_documents')
+          .select('size_bytes')
+          .eq('customer_account_id', customerAccountId)
+          .limit(5000)
       ])
-    : [{ data: null }, { count: 0 }];
+    : [{ data: null }, { count: 0 }, { data: null }];
+
+  const storageUsedBytes = (storageDocs ?? []).reduce(
+    (sum, item) => sum + Number(item.size_bytes ?? 0),
+    0
+  );
+  const includedBytes = Number(account?.included_storage_bytes ?? 0);
+  const currentExtraGb = Number(account?.extra_storage_gb ?? 0);
+  const extraBytes = currentExtraGb * GB_IN_BYTES;
+  const storageLimitBytes = includedBytes + extraBytes;
+  const usagePercent = storageLimitBytes > 0 ? (storageUsedBytes / storageLimitBytes) * 100 : 0;
+  const isStorageLow = usagePercent >= 90;
+  const requiredExtraGb = Math.max(
+    0,
+    Math.ceil((storageUsedBytes - includedBytes) / GB_IN_BYTES)
+  );
+  const maxRemovableGb = Math.max(0, currentExtraGb - requiredExtraGb);
 
   return (
     <main className="space-y-6">
@@ -253,6 +419,72 @@ export default async function CustomerProfilePage() {
                 {vehicleCount ?? 0}
               </span>
             </p>
+            <p>
+              Storage used:{' '}
+              <span className="font-semibold text-black">
+                {formatStorage(storageUsedBytes)} / {formatStorage(storageLimitBytes)}
+              </span>
+            </p>
+            <p>
+              Usage:{' '}
+              <span className={`font-semibold ${isStorageLow ? 'text-red-600' : 'text-black'}`}>
+                {usagePercent.toFixed(1)}%
+              </span>
+            </p>
+            {isStorageLow ? (
+              <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                You have reached 90% of your storage limit. Please upgrade your plan or add storage.
+              </p>
+            ) : null}
+            <form action={addStorage} className="space-y-2 rounded-xl border border-gray-200 bg-gray-50 p-3">
+              <p className="text-xs uppercase tracking-wide text-gray-500">Add storage</p>
+              <p className="text-xs text-gray-600">R20 PM per extra GB</p>
+              <div className="flex items-center gap-2">
+                <input
+                  name="add_storage_gb"
+                  type="number"
+                  min={1}
+                  step={1}
+                  defaultValue={1}
+                  className="w-24 rounded-lg border border-gray-300 px-2 py-1 text-sm"
+                />
+                <Button type="submit" size="sm" variant="secondary">
+                  Add GB
+                </Button>
+              </div>
+              <p className="text-xs text-gray-600">
+                Extra storage active: {currentExtraGb} GB · Extra monthly: R
+                {((currentExtraGb * EXTRA_STORAGE_PRICE_CENTS_PER_GB) / 100).toFixed(2)}
+              </p>
+              <p className="text-xs text-gray-600">
+                You can remove up to {maxRemovableGb} GB without dropping below current usage.
+              </p>
+              <div className="flex items-center gap-2">
+                <input
+                  name="reduce_storage_gb"
+                  form="reduce-storage-form"
+                  type="number"
+                  min={1}
+                  max={Math.max(1, maxRemovableGb)}
+                  step={1}
+                  defaultValue={1}
+                  className="w-24 rounded-lg border border-gray-300 px-2 py-1 text-sm"
+                />
+                <Button
+                  type="submit"
+                  size="sm"
+                  variant="secondary"
+                  form="reduce-storage-form"
+                  disabled={maxRemovableGb <= 0}
+                >
+                  Reduce GB
+                </Button>
+              </div>
+              <p className="text-xs text-gray-600">
+                Estimated total plan price: R{((account?.plan_price_cents ?? 0) / 100).toFixed(2)} / month
+              </p>
+            </form>
+            <form id="reduce-storage-form" action={reduceStorage} className="hidden" />
           </div>
           <Button asChild size="sm" className="mt-4">
             <Link href="/customer/plan">Manage plan</Link>
