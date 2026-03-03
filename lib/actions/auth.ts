@@ -17,6 +17,44 @@ function isMissingProspectColumnsError(
   );
 }
 
+
+async function tryDeleteObsoleteCustomerAccount(input: {
+  admin: ReturnType<typeof createAdminClient>;
+  obsoleteAccountId: string;
+  linkedAccountId: string;
+  workshopAccountId: string;
+}) {
+  const { admin, obsoleteAccountId, linkedAccountId, workshopAccountId } = input;
+
+  // Move any accidentally attached vehicle ownership to the canonical linked account.
+  await admin
+    .from('vehicles')
+    .update({ current_customer_account_id: linkedAccountId })
+    .eq('workshop_account_id', workshopAccountId)
+    .eq('current_customer_account_id', obsoleteAccountId);
+
+  // Remove obsolete membership row(s) before deleting account.
+  await admin
+    .from('customer_users')
+    .delete()
+    .eq('customer_account_id', obsoleteAccountId);
+
+  const { count: vehicleCount } = await admin
+    .from('vehicles')
+    .select('id', { count: 'exact', head: true })
+    .eq('workshop_account_id', workshopAccountId)
+    .eq('current_customer_account_id', obsoleteAccountId);
+
+  if ((vehicleCount ?? 0) > 0) return;
+
+  await admin
+    .from('customer_accounts')
+    .delete()
+    .eq('id', obsoleteAccountId)
+    .eq('workshop_account_id', workshopAccountId)
+    .eq('auth_user_id', null);
+}
+
 async function linkCustomerAccountFromWorkshopEmail(input: {
   userId: string;
   email: string;
@@ -57,6 +95,13 @@ async function linkCustomerAccountFromWorkshopEmail(input: {
       .update({ auth_user_id: null })
       .eq('id', existingByAuth.id)
       .eq('auth_user_id', input.userId);
+
+    await tryDeleteObsoleteCustomerAccount({
+      admin,
+      obsoleteAccountId: existingByAuth.id,
+      linkedAccountId: linkedCustomer.id,
+      workshopAccountId: linkedCustomer.workshop_account_id
+    });
   }
 
   const { error: linkError } = await admin

@@ -38,6 +38,42 @@ async function resolveCustomerAccountForUser(userId: string) {
   return (data as CustomerAccountRow | null) ?? null;
 }
 
+
+async function tryDeleteObsoleteCustomerAccount(input: {
+  admin: ReturnType<typeof createAdminClient>;
+  obsoleteAccountId: string;
+  linkedAccountId: string;
+  workshopAccountId: string;
+}) {
+  const { admin, obsoleteAccountId, linkedAccountId, workshopAccountId } = input;
+
+  await admin
+    .from('vehicles')
+    .update({ current_customer_account_id: linkedAccountId })
+    .eq('workshop_account_id', workshopAccountId)
+    .eq('current_customer_account_id', obsoleteAccountId);
+
+  await admin
+    .from('customer_users')
+    .delete()
+    .eq('customer_account_id', obsoleteAccountId);
+
+  const { count: vehicleCount } = await admin
+    .from('vehicles')
+    .select('id', { count: 'exact', head: true })
+    .eq('workshop_account_id', workshopAccountId)
+    .eq('current_customer_account_id', obsoleteAccountId);
+
+  if ((vehicleCount ?? 0) > 0) return;
+
+  await admin
+    .from('customer_accounts')
+    .delete()
+    .eq('id', obsoleteAccountId)
+    .eq('workshop_account_id', workshopAccountId)
+    .eq('auth_user_id', null);
+}
+
 async function claimCustomerAccountByEmailFallback(input: {
   userId: string;
   email?: string;
@@ -75,6 +111,13 @@ async function claimCustomerAccountByEmailFallback(input: {
       .update({ auth_user_id: null })
       .eq('id', existingByAuth.id)
       .eq('auth_user_id', input.userId);
+
+    await tryDeleteObsoleteCustomerAccount({
+      admin,
+      obsoleteAccountId: existingByAuth.id,
+      linkedAccountId: candidateAccount.id,
+      workshopAccountId: candidateAccount.workshop_account_id
+    });
   }
 
   const { data: account } = await admin
