@@ -84,6 +84,31 @@ export async function POST(request: Request) {
       href: '/workshop/technicians'
     });
 
+    const financeRef = `technician_payout:${technicianId}:${proofPath}`;
+    const { error: financeError } = await supabase.from('workshop_finance_entries').upsert(
+      {
+        workshop_account_id: actor.workshop_account_id,
+        entry_kind: 'expense',
+        source_type: 'technician_payout',
+        category: 'technician_pay',
+        description: notes || 'Technician payout',
+        amount_cents: amountCents,
+        occurred_on: new Date().toISOString().slice(0, 10),
+        external_ref_type: 'technician_payout',
+        external_ref_id: financeRef,
+        metadata: { technician_profile_id: technicianId, proof_path: proofPath },
+        created_by: actor.id
+      },
+      { onConflict: 'workshop_account_id,source_type,external_ref_type,external_ref_id' }
+    );
+
+    if (financeError) {
+      const combined = `${financeError.message} ${financeError.details ?? ''} ${financeError.hint ?? ''}`.toLowerCase();
+      if (!combined.includes('workshop_finance_entries') && !combined.includes('does not exist')) {
+        return redirectWithStatus(request, '?error=payout_failed');
+      }
+    }
+
     return redirectWithStatus(request, '?payout=1');
   } catch {
     return redirectWithStatus(request, '?error=payout_failed');

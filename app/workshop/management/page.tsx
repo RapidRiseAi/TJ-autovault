@@ -24,7 +24,7 @@ type EntryRow = {
   source_type: string;
   category: string | null;
   description: string | null;
-  amount_cents: number;
+  amount_cents: number | string | null;
   occurred_on: string;
   vendor_id: string | null;
   metadata: Record<string, unknown> | null;
@@ -217,13 +217,17 @@ export default async function WorkshopManagementPage() {
 
   const [
     { data: workshop },
-    { data: targetRow },
-    { data: currentEntries },
-    { data: yearlyEntries },
-    { data: vendors },
-    { data: recurring },
-    { data: statementArchives },
-    { data: customerRows }
+    { data: targetRow, error: targetError },
+    { data: currentEntries, error: currentEntriesError },
+    { data: yearlyEntries, error: yearlyEntriesError },
+    { data: vendors, error: vendorsError },
+    { data: recurring, error: recurringError },
+    { data: statementArchives, error: statementArchivesError },
+    { data: customerRows },
+    { data: currentPaidInvoices },
+    { data: currentPayouts },
+    { data: yearlyPaidInvoices },
+    { data: yearlyPayouts }
   ] = await Promise.all([
     supabase
       .from('workshop_accounts')
@@ -269,10 +273,65 @@ export default async function WorkshopManagementPage() {
       .from('customer_accounts')
       .select('id,created_at')
       .eq('workshop_account_id', workshopId)
-      .gte('created_at', `${trendStart}T00:00:00.000Z`)
+      .gte('created_at', `${trendStart}T00:00:00.000Z`),
+    supabase
+      .from('invoices')
+      .select('id,total_cents,updated_at,invoice_number')
+      .eq('workshop_account_id', workshopId)
+      .eq('payment_status', 'paid')
+      .gte('updated_at', `${currentMonthStart}T00:00:00.000Z`)
+      .lte('updated_at', `${currentMonthEnd}T23:59:59.999Z`),
+    supabase
+      .from('technician_payouts')
+      .select('id,amount_cents,paid_at,notes,status,technician_profile_id')
+      .eq('workshop_account_id', workshopId)
+      .neq('status', 'rejected')
+      .gte('paid_at', `${currentMonthStart}T00:00:00.000Z`)
+      .lte('paid_at', `${currentMonthEnd}T23:59:59.999Z`),
+    supabase
+      .from('invoices')
+      .select('id,total_cents,updated_at')
+      .eq('workshop_account_id', workshopId)
+      .eq('payment_status', 'paid')
+      .gte('updated_at', `${trendStart}T00:00:00.000Z`)
+      .lte('updated_at', `${currentMonthEnd}T23:59:59.999Z`),
+    supabase
+      .from('technician_payouts')
+      .select('id,amount_cents,paid_at,status')
+      .eq('workshop_account_id', workshopId)
+      .neq('status', 'rejected')
+      .gte('paid_at', `${trendStart}T00:00:00.000Z`)
+      .lte('paid_at', `${currentMonthEnd}T23:59:59.999Z`),
   ]);
 
-  const entries = (currentEntries ?? []) as EntryRow[];
+  const financeTablesAvailable = !currentEntriesError && !yearlyEntriesError;
+  const entries = financeTablesAvailable
+    ? ((currentEntries ?? []) as EntryRow[])
+    : [
+        ...((currentPaidInvoices ?? []).map((invoice) => ({
+          id: `invoice-${invoice.id}`,
+          entry_kind: 'income' as const,
+          source_type: 'job_income',
+          category: 'jobs',
+          description: invoice.invoice_number ? `Invoice ${invoice.invoice_number}` : 'Invoice payment',
+          amount_cents: invoice.total_cents ?? 0,
+          occurred_on: String(invoice.updated_at ?? '').slice(0, 10),
+          vendor_id: null,
+          metadata: { invoice_id: invoice.id }
+        })) as EntryRow[]),
+        ...((currentPayouts ?? []).map((payout) => ({
+          id: `payout-${payout.id}`,
+          entry_kind: 'expense' as const,
+          source_type: 'technician_payout',
+          category: 'technician_pay',
+          description: payout.notes ?? 'Technician payout',
+          amount_cents: payout.amount_cents ?? 0,
+          occurred_on: String(payout.paid_at ?? '').slice(0, 10),
+          vendor_id: null,
+          metadata: { technician_profile_id: payout.technician_profile_id }
+        })) as EntryRow[])
+      ];
+
   const incomeMonth = entries
     .filter((entry) => entry.entry_kind === 'income')
     .reduce((sum, entry) => sum + Number(entry.amount_cents ?? 0), 0);
@@ -287,10 +346,10 @@ export default async function WorkshopManagementPage() {
     .reduce((sum, entry) => sum + Number(entry.amount_cents ?? 0), 0);
 
   const profitMonth = incomeMonth - expenseMonth;
-  const targetCents = Number(targetRow?.income_target_cents ?? 0);
+  const targetCents = targetError ? 0 : Number(targetRow?.income_target_cents ?? 0);
   const progressPercent = targetCents > 0 ? Math.min(100, Math.round((incomeMonth / targetCents) * 100)) : 0;
 
-  const vendorNameById = new Map((vendors ?? []).map((vendor) => [vendor.id, vendor.name]));
+  const vendorNameById = new Map(((vendorsError ? [] : vendors) ?? []).map((vendor) => [vendor.id, vendor.name]));
 
   const monthlyMap = new Map<string, MonthPoint>();
   for (let idx = 0; idx < 12; idx += 1) {
@@ -306,13 +365,28 @@ export default async function WorkshopManagementPage() {
     });
   }
 
-  for (const row of yearlyEntries ?? []) {
-    const key = monthKey(row.occurred_on);
-    const point = monthlyMap.get(key);
-    if (!point) continue;
-    const value = Number(row.amount_cents ?? 0);
-    if (row.entry_kind === 'income') point.income += value;
-    if (row.entry_kind === 'expense') point.expenses += value;
+  if (financeTablesAvailable) {
+    for (const row of yearlyEntries ?? []) {
+      const key = monthKey(row.occurred_on);
+      const point = monthlyMap.get(key);
+      if (!point) continue;
+      const value = Number(row.amount_cents ?? 0);
+      if (row.entry_kind === 'income') point.income += value;
+      if (row.entry_kind === 'expense') point.expenses += value;
+    }
+  } else {
+    for (const row of yearlyPaidInvoices ?? []) {
+      const key = monthKey(String(row.updated_at ?? ''));
+      const point = monthlyMap.get(key);
+      if (!point) continue;
+      point.income += Number(row.total_cents ?? 0);
+    }
+    for (const row of yearlyPayouts ?? []) {
+      const key = monthKey(String(row.paid_at ?? ''));
+      const point = monthlyMap.get(key);
+      if (!point) continue;
+      point.expenses += Number(row.amount_cents ?? 0);
+    }
   }
 
   for (const row of customerRows ?? []) {
@@ -362,6 +436,13 @@ export default async function WorkshopManagementPage() {
           </div>
         </div>
       </section>
+
+
+      {!financeTablesAvailable ? (
+        <Card className="rounded-3xl border-amber-200 bg-amber-50 p-4">
+          <p className="text-sm text-amber-900">Finance tables are not available yet in this environment, so this page is showing fallback totals from paid invoices and technician payouts. Run the latest Supabase migration to enable full finance logging, vendors, recurring expenses, and statement archives.</p>
+        </Card>
+      ) : null}
 
       <section className="grid gap-4 xl:grid-cols-4">
         <Card className="rounded-3xl border-black/10 p-5">
@@ -439,7 +520,7 @@ export default async function WorkshopManagementPage() {
                       <td className="py-2 text-gray-600">{entry.source_type.replaceAll('_', ' ')}</td>
                       <td className="py-2 text-gray-700">{entry.description ?? entry.category ?? '—'}</td>
                       <td className="py-2 text-gray-600">{entry.vendor_id ? vendorNameById.get(entry.vendor_id) ?? 'Vendor' : '—'}</td>
-                      <td className={`py-2 text-right font-semibold ${entry.entry_kind === 'income' ? 'text-emerald-700' : 'text-rose-700'}`}>{entry.entry_kind === 'income' ? '+' : '-'}{formatMoney(entry.amount_cents)}</td>
+                      <td className={`py-2 text-right font-semibold ${entry.entry_kind === 'income' ? 'text-emerald-700' : 'text-rose-700'}`}>{entry.entry_kind === 'income' ? '+' : '-'}{formatMoney(Number(entry.amount_cents ?? 0))}</td>
                     </tr>
                   ))
                 ) : (
@@ -505,7 +586,7 @@ export default async function WorkshopManagementPage() {
               <input name="occurredOn" type="date" className="rounded-xl border border-black/15 px-3 py-2 text-sm" />
               <select name="vendorId" className="rounded-xl border border-black/15 px-3 py-2 text-sm sm:col-span-2">
                 <option value="">No vendor</option>
-                {(vendors ?? []).map((vendor) => (
+                {((vendorsError ? [] : vendors) ?? []).map((vendor) => (
                   <option key={vendor.id} value={vendor.id}>{vendor.name}</option>
                 ))}
               </select>
@@ -535,7 +616,7 @@ export default async function WorkshopManagementPage() {
               <input name="category" placeholder="Category" className="rounded-xl border border-black/15 px-3 py-2 text-sm" />
               <select name="vendorId" className="rounded-xl border border-black/15 px-3 py-2 text-sm sm:col-span-2">
                 <option value="">No vendor</option>
-                {(vendors ?? []).map((vendor) => (
+                {((vendorsError ? [] : vendors) ?? []).map((vendor) => (
                   <option key={vendor.id} value={vendor.id}>{vendor.name}</option>
                 ))}
               </select>
@@ -546,7 +627,7 @@ export default async function WorkshopManagementPage() {
             </form>
           ) : null}
           <div className="mt-5 space-y-2 text-sm">
-            {(recurring ?? []).length ? (recurring ?? []).map((row) => (
+            {((recurringError ? [] : recurring) ?? []).length ? ((recurringError ? [] : recurring) ?? []).map((row) => (
               <div key={row.id} className="rounded-xl border border-black/10 px-3 py-2">
                 <p className="font-medium text-black">{row.title}</p>
                 <p className="text-xs text-gray-500">{row.cadence} • next run {row.next_run_on} • {formatMoney(Number(row.amount_cents ?? 0))}</p>
@@ -575,7 +656,7 @@ export default async function WorkshopManagementPage() {
             </form>
           ) : null}
           <div className="mt-5 max-h-72 space-y-2 overflow-auto">
-            {(vendors ?? []).length ? (vendors ?? []).map((vendor) => (
+            {((vendorsError ? [] : vendors) ?? []).length ? ((vendorsError ? [] : vendors) ?? []).map((vendor) => (
               <div key={vendor.id} className="rounded-xl border border-black/10 p-3">
                 <p className="font-semibold text-black">{vendor.name}</p>
                 <p className="mt-1 text-xs text-gray-500">{vendor.contact_person ?? 'No contact'} • {vendor.email ?? 'No email'} • {vendor.phone ?? 'No phone'}</p>
@@ -591,7 +672,7 @@ export default async function WorkshopManagementPage() {
           </div>
           <p className="mt-1 text-xs text-gray-500">Snapshots are automatically stored monthly so you can review previous periods.</p>
           <div className="mt-4 space-y-2">
-            {(statementArchives ?? []).length ? (statementArchives ?? []).map((archive) => {
+            {((statementArchivesError ? [] : statementArchives) ?? []).length ? ((statementArchivesError ? [] : statementArchives) ?? []).map((archive) => {
               const totals = (archive.totals ?? {}) as { income_cents?: number; expense_cents?: number; profit_cents?: number };
               return (
                 <div key={archive.id} className="rounded-xl border border-black/10 p-3 text-sm">
