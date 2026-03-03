@@ -51,20 +51,36 @@ async function claimCustomerAccountByEmailFallback(input: {
   const { data: candidate } = await admin
     .from('customer_accounts')
     .select('id,workshop_account_id')
-    .is('auth_user_id', null)
     .ilike('linked_email', normalizedEmail)
     .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle();
 
   const candidateAccount = (candidate as CustomerAccountRow | null) ?? null;
-  if (!candidateAccount?.id || !candidateAccount.workshop_account_id) return null;
+  if (!candidateAccount?.id || !candidateAccount.workshop_account_id) {
+    return resolveCustomerAccountForUser(input.userId);
+  }
+
+  const { data: existingByAuth } = await admin
+    .from('customer_accounts')
+    .select('id')
+    .eq('auth_user_id', input.userId)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (existingByAuth?.id && existingByAuth.id !== candidateAccount.id) {
+    await admin
+      .from('customer_accounts')
+      .update({ auth_user_id: null })
+      .eq('id', existingByAuth.id)
+      .eq('auth_user_id', input.userId);
+  }
 
   const { data: account } = await admin
     .from('customer_accounts')
     .update({ auth_user_id: input.userId })
     .eq('id', candidateAccount.id)
-    .is('auth_user_id', null)
     .select('id,workshop_account_id')
     .maybeSingle();
 
@@ -121,18 +137,13 @@ export async function getCustomerContextOrCreate(
     { p_email: user.email ?? null }
   );
 
-  const isMissingClaimRpc =
-    claimError?.code === 'PGRST202' ||
-    claimError?.message
-      ?.toLowerCase()
-      .includes('claim_customer_account_for_current_user') ||
-    false;
-
   let customerAccount: CustomerAccountRow | null = !claimError
     ? ((claimed as CustomerAccountRow | null) ?? null)
     : null;
 
-  if (!customerAccount && isMissingClaimRpc) {
+  if (!customerAccount) {
+    // Fallback claim keeps login/signup linking seamless even if RPC is unavailable
+    // or if RPC returned no claimed row due older/duplicated data.
     customerAccount = await claimCustomerAccountByEmailFallback({
       userId: user.id,
       email: user.email ?? undefined,
