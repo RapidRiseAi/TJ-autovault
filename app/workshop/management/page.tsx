@@ -265,7 +265,7 @@ export default async function WorkshopManagementPage() {
       .order('next_run_on', { ascending: true }),
     supabase
       .from('workshop_monthly_statement_archives')
-      .select('id,month_start,month_end,totals,created_at')
+      .select('id,month_start,month_end,totals,created_at,pdf_storage_path,pdf_generated_at')
       .eq('workshop_account_id', workshopId)
       .order('month_start', { ascending: false })
       .limit(12),
@@ -417,6 +417,14 @@ export default async function WorkshopManagementPage() {
       name: vendorNameById.get(vendorId) ?? 'Unknown vendor',
       spend
     }));
+
+  const visibleStatementArchives = (((statementArchivesError ? [] : statementArchives) ?? [])).filter((archive) => {
+    const totals = (archive.totals ?? {}) as { income_cents?: number; expense_cents?: number; profit_cents?: number };
+    const income = Number(totals.income_cents ?? 0);
+    const expenses = Number(totals.expense_cents ?? 0);
+    const profit = Number(totals.profit_cents ?? income - expenses);
+    return income !== 0 || expenses !== 0 || profit !== 0;
+  });
 
   const statementLines = [...entries].sort((a, b) => a.occurred_on.localeCompare(b.occurred_on));
 
@@ -672,15 +680,22 @@ export default async function WorkshopManagementPage() {
           </div>
           <p className="mt-1 text-xs text-gray-500">Snapshots are automatically stored monthly so you can review previous periods.</p>
           <div className="mt-4 space-y-2">
-            {((statementArchivesError ? [] : statementArchives) ?? []).length ? ((statementArchivesError ? [] : statementArchives) ?? []).map((archive) => {
+            {visibleStatementArchives.length ? visibleStatementArchives.map((archive) => {
               const totals = (archive.totals ?? {}) as { income_cents?: number; expense_cents?: number; profit_cents?: number };
               return (
                 <div key={archive.id} className="rounded-xl border border-black/10 p-3 text-sm">
                   <p className="font-semibold text-black">{archive.month_start} → {archive.month_end}</p>
                   <p className="mt-1 text-xs text-gray-600">Income {formatMoney(Number(totals.income_cents ?? 0))} • Expenses {formatMoney(Number(totals.expense_cents ?? 0))} • Profit {formatMoney(Number(totals.profit_cents ?? 0))}</p>
+                  {archive.pdf_storage_path ? (
+                    <Link href={`/api/workshop/statements/${archive.id}/download`} className="mt-2 inline-flex text-xs font-semibold text-black underline underline-offset-2">
+                      Download PDF statement
+                    </Link>
+                  ) : (
+                    <p className="mt-2 text-xs text-gray-500">PDF statement is being prepared.</p>
+                  )}
                 </div>
               );
-            }) : <p className="text-sm text-gray-500">No archived months yet.</p>}
+            }) : <p className="text-sm text-gray-500">No archived months with activity yet.</p>}
           </div>
         </Card>
       </section>
