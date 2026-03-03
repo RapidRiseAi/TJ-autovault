@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { ChevronRight, Circle, Loader2, Mail, Trash2 } from 'lucide-react';
-import { useEffect, useMemo, useState, useTransition } from 'react';
+import { Bell, ChevronRight, Circle, Loader2, Mail, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { markAllNotificationsRead, markNotificationReadState, softDeleteNotification } from '@/lib/actions/customer-notifications';
@@ -37,6 +37,8 @@ export function NotificationsLive({ fullPage = false }: { fullPage?: boolean }) 
   const [isPending, startTransition] = useTransition();
   const [loadError, setLoadError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'messages'>('all');
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>('unsupported');
+  const seenNotificationIdsRef = useRef<Set<string>>(new Set());
 
   const messageThreadFromRoute = searchParams.get('messageThread');
   const [openThreadId, setOpenThreadId] = useState<string | null>(messageThreadFromRoute);
@@ -44,6 +46,41 @@ export function NotificationsLive({ fullPage = false }: { fullPage?: boolean }) 
   useEffect(() => {
     setOpenThreadId(messageThreadFromRoute);
   }, [messageThreadFromRoute]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      setNotificationPermission('unsupported');
+      return;
+    }
+
+    setNotificationPermission(Notification.permission);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    if (!items.length) return;
+
+    if (seenNotificationIdsRef.current.size === 0) {
+      items.forEach((item) => seenNotificationIdsRef.current.add(item.id));
+      return;
+    }
+
+    const newItems = items.filter((item) => !seenNotificationIdsRef.current.has(item.id));
+    newItems.forEach((item) => seenNotificationIdsRef.current.add(item.id));
+
+    if (!newItems.length || notificationPermission !== 'granted') return;
+
+    const latest = newItems[0];
+    const targetHref = latest.href || (isWorkshopUser ? '/workshop/notifications' : '/customer/notifications');
+    const deviceNotification = new Notification(latest.title, {
+      body: latest.body ?? 'Open AutoVault to view this update.'
+    });
+
+    deviceNotification.onclick = () => {
+      window.focus();
+      window.location.assign(targetHref);
+    };
+  }, [items, isWorkshopUser, notificationPermission]);
 
   useEffect(() => {
     let poll: ReturnType<typeof setInterval> | null = null;
@@ -111,6 +148,12 @@ export function NotificationsLive({ fullPage = false }: { fullPage?: boolean }) 
   const listHref = isWorkshopUser ? '/workshop/notifications' : '/customer/notifications';
   const itemHref = (item: Notification) => item.href || listHref;
 
+  const requestDeviceNotifications = async () => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    const permission = await Notification.requestPermission();
+    setNotificationPermission(permission);
+  };
+
   if (!fullPage) {
     return (
       <details className="relative">
@@ -140,18 +183,36 @@ export function NotificationsLive({ fullPage = false }: { fullPage?: boolean }) 
           <Button size="sm" variant={filter === 'all' ? 'primary' : 'ghost'} onClick={() => setFilter('all')}>All</Button>
           <Button size="sm" variant={filter === 'messages' ? 'primary' : 'ghost'} onClick={() => setFilter('messages')}>Messages</Button>
         </div>
-        <Button
-          size="sm"
-          disabled={unread === 0 || isPending}
-          onClick={() => startTransition(async () => {
-            await markAllNotificationsRead();
-            setItems((prev) => prev.map((item) => ({ ...item, is_read: true })));
-          })}
-        >
-          {isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
-          Mark all as read
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {notificationPermission !== 'unsupported' ? (
+            <Button
+              size="sm"
+              variant={notificationPermission === 'granted' ? 'outline' : 'secondary'}
+              disabled={notificationPermission === 'granted'}
+              onClick={() => void requestDeviceNotifications()}
+            >
+              <Bell className="mr-1 h-4 w-4" />
+              {notificationPermission === 'granted' ? 'Device alerts enabled' : 'Enable device alerts'}
+            </Button>
+          ) : null}
+          <Button
+            size="sm"
+            disabled={unread === 0 || isPending}
+            onClick={() => startTransition(async () => {
+              await markAllNotificationsRead();
+              setItems((prev) => prev.map((item) => ({ ...item, is_read: true })));
+            })}
+          >
+            {isPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
+            Mark all as read
+          </Button>
+        </div>
       </div>
+      {notificationPermission === 'denied' ? (
+        <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+          Device alerts are blocked for this browser. You can re-enable them from your browser site settings.
+        </p>
+      ) : null}
       {isLoading ? Array.from({ length: 5 }).map((_, index) => <div key={index} className="h-20 animate-pulse rounded-2xl bg-gray-100" />) : null}
       {loadError ? <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{loadError}</p> : null}
       {filteredItems.map((item) => {
