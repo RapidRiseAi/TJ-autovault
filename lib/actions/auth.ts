@@ -22,15 +22,13 @@ async function tryDeleteObsoleteCustomerAccount(input: {
   admin: ReturnType<typeof createAdminClient>;
   obsoleteAccountId: string;
   linkedAccountId: string;
-  workshopAccountId: string;
 }) {
-  const { admin, obsoleteAccountId, linkedAccountId, workshopAccountId } = input;
+  const { admin, obsoleteAccountId, linkedAccountId } = input;
 
   // Move any accidentally attached vehicle ownership to the canonical linked account.
   await admin
     .from('vehicles')
     .update({ current_customer_account_id: linkedAccountId })
-    .eq('workshop_account_id', workshopAccountId)
     .eq('current_customer_account_id', obsoleteAccountId);
 
   // Remove obsolete membership row(s) before deleting account.
@@ -42,7 +40,6 @@ async function tryDeleteObsoleteCustomerAccount(input: {
   const { count: vehicleCount } = await admin
     .from('vehicles')
     .select('id', { count: 'exact', head: true })
-    .eq('workshop_account_id', workshopAccountId)
     .eq('current_customer_account_id', obsoleteAccountId);
 
   if ((vehicleCount ?? 0) > 0) return;
@@ -51,7 +48,6 @@ async function tryDeleteObsoleteCustomerAccount(input: {
     .from('customer_accounts')
     .delete()
     .eq('id', obsoleteAccountId)
-    .eq('workshop_account_id', workshopAccountId)
     .eq('auth_user_id', null);
 }
 
@@ -59,6 +55,7 @@ async function linkCustomerAccountFromWorkshopEmail(input: {
   userId: string;
   email: string;
   displayName?: string;
+  phone?: string;
 }) {
   const admin = createAdminClient();
   const normalizedEmail = input.email.trim().toLowerCase();
@@ -99,14 +96,17 @@ async function linkCustomerAccountFromWorkshopEmail(input: {
     await tryDeleteObsoleteCustomerAccount({
       admin,
       obsoleteAccountId: existingByAuth.id,
-      linkedAccountId: linkedCustomer.id,
-      workshopAccountId: linkedCustomer.workshop_account_id
+      linkedAccountId: linkedCustomer.id
     });
   }
 
   const { error: linkError } = await admin
     .from('customer_accounts')
-    .update({ auth_user_id: input.userId, onboarding_status: 'registered_unpaid' })
+    .update({
+      auth_user_id: input.userId,
+      onboarding_status: 'registered_unpaid',
+      name: input.displayName?.trim() || undefined
+    })
     .eq('id', linkedCustomer.id);
 
   if (linkError && !isMissingProspectColumnsError(linkError)) {
@@ -121,7 +121,9 @@ async function linkCustomerAccountFromWorkshopEmail(input: {
       id: input.userId,
       role: 'customer',
       workshop_account_id: linkedCustomer.workshop_account_id,
-      display_name: preferredDisplayName
+      display_name: preferredDisplayName,
+      full_name: input.displayName?.trim() || preferredDisplayName,
+      phone: input.phone?.trim() || null
     },
     { onConflict: 'id' }
   );
@@ -137,6 +139,7 @@ export async function signupCustomerAction(formData: FormData) {
   const password = formData.get('password')?.toString() ?? '';
   const displayName = formData.get('displayName')?.toString().trim() ?? '';
   const plan = formData.get('plan')?.toString() ?? 'basic';
+  const phone = formData.get('phone')?.toString().trim() ?? '';
 
   const tier = plan === 'pro' || plan === 'business' ? plan : 'basic';
 
@@ -149,7 +152,7 @@ export async function signupCustomerAction(formData: FormData) {
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: { display_name: displayName, selected_plan: tier } }
+    options: { data: { display_name: displayName, selected_plan: tier, phone } }
   });
 
   if (error) {
@@ -163,7 +166,8 @@ export async function signupCustomerAction(formData: FormData) {
   await linkCustomerAccountFromWorkshopEmail({
     userId: data.user.id,
     email,
-    displayName
+    displayName,
+    phone
   });
 
   await supabase.auth.signOut();

@@ -43,14 +43,12 @@ async function tryDeleteObsoleteCustomerAccount(input: {
   admin: ReturnType<typeof createAdminClient>;
   obsoleteAccountId: string;
   linkedAccountId: string;
-  workshopAccountId: string;
 }) {
-  const { admin, obsoleteAccountId, linkedAccountId, workshopAccountId } = input;
+  const { admin, obsoleteAccountId, linkedAccountId } = input;
 
   await admin
     .from('vehicles')
     .update({ current_customer_account_id: linkedAccountId })
-    .eq('workshop_account_id', workshopAccountId)
     .eq('current_customer_account_id', obsoleteAccountId);
 
   await admin
@@ -61,7 +59,6 @@ async function tryDeleteObsoleteCustomerAccount(input: {
   const { count: vehicleCount } = await admin
     .from('vehicles')
     .select('id', { count: 'exact', head: true })
-    .eq('workshop_account_id', workshopAccountId)
     .eq('current_customer_account_id', obsoleteAccountId);
 
   if ((vehicleCount ?? 0) > 0) return;
@@ -70,7 +67,6 @@ async function tryDeleteObsoleteCustomerAccount(input: {
     .from('customer_accounts')
     .delete()
     .eq('id', obsoleteAccountId)
-    .eq('workshop_account_id', workshopAccountId)
     .eq('auth_user_id', null);
 }
 
@@ -115,8 +111,7 @@ async function claimCustomerAccountByEmailFallback(input: {
     await tryDeleteObsoleteCustomerAccount({
       admin,
       obsoleteAccountId: existingByAuth.id,
-      linkedAccountId: candidateAccount.id,
-      workshopAccountId: candidateAccount.workshop_account_id
+      linkedAccountId: candidateAccount.id
     });
   }
 
@@ -142,7 +137,8 @@ async function claimCustomerAccountByEmailFallback(input: {
       id: input.userId,
       role: 'customer',
       workshop_account_id: claimed.workshop_account_id,
-      display_name: preferredDisplayName
+      display_name: preferredDisplayName,
+      full_name: input.displayName?.trim() || preferredDisplayName
     },
     { onConflict: 'id' }
   );
