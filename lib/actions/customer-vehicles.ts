@@ -13,7 +13,7 @@ type ActionResult =
 
 export async function createCustomerAccountIfMissing(): Promise<ActionResult> {
   try {
-    const context = await getCustomerContextOrCreate({ allowAutoCreate: true });
+    const context = await getCustomerContextOrCreate();
     if (!context) return { ok: false, error: 'Please sign in first.' };
     revalidatePath(customerDashboard());
     return { ok: true, message: 'Profile linked.' };
