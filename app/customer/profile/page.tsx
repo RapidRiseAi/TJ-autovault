@@ -36,6 +36,12 @@ async function updateProfile(
     if (!user) redirect('/login');
 
     const fullName = (formData.get('full_name')?.toString() ?? '').trim();
+    const loginEmail = (formData.get('login_email')?.toString() ?? '').trim().toLowerCase();
+
+    if (!loginEmail) {
+      return { status: 'error', message: 'Email is required.' };
+    }
+
     if (!fullName) {
       return { status: 'error', message: 'Full name is required.' };
     }
@@ -86,8 +92,29 @@ async function updateProfile(
       return { status: 'error', message: error.message };
     }
 
+    const currentEmail = (user.email ?? '').trim().toLowerCase();
+    const emailChanged = loginEmail !== currentEmail;
+
+    if (emailChanged) {
+      const { error: authUpdateError } = await supabase.auth.updateUser({
+        email: loginEmail
+      });
+
+      if (authUpdateError) {
+        return {
+          status: 'error',
+          message: `Profile saved, but email could not be updated: ${authUpdateError.message}`
+        };
+      }
+    }
+
     revalidatePath('/customer/profile');
-    return { status: 'success', message: 'Profile saved successfully.' };
+    return {
+      status: 'success',
+      message: emailChanged
+        ? 'Profile saved. Check your inbox to confirm the new login email.'
+        : 'Profile saved successfully.'
+    };
   } catch (error) {
     return { status: 'error', message: mapProfileUpdateError(error) };
   }
