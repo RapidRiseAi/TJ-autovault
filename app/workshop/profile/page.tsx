@@ -10,6 +10,14 @@ import { SignaturePanel } from '@/components/workshop/signature-panel';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
+
+const GB_IN_BYTES = 1024 * 1024 * 1024;
+
+function formatStorage(bytes: number) {
+  if (bytes >= GB_IN_BYTES) return `${(bytes / GB_IN_BYTES).toFixed(2)} GB`;
+  return `${(bytes / (1024 * 1024)).toFixed(0)} MB`;
+}
+
 function sanitizeOptionalField(formData: FormData, key: string) {
   const value = formData.get(key)?.toString().trim() ?? '';
   return value || null;
@@ -171,12 +179,67 @@ export default async function WorkshopProfilePage() {
         .maybeSingle()
     : { data: null };
 
+  const [{ data: storageDocs }, { data: workshopCustomers }] = profile?.workshop_account_id
+    ? await Promise.all([
+        supabase
+          .from('vehicle_documents')
+          .select('size_bytes,customer_account_id')
+          .eq('workshop_account_id', profile.workshop_account_id)
+          .limit(10000),
+        supabase
+          .from('customer_accounts')
+          .select('id,onboarding_status')
+          .eq('workshop_account_id', profile.workshop_account_id)
+          .limit(10000)
+      ])
+    : [{ data: null }, { data: null }];
+
+  const onboardingByCustomerId = new Map(
+    (workshopCustomers ?? []).map((customer) => [
+      customer.id,
+      customer.onboarding_status ?? 'prospect_unpaid'
+    ])
+  );
+
+  const storageTotals = (storageDocs ?? []).reduce(
+    (totals, document) => {
+      const bytes = Number(document.size_bytes ?? 0);
+      totals.total += bytes;
+      const onboardingStatus = onboardingByCustomerId.get(document.customer_account_id);
+      if (onboardingStatus === 'prospect_unpaid') totals.prospect += bytes;
+      else totals.registered += bytes;
+      return totals;
+    },
+    { total: 0, registered: 0, prospect: 0 }
+  );
+
   return (
     <main className="space-y-4">
       <PageHeader
         title="Workshop profile"
         subtitle="Manage your workshop account identity."
       />
+      <SectionCard className="rounded-3xl p-6">
+        <h2 className="text-base font-semibold">Storage usage</h2>
+        <p className="mt-1 text-sm text-gray-600">
+          Total tracked storage for this workshop across customer documents.
+        </p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-3 text-sm">
+          <div className="rounded-2xl border border-black/10 bg-white p-3">
+            <p className="text-xs uppercase tracking-[0.12em] text-gray-500">Total usage</p>
+            <p className="mt-1 text-lg font-semibold text-black">{formatStorage(storageTotals.total)}</p>
+          </div>
+          <div className="rounded-2xl border border-black/10 bg-white p-3">
+            <p className="text-xs uppercase tracking-[0.12em] text-gray-500">Registered customers</p>
+            <p className="mt-1 text-lg font-semibold text-black">{formatStorage(storageTotals.registered)}</p>
+          </div>
+          <div className="rounded-2xl border border-black/10 bg-white p-3">
+            <p className="text-xs uppercase tracking-[0.12em] text-gray-500">Prospect customers</p>
+            <p className="mt-1 text-lg font-semibold text-black">{formatStorage(storageTotals.prospect)}</p>
+          </div>
+        </div>
+      </SectionCard>
+
       <SectionCard className="rounded-3xl p-6">
         <WorkshopProfileForm action={updateProfile}>
           <div>
