@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
 type CustomerAccountRow = {
@@ -37,6 +38,48 @@ async function resolveCustomerAccountForUser(userId: string) {
   return (data as CustomerAccountRow | null) ?? null;
 }
 
+async function claimCustomerAccountByEmailFallback(input: {
+  userId: string;
+  email?: string;
+  displayName?: string;
+}): Promise<CustomerAccountRow | null> {
+  const normalizedEmail = input.email?.trim().toLowerCase();
+  if (!normalizedEmail) return null;
+
+  const admin = createAdminClient();
+
+  const { data: account } = await admin
+    .from('customer_accounts')
+    .update({ auth_user_id: input.userId })
+    .is('auth_user_id', null)
+    .ilike('linked_email', normalizedEmail)
+    .select('id,workshop_account_id')
+    .limit(1)
+    .maybeSingle();
+
+  const claimed = (account as CustomerAccountRow | null) ?? null;
+  if (!claimed?.id || !claimed.workshop_account_id) return null;
+
+  const preferredDisplayName =
+    input.displayName?.trim() || normalizedEmail.split('@')[0] || 'Customer';
+
+  await admin.from('profiles').upsert(
+    {
+      id: input.userId,
+      role: 'customer',
+      workshop_account_id: claimed.workshop_account_id,
+      display_name: preferredDisplayName
+    },
+    { onConflict: 'id' }
+  );
+
+  await admin
+    .from('customer_users')
+    .insert({ customer_account_id: claimed.id, profile_id: input.userId });
+
+  return claimed;
+}
+
 export async function getCustomerContextOrCreate(
   input?: { displayName?: string; tier?: string; allowAutoCreate?: boolean }
 ): Promise<CustomerContext | null> {
@@ -64,13 +107,22 @@ export async function getCustomerContextOrCreate(
 
   const isMissingClaimRpc =
     claimError?.code === 'PGRST202' ||
-    claimError?.message?.toLowerCase().includes('claim_customer_account_for_current_user') ||
+    claimError?.message
+      ?.toLowerCase()
+      .includes('claim_customer_account_for_current_user') ||
     false;
 
-  let customerAccount: CustomerAccountRow | null =
-    !claimError || isMissingClaimRpc
-      ? ((claimed as CustomerAccountRow | null) ?? null)
-      : null;
+  let customerAccount: CustomerAccountRow | null = !claimError
+    ? ((claimed as CustomerAccountRow | null) ?? null)
+    : null;
+
+  if (!customerAccount && isMissingClaimRpc) {
+    customerAccount = await claimCustomerAccountByEmailFallback({
+      userId: user.id,
+      email: user.email ?? undefined,
+      displayName: input?.displayName
+    });
+  }
 
   if (!customerAccount) {
     customerAccount = await resolveCustomerAccountForUser(user.id);

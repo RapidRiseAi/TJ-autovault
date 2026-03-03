@@ -1,7 +1,6 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { getCustomerContextOrCreate } from '@/lib/customer/get-customer-context-or-create';
 import { createClient } from '@/lib/supabase/server';
 
 export async function signupCustomerAction(formData: FormData) {
@@ -30,16 +29,6 @@ export async function signupCustomerAction(formData: FormData) {
 
   if (!data.user) {
     redirect('/signup?error=Signup%20failed.%20Please%20try%20again.');
-  }
-
-  const context = await getCustomerContextOrCreate({
-    displayName,
-    tier,
-    allowAutoCreate: false
-  });
-
-  if (!context) {
-    redirect('/signup?error=Your%20email%20is%20not%20linked%20to%20a%20workshop%20customer%20record%20yet.%20Please%20ask%20the%20workshop%20to%20link%20your%20email.');
   }
 
   redirect('/login?created=1');
