@@ -206,6 +206,9 @@ export default async function WorkshopDashboardPage({ searchParams }: { searchPa
               vehicles={(customerVehicles ?? []).map((vehicle) => ({ id: vehicle.id, registration_number: vehicle.registration_number }))}
               customers={customerRows.map((customer) => ({ id: customer.id, name: customer.name }))}
             />
+            <Button asChild variant="secondary" className="shadow-sm hover:-translate-y-px hover:shadow-md">
+              <Link href="/workshop/management">Open management center</Link>
+            </Button>
             <Button asChild className="shadow-sm hover:-translate-y-px hover:shadow-md">
               <Link href="/workshop/work-requests">Open work request board</Link>
             </Button>

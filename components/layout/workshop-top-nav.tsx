@@ -42,8 +42,8 @@ export async function WorkshopTopNav() {
     .eq('to_profile_id', user.id);
 
   const displayName =
-    profile?.full_name ||
     profile?.display_name ||
+    profile?.full_name ||
     user.email ||
     'Workshop user';
   const businessName = workshopAccount?.name || 'Workshop';
@@ -83,7 +83,7 @@ export async function WorkshopTopNav() {
             )}
             <div className="pr-2 text-left">
               <p className="text-xs font-semibold leading-tight text-black">
-                team
+                {displayName}
               </p>
               <p className="text-[11px] leading-tight text-gray-500">
                 {businessName}

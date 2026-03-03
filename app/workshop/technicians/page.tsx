@@ -130,67 +130,6 @@ async function updateTechnicianComp(formData: FormData) {
   redirect('/workshop/technicians?updated=1');
 }
 
-async function createTechnicianPayout(formData: FormData) {
-  'use server';
-
-  const supabase = await createClient();
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) redirect('/login');
-
-  const { data: actor } = await supabase
-    .from('profiles')
-    .select('id,role,workshop_account_id')
-    .eq('id', auth.user.id)
-    .maybeSingle();
-
-  if (!actor?.workshop_account_id || actor.role !== 'admin') redirect('/workshop/dashboard');
-
-  const technicianId = (formData.get('technicianId')?.toString() ?? '').trim();
-  const amount = Number(formData.get('amount')?.toString() ?? '0');
-  const notes = (formData.get('notes')?.toString() ?? '').trim();
-  const proof = formData.get('proof');
-
-  if (!technicianId || !Number.isFinite(amount) || amount <= 0 || !(proof instanceof File) || proof.size <= 0) {
-    redirect('/workshop/technicians?error=payout_invalid');
-  }
-
-  const adminSupabase = createAdminClient();
-  const safeName = sanitizeFileName(proof.name || 'payment-proof');
-  const proofPath = `technician-payouts/${actor.workshop_account_id}/${technicianId}/${Date.now()}-${safeName}`;
-  const upload = await adminSupabase.storage.from('private-images').upload(proofPath, proof, {
-    cacheControl: '3600',
-    contentType: proof.type || undefined,
-    upsert: false
-  });
-
-  if (upload.error) redirect('/workshop/technicians?error=payout_upload_failed');
-
-  const amountCents = Math.round(amount * 100);
-  const { error: payoutError } = await supabase.from('technician_payouts').insert({
-    workshop_account_id: actor.workshop_account_id,
-    technician_profile_id: technicianId,
-    amount_cents: amountCents,
-    proof_bucket: 'private-images',
-    proof_path: proofPath,
-    notes: notes || null,
-    created_by: actor.id
-  });
-
-  if (payoutError) redirect('/workshop/technicians?error=payout_failed');
-
-  await supabase.from('notifications').insert({
-    workshop_account_id: actor.workshop_account_id,
-    to_profile_id: technicianId,
-    kind: 'system',
-    title: 'Technician payment submitted',
-    body: `A payment of ${formatCurrency(amountCents)} was submitted and is waiting for your confirmation.`,
-    href: '/workshop/technicians'
-  });
-
-  revalidatePath('/workshop/technicians');
-  redirect('/workshop/technicians?payout=1');
-}
-
 async function confirmTechnicianPayout(formData: FormData) {
   'use server';
 
@@ -608,10 +547,10 @@ export default async function WorkshopTechniciansPage({
                             <Button type="submit" size="sm">Save</Button>
                           </div>
                         </form>
-                        <form action={createTechnicianPayout} className="rounded-xl border border-black/10 p-3">
+                        <form action="/api/workshop/technicians/payout" method="post" encType="multipart/form-data" className="rounded-xl border border-black/10 p-3">
                           <input type="hidden" name="technicianId" value={tech.id} />
                           <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">Pay technician (requires proof)</label>
-                          <input name="amount" type="number" min="0.01" step="0.01" placeholder="Amount" className="mb-2 w-full rounded-xl border border-black/15 px-3 py-2 text-sm" />
+                          <input name="amount" type="number" min="0.01" step="0.01" required placeholder="Amount" className="mb-2 w-full rounded-xl border border-black/15 px-3 py-2 text-sm" />
                           <input name="proof" type="file" required className="mb-2 w-full rounded-xl border border-black/15 px-3 py-2 text-xs" />
                           <textarea spellCheck autoCorrect="on" autoCapitalize="sentences" name="notes" rows={2} placeholder="Optional internal note" className="mb-2 w-full rounded-xl border border-black/15 px-3 py-2 text-xs" />
                           <Button type="submit" size="sm">Submit payment</Button>

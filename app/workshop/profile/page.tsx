@@ -8,6 +8,7 @@ import {
 } from '@/components/workshop/workshop-profile-form';
 import { SignaturePanel } from '@/components/workshop/signature-panel';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 function sanitizeOptionalField(formData: FormData, key: string) {
   const value = formData.get(key)?.toString().trim() ?? '';
@@ -26,6 +27,15 @@ async function updateProfile(
   if (!user) redirect('/login');
 
   const displayName = (formData.get('displayName')?.toString() ?? '').trim();
+  const loginEmail = (formData.get('loginEmail')?.toString() ?? '').trim().toLowerCase();
+
+  if (!loginEmail) {
+    return {
+      status: 'error',
+      message: 'Login email is required.'
+    };
+  }
+
   if (!displayName) {
     return {
       status: 'error',
@@ -58,6 +68,53 @@ async function updateProfile(
     };
   }
 
+  const currentEmail = (user.email ?? '').trim().toLowerCase();
+  const emailChanged = loginEmail !== currentEmail;
+  let usedAdminEmailFallback = false;
+
+  if (emailChanged) {
+    const { error: authUpdateError } = await supabase.auth.updateUser({
+      email: loginEmail
+    });
+
+    if (authUpdateError) {
+      const invalidCurrentEmail = authUpdateError.message
+        .toLowerCase()
+        .includes('is invalid');
+
+      if (!invalidCurrentEmail) {
+        return {
+          status: 'error',
+          message: `Profile saved, but login email could not be updated: ${authUpdateError.message}`
+        };
+      }
+
+      try {
+        const admin = createAdminClient();
+        usedAdminEmailFallback = true;
+        const { error: adminAuthUpdateError } = await admin.auth.admin.updateUserById(
+          user.id,
+          { email: loginEmail, email_confirm: true }
+        );
+
+        if (adminAuthUpdateError) {
+          return {
+            status: 'error',
+            message: `Profile saved, but login email could not be updated: ${adminAuthUpdateError.message}`
+          };
+        }
+      } catch (adminError) {
+        return {
+          status: 'error',
+          message:
+            adminError instanceof Error
+              ? `Profile saved, but login email could not be updated: ${adminError.message}`
+              : 'Profile saved, but login email could not be updated right now.'
+        };
+      }
+    }
+  }
+
   if (actorProfile?.workshop_account_id && actorProfile.role === 'admin') {
     const { error: workshopError } = await supabase
       .from('workshop_accounts')
@@ -83,7 +140,11 @@ async function updateProfile(
 
   return {
     status: 'success',
-    message: 'Workshop profile saved.'
+    message: emailChanged
+      ? usedAdminEmailFallback
+        ? 'Workshop profile saved and login email updated.'
+        : 'Workshop profile saved. Check your inbox to confirm your new login email.'
+      : 'Workshop profile saved.'
   };
 }
 
@@ -167,18 +228,20 @@ export default async function WorkshopProfilePage() {
           <div>
             <label
               className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500"
-              htmlFor="email"
+              htmlFor="loginEmail"
             >
               Login email
             </label>
             <input
-              id="email"
-              value={user.email ?? ''}
-              readOnly
+              id="loginEmail"
+              name="loginEmail"
+              type="email"
+              defaultValue={user.email ?? ''}
+              required
               spellCheck={false}
               autoCorrect="off"
               autoCapitalize="off"
-              className="w-full rounded-2xl border border-black/10 bg-gray-50 px-4 py-2.5 text-sm text-gray-600"
+              className="w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm"
             />
           </div>
 
