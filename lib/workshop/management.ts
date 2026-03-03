@@ -1,6 +1,7 @@
 import 'server-only';
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { buildMonthlyStatementPdf } from '@/lib/workshop/statement-pdf';
 
 export type WorkshopProfileContext = {
   id: string;
@@ -135,45 +136,125 @@ export async function ensureStatementArchivesUpToLastMonth(
   workshopId: string
 ) {
   const { year, month } = getSaTodayParts();
-  for (let back = 1; back <= 12; back += 1) {
-    const target = addMonths(year, month, -back);
-    const start = monthStartIso(target.year, target.month);
-    const end = monthEndIso(target.year, target.month);
+  const { data: workshop } = await supabase
+    .from('workshop_accounts')
+    .select('name')
+    .eq('id', workshopId)
+    .maybeSingle();
 
-    const { data: exists } = await supabase
+  const workshopName = workshop?.name?.trim() || 'Workshop';
+
+  const { data: earliestEntry } = await supabase
+    .from('workshop_finance_entries')
+    .select('occurred_on')
+    .eq('workshop_account_id', workshopId)
+    .order('occurred_on', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  const earliest = String(earliestEntry?.occurred_on ?? '').slice(0, 7);
+  if (!earliest) return;
+
+  const earliestYear = Number(earliest.slice(0, 4));
+  const earliestMonth = Number(earliest.slice(5, 7));
+  let cursorYear = earliestYear;
+  let cursorMonth = earliestMonth;
+
+  while (cursorYear < year || (cursorYear === year && cursorMonth < month)) {
+    const start = monthStartIso(cursorYear, cursorMonth);
+    const end = monthEndIso(cursorYear, cursorMonth);
+
+    const { data: existingArchive } = await supabase
       .from('workshop_monthly_statement_archives')
-      .select('id')
+      .select('id,totals,line_items,pdf_storage_path')
       .eq('workshop_account_id', workshopId)
       .eq('month_start', start)
       .maybeSingle();
 
-    if (exists) continue;
+    let archiveId = existingArchive?.id ?? null;
+    let totals = (existingArchive?.totals ?? {}) as { income_cents?: number; expense_cents?: number; profit_cents?: number };
+    let lineItems = (existingArchive?.line_items ?? []) as Array<Record<string, unknown>>;
 
-    const { data: entries } = await supabase
-      .from('workshop_finance_entries')
-      .select('id,entry_kind,source_type,category,description,amount_cents,occurred_on,vendor_id,metadata')
-      .eq('workshop_account_id', workshopId)
-      .gte('occurred_on', start)
-      .lte('occurred_on', end)
-      .order('occurred_on', { ascending: true });
+    if (!existingArchive) {
+      const { data: entries } = await supabase
+        .from('workshop_finance_entries')
+        .select('id,entry_kind,source_type,category,description,amount_cents,occurred_on,vendor_id,metadata')
+        .eq('workshop_account_id', workshopId)
+        .gte('occurred_on', start)
+        .lte('occurred_on', end)
+        .order('occurred_on', { ascending: true });
 
-    const income = (entries ?? [])
-      .filter((entry) => entry.entry_kind === 'income')
-      .reduce((sum, entry) => sum + Number(entry.amount_cents ?? 0), 0);
-    const expenses = (entries ?? [])
-      .filter((entry) => entry.entry_kind === 'expense')
-      .reduce((sum, entry) => sum + Number(entry.amount_cents ?? 0), 0);
+      const income = (entries ?? [])
+        .filter((entry) => entry.entry_kind === 'income')
+        .reduce((sum, entry) => sum + Number(entry.amount_cents ?? 0), 0);
+      const expenses = (entries ?? [])
+        .filter((entry) => entry.entry_kind === 'expense')
+        .reduce((sum, entry) => sum + Number(entry.amount_cents ?? 0), 0);
+      const profit = income - expenses;
 
-    await supabase.from('workshop_monthly_statement_archives').insert({
-      workshop_account_id: workshopId,
-      month_start: start,
-      month_end: end,
-      totals: {
-        income_cents: income,
-        expense_cents: expenses,
-        profit_cents: income - expenses
-      },
-      line_items: entries ?? []
-    });
+      if (income === 0 && expenses === 0 && profit === 0) {
+        const next = addMonths(cursorYear, cursorMonth, 1);
+        cursorYear = next.year;
+        cursorMonth = next.month;
+        continue;
+      }
+
+      totals = { income_cents: income, expense_cents: expenses, profit_cents: profit };
+      lineItems = (entries ?? []) as Array<Record<string, unknown>>;
+
+      const { data: insertedArchive } = await supabase
+        .from('workshop_monthly_statement_archives')
+        .insert({
+          workshop_account_id: workshopId,
+          month_start: start,
+          month_end: end,
+          totals,
+          line_items: lineItems
+        })
+        .select('id')
+        .maybeSingle();
+
+      archiveId = insertedArchive?.id ?? null;
+    }
+
+    const income = Number(totals.income_cents ?? 0);
+    const expenses = Number(totals.expense_cents ?? 0);
+    const profit = Number(totals.profit_cents ?? income - expenses);
+
+    if (archiveId && !existingArchive?.pdf_storage_path && (income !== 0 || expenses !== 0 || profit !== 0)) {
+      const pdfBytes = await buildMonthlyStatementPdf({
+        workshopName,
+        monthStart: start,
+        monthEnd: end,
+        totals: { income_cents: income, expense_cents: expenses, profit_cents: profit },
+        lineItems: lineItems as Array<{
+          occurred_on?: string;
+          entry_kind?: 'income' | 'expense' | string;
+          description?: string | null;
+          category?: string | null;
+          amount_cents?: number | string | null;
+        }>
+      });
+
+      const storagePath = `workshop/${workshopId}/statements/${start}.pdf`;
+      const { error: uploadError } = await supabase.storage
+        .from('vehicle-files')
+        .upload(storagePath, Buffer.from(pdfBytes), { upsert: true, contentType: 'application/pdf' });
+
+      if (!uploadError) {
+        await supabase
+          .from('workshop_monthly_statement_archives')
+          .update({
+            pdf_storage_path: storagePath,
+            pdf_generated_at: new Date().toISOString()
+          })
+          .eq('id', archiveId)
+          .eq('workshop_account_id', workshopId);
+      }
+    }
+
+    const next = addMonths(cursorYear, cursorMonth, 1);
+    cursorYear = next.year;
+    cursorMonth = next.month;
   }
 }
