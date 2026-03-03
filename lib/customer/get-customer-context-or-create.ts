@@ -136,6 +136,27 @@ async function claimCustomerAccountByEmailFallback(input: {
     });
   }
 
+
+  const { data: duplicateMemberships } = await admin
+    .from('customer_users')
+    .select('customer_account_id')
+    .eq('profile_id', input.userId)
+    .neq('customer_account_id', candidateAccount.id);
+
+  for (const membership of duplicateMemberships ?? []) {
+    await admin
+      .from('customer_users')
+      .delete()
+      .eq('profile_id', input.userId)
+      .eq('customer_account_id', membership.customer_account_id);
+
+    await tryDeleteObsoleteCustomerAccount({
+      admin,
+      obsoleteAccountId: membership.customer_account_id,
+      linkedAccountId: candidateAccount.id
+    });
+  }
+
   const { data: account } = await admin
     .from('customer_accounts')
     .update({ auth_user_id: input.userId })

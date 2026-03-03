@@ -119,6 +119,27 @@ async function linkCustomerAccountFromWorkshopEmail(input: {
     });
   }
 
+
+  const { data: duplicateMemberships } = await admin
+    .from('customer_users')
+    .select('customer_account_id')
+    .eq('profile_id', input.userId)
+    .neq('customer_account_id', linkedCustomer.id);
+
+  for (const membership of duplicateMemberships ?? []) {
+    await admin
+      .from('customer_users')
+      .delete()
+      .eq('profile_id', input.userId)
+      .eq('customer_account_id', membership.customer_account_id);
+
+    await tryDeleteObsoleteCustomerAccount({
+      admin,
+      obsoleteAccountId: membership.customer_account_id,
+      linkedAccountId: linkedCustomer.id
+    });
+  }
+
   const { error: linkError } = await admin
     .from('customer_accounts')
     .update({
