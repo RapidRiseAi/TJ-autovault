@@ -16,6 +16,7 @@ import {
 } from '@/lib/actions/job-cards';
 import { formatJobCardStatus, JOB_CARD_STATUSES } from '@/lib/job-cards';
 import { parseAmountInputToCents } from '@/lib/money';
+import { FinancialDocumentBuilder } from '@/components/workshop/financial-document-builder';
 
 type Tab =
   | 'overview'
@@ -1282,133 +1283,46 @@ export function JobCardDetailClient(props: {
       <Modal
         open={invoiceModalOpen}
         onClose={() => setInvoiceModalOpen(false)}
-        title="Close job and upload invoice"
+        title="Close job and create invoice"
       >
-        <form
-          className="space-y-3"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!invoiceFile || invoiceDisabled) return;
-
-            setIsUploading(true);
-            void (async () => {
-              try {
-                const precheck = await canCloseJobCard({ jobId: props.jobId });
-                if (!precheck.ok) {
-                  setRequirementsPromptOpen(true);
-                  throw new Error(precheck.error);
-                }
-
-                await uploadDocument({
-                  file: invoiceFile,
-                  docType: 'invoice',
-                  subject: invoiceSubject.trim(),
-                  body: invoiceNote.trim() || undefined,
-                  amount: invoiceAmount,
-                  referenceNumber: invoiceReference.trim(),
-                  dueDate: invoiceDueDate || undefined,
-                  quoteId: props.linkedQuoteId
-                });
-
-                setIsClosingJob(true);
-                const closeResult = await closeJobCard({ jobId: props.jobId });
-                setIsClosingJob(false);
-
-                if (!closeResult.ok) {
-                  throw new Error(closeResult.error);
-                }
-
-                setInvoiceModalOpen(false);
-                pushToast({
-                  title: 'Invoice uploaded and job closed',
-                  tone: 'success'
-                });
-                window.location.href = `/workshop/vehicles/${props.vehicleId}`;
-              } catch (error) {
-                pushToast({
-                  title: 'Invoice flow failed',
-                  description:
-                    error instanceof Error
-                      ? error.message
-                      : 'Please try again.',
-                  tone: 'error'
-                });
-              } finally {
-                setIsUploading(false);
-                setIsClosingJob(false);
-              }
-            })();
-          }}
-        >
+        <div className="space-y-3">
           <p className="text-xs text-gray-500">
-            Invoice upload is limited to invoice documents only and stays inside
-            this job card view.
+            Create a structured invoice with line items. A signed PDF will be generated automatically.
           </p>
-          <input
-            value={invoiceSubject}
-            onChange={(event) => setInvoiceSubject(event.target.value)}
-            placeholder="Invoice subject"
-            required
-            className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
-            spellCheck
-            autoCorrect="on"
-            autoCapitalize="sentences"
-          />
-          <input
-            type="text"
-            value={invoiceAmount}
-            onChange={(event) => {
-              setInvoiceAmount(event.target.value);
-              setInvoiceAmountPrefilled(false);
+          <FinancialDocumentBuilder
+            vehicleId={props.vehicleId}
+            kind="invoice"
+            linkedQuoteId={props.linkedQuoteId}
+            onDone={() => {
+              setIsClosingJob(true);
+              void (async () => {
+                try {
+                  const precheck = await canCloseJobCard({ jobId: props.jobId });
+                  if (!precheck.ok) {
+                    setRequirementsPromptOpen(true);
+                    throw new Error(precheck.error);
+                  }
+
+                  const closeResult = await closeJobCard({ jobId: props.jobId });
+                  if (!closeResult.ok) throw new Error(closeResult.error);
+
+                  setInvoiceModalOpen(false);
+                  pushToast({ title: 'Invoice created and job closed', tone: 'success' });
+                  window.location.href = `/workshop/vehicles/${props.vehicleId}`;
+                } catch (error) {
+                  pushToast({
+                    title: 'Invoice flow failed',
+                    description:
+                      error instanceof Error ? error.message : 'Please try again.',
+                    tone: 'error'
+                  });
+                } finally {
+                  setIsClosingJob(false);
+                }
+              })();
             }}
-            placeholder="Amount"
-            required
-            spellCheck={false}
-            autoCorrect="off"
-            autoCapitalize="off"
-            className={`w-full rounded-xl border px-3 py-2 text-sm ${invoiceAmountPrefilled ? 'border-amber-300 bg-amber-50 ring-1 ring-amber-200' : 'border-neutral-300'}`}
           />
-          <input
-            value={invoiceReference}
-            onChange={(event) => setInvoiceReference(event.target.value)}
-            placeholder="Invoice reference number"
-            required
-            spellCheck={false}
-            autoCorrect="off"
-            autoCapitalize="off"
-            className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
-          />
-          <input
-            type="date"
-            value={invoiceDueDate}
-            onChange={(event) => setInvoiceDueDate(event.target.value)}
-            className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
-          />
-          <textarea
-            value={invoiceNote}
-            onChange={(event) => setInvoiceNote(event.target.value)}
-            placeholder="Invoice note (optional)"
-            className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
-            rows={3}
-            spellCheck
-            autoCorrect="on"
-            autoCapitalize="sentences"
-          />
-          <input
-            type="file"
-            accept="application/pdf,image/*"
-            required
-            onChange={(event) =>
-              setInvoiceFile(event.target.files?.[0] ?? null)
-            }
-            className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
-          />
-          <Button disabled={invoiceDisabled || isClosingJob}>
-            {isUploading || isClosingJob
-              ? 'Processing…'
-              : 'Upload invoice and close'}
-          </Button>
-        </form>
+        </div>
       </Modal>
 
       <Modal
