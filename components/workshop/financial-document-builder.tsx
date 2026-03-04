@@ -10,17 +10,19 @@ type ItemRow = {
   unitPrice: string;
   discountType: 'none' | 'percent' | 'fixed';
   discountValue: string;
+  taxType: 'none' | 'percent';
   taxRate: string;
   category: string;
 };
 
 const EMPTY_ITEM: ItemRow = {
   description: '',
-  qty: '1',
+  qty: '',
   unitPrice: '',
   discountType: 'none',
-  discountValue: '0',
-  taxRate: '0',
+  discountValue: '',
+  taxType: 'none',
+  taxRate: '',
   category: ''
 };
 
@@ -58,12 +60,19 @@ export function FinancialDocumentBuilder({
     return (
       referenceNumber.trim().length > 0 &&
       subject.trim().length > 0 &&
-      items.every(
-        (item) =>
-          item.description.trim() &&
-          Number(item.qty) > 0 &&
-          Number(item.unitPrice) >= 0
-      )
+      items.every((item) => {
+        const qtyValid = item.qty.trim().length > 0 && Number(item.qty) > 0;
+        const unitValid =
+          item.unitPrice.trim().length > 0 && Number(item.unitPrice) >= 0;
+        const discountValid =
+          item.discountType === 'none'
+            ? true
+            : item.discountValue.trim().length > 0;
+        const taxValid =
+          item.taxType === 'none' ? true : item.taxRate.trim().length > 0;
+
+        return item.description.trim() && qtyValid && unitValid && discountValid && taxValid;
+      })
     );
   }, [items, referenceNumber, subject]);
 
@@ -74,8 +83,9 @@ export function FinancialDocumentBuilder({
       qty: Number(item.qty),
       unitPriceCents: toCents(item.unitPrice) ?? 0,
       discountType: item.discountType,
-      discountValue: Number(item.discountValue || '0'),
-      taxRate: Number(item.taxRate || '0'),
+      discountValue:
+        item.discountType === 'none' ? 0 : Number(item.discountValue || '0'),
+      taxRate: item.taxType === 'none' ? 0 : Number(item.taxRate || '0'),
       category: item.category.trim() || undefined
     }));
 
@@ -190,7 +200,7 @@ export function FinancialDocumentBuilder({
 
       <div className="rounded border p-2">
         <p className="mb-2 text-xs text-gray-600">
-          Line item fields: Description • Qty (how many) • Unit price • Discount type/value • Tax % • Category
+          Fill each line item below. Numeric fields are blank by default and must be typed.
         </p>
         <div className="space-y-2">
           {items.map((item, index) => (
@@ -215,8 +225,8 @@ export function FinancialDocumentBuilder({
                   type="number"
                   min="0.01"
                   step="0.01"
-                  placeholder="Qty (e.g. 1)"
-                  title="Quantity / number of units"
+                  inputMode="decimal"
+                  placeholder="Qty (how many?)"
                   value={item.qty}
                   onChange={(event) =>
                     setItems((current) =>
@@ -231,8 +241,8 @@ export function FinancialDocumentBuilder({
                   type="number"
                   min="0"
                   step="0.01"
+                  inputMode="decimal"
                   placeholder="Unit price"
-                  title="Price per single unit"
                   value={item.unitPrice}
                   onChange={(event) =>
                     setItems((current) =>
@@ -253,7 +263,9 @@ export function FinancialDocumentBuilder({
                         rowIndex === index
                           ? {
                               ...row,
-                              discountType: event.target.value as ItemRow['discountType']
+                              discountType: event.target.value as ItemRow['discountType'],
+                              discountValue:
+                                event.target.value === 'none' ? '' : row.discountValue
                             }
                           : row
                       )
@@ -269,11 +281,15 @@ export function FinancialDocumentBuilder({
                   type="number"
                   min="0"
                   step="0.01"
+                  inputMode="decimal"
                   placeholder={
                     item.discountType === 'percent'
                       ? 'Discount %'
-                      : 'Discount amount'
+                      : item.discountType === 'fixed'
+                        ? 'Discount amount'
+                        : 'Discount value'
                   }
+                  disabled={item.discountType === 'none'}
                   value={item.discountValue}
                   onChange={(event) =>
                     setItems((current) =>
@@ -286,14 +302,36 @@ export function FinancialDocumentBuilder({
                   }
                 />
               </div>
-              <div className="mt-2 grid gap-2 md:grid-cols-3">
+              <div className="mt-2 grid gap-2 md:grid-cols-4">
+                <select
+                  className="rounded border p-2"
+                  value={item.taxType}
+                  onChange={(event) =>
+                    setItems((current) =>
+                      current.map((row, rowIndex) =>
+                        rowIndex === index
+                          ? {
+                              ...row,
+                              taxType: event.target.value as ItemRow['taxType'],
+                              taxRate: event.target.value === 'none' ? '' : row.taxRate
+                            }
+                          : row
+                      )
+                    )
+                  }
+                >
+                  <option value="none">No tax</option>
+                  <option value="percent">Charge tax %</option>
+                </select>
                 <input
                   className="rounded border p-2"
                   type="number"
                   min="0"
                   max="100"
                   step="0.01"
+                  inputMode="decimal"
                   placeholder="Tax % (e.g. 15)"
+                  disabled={item.taxType === 'none'}
                   value={item.taxRate}
                   onChange={(event) =>
                     setItems((current) =>
