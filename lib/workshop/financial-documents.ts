@@ -193,24 +193,34 @@ export async function buildFinancialDocumentPdf(params: {
 
   const tableX = left;
   const tableWidth = right - left;
+  const tableRight = tableX + tableWidth;
   const col = {
-    description: tableX + 8,
-    qty: tableX + 255,
-    unit: tableX + 298,
-    discount: tableX + 372,
-    tax: tableX + 442,
-    total: tableX + 508
+    description: tableX + 10,
+    qtyRight: tableX + 312,
+    unitRight: tableX + 390,
+    discountRight: tableX + 465,
+    taxRight: tableX + 515,
+    totalRight: tableRight - 10
+  };
+
+  const drawRightInColumn = (text: string, rightX: number, yPos: number, size = 9, font = regular) => {
+    page.drawText(text, {
+      x: rightX - font.widthOfTextAtSize(text, size),
+      y: yPos,
+      size,
+      font
+    });
   };
 
   page.drawRectangle({ x: tableX, y: y - 24, width: tableWidth, height: 24, color: rgb(0.94, 0.94, 0.95) });
   page.drawRectangle({ x: tableX, y: y - 24, width: tableWidth, height: 24, borderWidth: 1, borderColor: rgb(0.8, 0.8, 0.82) });
 
   page.drawText('Description', { x: col.description, y: y - 16, size: 9, font: bold });
-  page.drawText('Qty', { x: col.qty, y: y - 16, size: 9, font: bold });
-  page.drawText('Unit', { x: col.unit, y: y - 16, size: 9, font: bold });
-  page.drawText('Discount', { x: col.discount, y: y - 16, size: 9, font: bold });
-  page.drawText('Tax', { x: col.tax, y: y - 16, size: 9, font: bold });
-  page.drawText('Total', { x: col.total, y: y - 16, size: 9, font: bold });
+  drawRightInColumn('Qty', col.qtyRight, y - 16, 9, bold);
+  drawRightInColumn('Unit', col.unitRight, y - 16, 9, bold);
+  drawRightInColumn('Discount', col.discountRight, y - 16, 9, bold);
+  drawRightInColumn('Tax', col.taxRight, y - 16, 9, bold);
+  drawRightInColumn('Total', col.totalRight, y - 16, 9, bold);
 
   y -= 24;
 
@@ -223,19 +233,19 @@ export async function buildFinancialDocumentPdf(params: {
     page.drawRectangle({ x: tableX, y: rowY, width: tableWidth, height: rowHeight, borderWidth: 0.5, borderColor: rgb(0.86, 0.86, 0.88) });
 
     page.drawText(clampText(item.description, 52), { x: col.description, y: rowY + 7, size: 9, font: regular });
-    page.drawText(String(item.qty), { x: col.qty, y: rowY + 7, size: 9, font: regular });
-    page.drawText(formatMoney(item.unitPriceCents, params.currencyCode), { x: col.unit, y: rowY + 7, size: 9, font: regular });
-    page.drawText(formatMoney(item.discountCents, params.currencyCode), { x: col.discount, y: rowY + 7, size: 9, font: regular });
-    page.drawText(formatMoney(item.taxCents, params.currencyCode), { x: col.tax, y: rowY + 7, size: 9, font: regular });
-    page.drawText(formatMoney(item.lineTotalCents, params.currencyCode), { x: col.total, y: rowY + 7, size: 9, font: regular });
+    drawRightInColumn(String(item.qty), col.qtyRight, rowY + 7);
+    drawRightInColumn(formatMoney(item.unitPriceCents, params.currencyCode), col.unitRight, rowY + 7);
+    drawRightInColumn(formatMoney(item.discountCents, params.currencyCode), col.discountRight, rowY + 7);
+    drawRightInColumn(formatMoney(item.taxCents, params.currencyCode), col.taxRight, rowY + 7);
+    drawRightInColumn(formatMoney(item.lineTotalCents, params.currencyCode), col.totalRight, rowY + 7);
 
     y -= rowHeight;
     if (y < 250) break;
   }
 
-  const totalsBoxX = right - 210;
+  const totalsBoxX = right - 220;
   const totalsBoxY = y - 96;
-  page.drawRectangle({ x: totalsBoxX, y: totalsBoxY, width: 210, height: 96, borderWidth: 1, borderColor: rgb(0.8, 0.8, 0.82) });
+  page.drawRectangle({ x: totalsBoxX, y: totalsBoxY, width: 220, height: 96, borderWidth: 1, borderColor: rgb(0.8, 0.8, 0.82) });
 
   const drawTotalLine = (label: string, value: string, yy: number, emphasize = false) => {
     page.drawText(label, {
@@ -247,7 +257,7 @@ export async function buildFinancialDocumentPdf(params: {
     const font = emphasize ? bold : regular;
     const size = emphasize ? 11 : 10;
     page.drawText(value, {
-      x: totalsBoxX + 200 - font.widthOfTextAtSize(value, size),
+      x: totalsBoxX + 210 - font.widthOfTextAtSize(value, size),
       y: yy,
       size,
       font
@@ -261,7 +271,7 @@ export async function buildFinancialDocumentPdf(params: {
 
   if (params.kind === 'invoice') {
     const statusY = totalsBoxY - 46;
-    page.drawRectangle({ x: totalsBoxX, y: statusY, width: 210, height: 40, borderWidth: 1, borderColor: rgb(0.8, 0.8, 0.82) });
+    page.drawRectangle({ x: totalsBoxX, y: statusY, width: 220, height: 40, borderWidth: 1, borderColor: rgb(0.8, 0.8, 0.82) });
     drawTotalLine('Paid', formatMoney(params.totals.amountPaidCents ?? 0, params.currencyCode), statusY + 24);
     drawTotalLine(
       'Balance due',
