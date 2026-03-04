@@ -6,8 +6,7 @@ import { WatermarkLink } from '@/components/layout/watermark-link';
 
 export const metadata = {
   title: 'autovault',
-  description: 'Multi-tenant workshop and customer portal',
-  manifest: '/manifest.webmanifest'
+  description: 'Multi-tenant workshop and customer portal'
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

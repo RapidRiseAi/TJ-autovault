@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
-import { dispatchWebPushForNotifications } from '@/lib/push/dispatch';
 
 function sanitizeFileName(fileName: string) {
   const [rawBase, ...rest] = fileName.trim().split('.');
@@ -76,22 +75,14 @@ export async function POST(request: Request) {
 
     if (payoutError) return redirectWithStatus(request, '?error=payout_failed');
 
-    const { data: payoutNotification } = await supabase
-      .from('notifications')
-      .insert({
-        workshop_account_id: actor.workshop_account_id,
-        to_profile_id: technicianId,
-        kind: 'system',
-        title: 'Technician payment submitted',
-        body: `A payment was submitted and is waiting for your confirmation.`,
-        href: '/workshop/technicians'
-      })
-      .select('id')
-      .maybeSingle();
-
-    if (payoutNotification?.id) {
-      await dispatchWebPushForNotifications([payoutNotification.id]);
-    }
+    await supabase.from('notifications').insert({
+      workshop_account_id: actor.workshop_account_id,
+      to_profile_id: technicianId,
+      kind: 'system',
+      title: 'Technician payment submitted',
+      body: `A payment was submitted and is waiting for your confirmation.`,
+      href: '/workshop/technicians'
+    });
 
     const financeRef = `technician_payout:${technicianId}:${proofPath}`;
     const { error: financeError } = await supabase.from('workshop_finance_entries').upsert(
