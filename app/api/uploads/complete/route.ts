@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
-import { dispatchWebPushForNotifications } from '@/lib/push/dispatch';
 
 const requestSchema = z.object({
   vehicleId: z.string().uuid(),
@@ -334,28 +333,20 @@ export async function POST(request: NextRequest) {
     actorRole === 'customer' && normalizedDocType === 'report';
 
   if (shouldNotifyCustomer) {
-    const { data: customerNotification } = await supabase
-      .from('notifications')
-      .insert({
-        workshop_account_id: vehicle.workshop_account_id,
-        to_customer_account_id: vehicle.current_customer_account_id,
-        kind:
-          normalizedDocType === 'invoice'
-            ? 'invoice'
-            : normalizedDocType === 'quote'
-              ? 'quote'
-              : 'report',
-        title: payload.subject || `New ${normalizedDocType.replace('_', ' ')}`,
-        body: payload.body || 'A document was uploaded for your vehicle.',
-        href: `/customer/vehicles/${payload.vehicleId}`,
-        data: notificationData
-      })
-      .select('id')
-      .maybeSingle();
-
-    if (customerNotification?.id) {
-      await dispatchWebPushForNotifications([customerNotification.id]);
-    }
+    await supabase.from('notifications').insert({
+      workshop_account_id: vehicle.workshop_account_id,
+      to_customer_account_id: vehicle.current_customer_account_id,
+      kind:
+        normalizedDocType === 'invoice'
+          ? 'invoice'
+          : normalizedDocType === 'quote'
+            ? 'quote'
+            : 'report',
+      title: payload.subject || `New ${normalizedDocType.replace('_', ' ')}`,
+      body: payload.body || 'A document was uploaded for your vehicle.',
+      href: `/customer/vehicles/${payload.vehicleId}`,
+      data: notificationData
+    });
   }
 
   if (shouldNotifyWorkshop) {
