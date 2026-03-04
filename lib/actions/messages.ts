@@ -2,6 +2,8 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { dispatchWebPushForNotifications } from '@/lib/push/dispatch';
 import { getCustomerContextOrCreate } from '@/lib/customer/get-customer-context-or-create';
 
 type MessageResult = { ok: true; conversationId: string } | { ok: false; error: string };
@@ -18,6 +20,27 @@ type ReplyInput = {
   body: string;
   inReplyToMessageId?: string | null;
 };
+
+
+async function dispatchPushForConversation(conversationId: string) {
+  try {
+    const admin = createAdminClient();
+    const since = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const { data } = await admin
+      .from('notifications')
+      .select('id')
+      .eq('kind', 'message')
+      .eq('data->>message_thread_id', conversationId)
+      .gte('created_at', since)
+      .order('created_at', { ascending: false })
+      .limit(3);
+
+    const ids = (data ?? []).map((row) => row.id).filter(Boolean) as string[];
+    if (ids.length) await dispatchWebPushForNotifications(ids);
+  } catch {
+    // keep message flow resilient even if push dispatch fails
+  }
+}
 
 function revalidateMessageViews(conversationId: string, vehicleId?: string | null) {
   const paths = [
@@ -73,6 +96,7 @@ export async function createMessage(input: CreateMessageInput): Promise<MessageR
   if (error || !data) return { ok: false, error: error?.message ?? 'Unable to send message.' };
 
   const result = data as { conversation_id: string; vehicle_id: string | null };
+  await dispatchPushForConversation(result.conversation_id);
   revalidateMessageViews(result.conversation_id, result.vehicle_id);
   return { ok: true, conversationId: result.conversation_id };
 }
@@ -94,6 +118,7 @@ export async function replyToMessage(input: ReplyInput): Promise<MessageResult> 
   if (error || !data) return { ok: false, error: error?.message ?? 'Unable to send reply.' };
 
   const result = data as { conversation_id: string; vehicle_id: string | null };
+  await dispatchPushForConversation(result.conversation_id);
   revalidateMessageViews(result.conversation_id, result.vehicle_id);
   return { ok: true, conversationId: result.conversation_id };
 }
