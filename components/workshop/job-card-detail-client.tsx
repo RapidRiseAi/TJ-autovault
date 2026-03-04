@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast-provider';
@@ -31,14 +31,6 @@ type StatusValue = Exclude<(typeof JOB_CARD_STATUSES)[number], 'not_started'>;
 const MANUAL_STATUS_OPTIONS: StatusValue[] = JOB_CARD_STATUSES.filter(
   (status) => !['not_started', 'completed', 'closed'].includes(status)
 ) as StatusValue[];
-
-function centsToInput(cents?: number) {
-  if (!cents) return '';
-  const whole = Math.floor(cents / 100);
-  const decimal = cents % 100;
-  if (!decimal) return String(whole);
-  return `${whole}.${String(decimal).padStart(2, '0')}`.replace(/0$/, '');
-}
 
 function formatDateTime(value?: string | null) {
   if (!value) return '—';
@@ -152,18 +144,6 @@ export function JobCardDetailClient(props: {
   const [photoUploadTitle, setPhotoUploadTitle] = useState('');
   const [photoUploadFile, setPhotoUploadFile] = useState<File | null>(null);
   const [logNote, setLogNote] = useState('');
-
-  const [invoiceSubject, setInvoiceSubject] = useState('Invoice');
-  const [invoiceAmount, setInvoiceAmount] = useState(
-    centsToInput(props.linkedQuoteAmountCents)
-  );
-  const [invoiceAmountPrefilled, setInvoiceAmountPrefilled] = useState(
-    Boolean(props.linkedQuoteAmountCents)
-  );
-  const [invoiceReference, setInvoiceReference] = useState('');
-  const [invoiceNote, setInvoiceNote] = useState('');
-  const [invoiceDueDate, setInvoiceDueDate] = useState('');
-  const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
 
   const hasCompletionStatus = ['ready', 'completed'].includes(props.status);
   const hasCompletionPhoto = props.photos.some(
@@ -326,24 +306,6 @@ export function JobCardDetailClient(props: {
       );
     }
   }
-
-  const invoiceDisabled = useMemo(
-    () =>
-      props.isLocked ||
-      isUploading ||
-      !invoiceFile ||
-      !invoiceSubject.trim() ||
-      !invoiceAmount.trim() ||
-      !invoiceReference.trim(),
-    [
-      invoiceAmount,
-      invoiceFile,
-      invoiceReference,
-      invoiceSubject,
-      isUploading,
-      props.isLocked
-    ]
-  );
 
   const openBlockers = props.blockers.filter((blocker) => !blocker.resolved_at);
   const pendingApprovals = props.approvals.filter(
@@ -596,14 +558,10 @@ export function JobCardDetailClient(props: {
                     setRequirementsPromptOpen(true);
                     return;
                   }
-                  setInvoiceAmount(centsToInput(props.linkedQuoteAmountCents));
-                  setInvoiceAmountPrefilled(
-                    Boolean(props.linkedQuoteAmountCents)
-                  );
                   setInvoiceModalOpen(true);
                 }}
               >
-                Close & upload invoice
+                Close & create invoice
               </Button>
             ) : null}
           </div>

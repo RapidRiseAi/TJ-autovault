@@ -98,7 +98,6 @@ export async function POST(request: NextRequest) {
     };
 
     let linkedId: string;
-    let documentType: 'quote' | 'invoice' = payload.kind;
 
     if (payload.kind === 'quote') {
       const { data: quote, error: quoteError } = await supabase
