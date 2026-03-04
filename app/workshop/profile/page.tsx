@@ -131,7 +131,15 @@ async function updateProfile(
         contact_phone: sanitizeOptionalField(formData, 'contactPhone'),
         website_url: sanitizeOptionalField(formData, 'websiteUrl'),
         booking_url: sanitizeOptionalField(formData, 'bookingUrl'),
-        contact_signature: sanitizeOptionalField(formData, 'contactSignature')
+        contact_signature: sanitizeOptionalField(formData, 'contactSignature'),
+        billing_address: sanitizeOptionalField(formData, 'billingAddress'),
+        tax_number: sanitizeOptionalField(formData, 'taxNumber'),
+        bank_name: sanitizeOptionalField(formData, 'bankName'),
+        bank_account_number: sanitizeOptionalField(formData, 'bankAccountNumber'),
+        bank_branch_code: sanitizeOptionalField(formData, 'bankBranchCode'),
+        invoice_payment_terms_days: Number(formData.get('invoiceTermsDays') ?? 0) || null,
+        quote_validity_days: Number(formData.get('quoteValidityDays') ?? 0) || null,
+        invoice_footer: sanitizeOptionalField(formData, 'invoiceFooter')
       })
       .eq('id', actorProfile.workshop_account_id);
 
@@ -173,7 +181,7 @@ export default async function WorkshopProfilePage() {
     ? await supabase
         .from('workshop_accounts')
         .select(
-          'name,contact_email,contact_phone,website_url,booking_url,contact_signature'
+          'name,contact_email,contact_phone,website_url,booking_url,contact_signature,billing_address,tax_number,bank_name,bank_account_number,bank_branch_code,invoice_payment_terms_days,quote_validity_days,invoice_footer'
         )
         .eq('id', profile.workshop_account_id)
         .maybeSingle()
@@ -372,6 +380,38 @@ export default async function WorkshopProfilePage() {
                   className="w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm"
                   placeholder="https://..."
                 />
+              </div>
+              <div className="md:col-span-2">
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500" htmlFor="billingAddress">Billing address</label>
+                <textarea id="billingAddress" name="billingAddress" defaultValue={workshop?.billing_address ?? ''} className="min-h-20 w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm" placeholder="Street, suburb, city, postal code" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500" htmlFor="taxNumber">Tax/VAT number</label>
+                <input id="taxNumber" name="taxNumber" defaultValue={workshop?.tax_number ?? ''} className="w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500" htmlFor="invoiceTermsDays">Default invoice terms (days)</label>
+                <input id="invoiceTermsDays" name="invoiceTermsDays" type="number" min={0} defaultValue={workshop?.invoice_payment_terms_days ?? ''} className="w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500" htmlFor="quoteValidityDays">Default quote validity (days)</label>
+                <input id="quoteValidityDays" name="quoteValidityDays" type="number" min={0} defaultValue={workshop?.quote_validity_days ?? ''} className="w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500" htmlFor="bankName">Bank name</label>
+                <input id="bankName" name="bankName" defaultValue={workshop?.bank_name ?? ''} className="w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500" htmlFor="bankAccountNumber">Bank account number</label>
+                <input id="bankAccountNumber" name="bankAccountNumber" defaultValue={workshop?.bank_account_number ?? ''} className="w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500" htmlFor="bankBranchCode">Bank branch code</label>
+                <input id="bankBranchCode" name="bankBranchCode" defaultValue={workshop?.bank_branch_code ?? ''} className="w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm" />
+              </div>
+              <div className="md:col-span-2">
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500" htmlFor="invoiceFooter">Invoice / quote footer</label>
+                <textarea id="invoiceFooter" name="invoiceFooter" defaultValue={workshop?.invoice_footer ?? ''} className="min-h-20 w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm" placeholder="Payment instructions, thank-you note, etc." />
               </div>
               <div className="md:col-span-2">
                 <label

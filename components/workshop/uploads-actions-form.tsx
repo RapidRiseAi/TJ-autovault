@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation';
 import { Modal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast-provider';
 import { canCloseJobCard, closeJobCard } from '@/lib/actions/job-cards';
-import { parseAmountInputToCents } from '@/lib/money';
 import { InspectionReportFormRenderer } from '@/components/workshop/inspection-report-form-renderer';
+import { FinancialDocumentBuilder } from '@/components/workshop/financial-document-builder';
 
 const DOCUMENT_TYPES = [
   {
@@ -22,13 +22,6 @@ const DOCUMENT_TYPES = [
 type DocType = (typeof DOCUMENT_TYPES)[number]['value'];
 type Urgency = 'info' | 'low' | 'medium' | 'high' | 'critical';
 
-function formatCentsInput(cents: number) {
-  const whole = Math.floor(cents / 100);
-  const remainder = cents % 100;
-  if (!remainder) return String(whole);
-  return `${whole}.${String(remainder).padStart(2, '0')}`.replace(/0$/, '');
-}
-
 export function UploadsActionsForm({
   vehicleId,
   onSuccess,
@@ -36,11 +29,11 @@ export function UploadsActionsForm({
   initialDocumentType,
   initialSubject,
   pendingCloseJobId,
-  initialAmountCents,
   linkedQuoteId,
   currentMileage,
   technicians = [],
-  currentProfileId
+  currentProfileId,
+  customerAccountId
 }: {
   vehicleId: string;
   onSuccess?: () => void;
@@ -53,6 +46,7 @@ export function UploadsActionsForm({
   currentMileage: number;
   technicians?: Array<{ id: string; name: string }>;
   currentProfileId?: string;
+  customerAccountId?: string | null;
 }) {
   const router = useRouter();
   const { pushToast } = useToast();
@@ -66,15 +60,6 @@ export function UploadsActionsForm({
   );
   const [body, setBody] = useState('');
   const [urgency, setUrgency] = useState<Urgency>('info');
-  const [amount, setAmount] = useState(() => {
-    if (!initialAmountCents) return '';
-    return formatCentsInput(initialAmountCents);
-  });
-  const [amountPrefilled, setAmountPrefilled] = useState(
-    Boolean(initialAmountCents && initialType === 'invoice')
-  );
-  const [referenceNumber, setReferenceNumber] = useState('');
-  const [dueDate, setDueDate] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,7 +67,6 @@ export function UploadsActionsForm({
 
   const isQuoteOrInvoice =
     documentType === 'quote' || documentType === 'invoice';
-  const isInvoice = documentType === 'invoice';
   const isWarning = documentType === 'warning';
   const isInspectionReport = documentType === 'inspection_report';
 
@@ -97,40 +81,37 @@ export function UploadsActionsForm({
     );
   }, [initialDocumentType, initialSubject]);
 
-  useEffect(() => {
-    if (documentType !== 'invoice' || !initialAmountCents) {
-      setAmountPrefilled(false);
-      return;
-    }
-    setAmount(formatCentsInput(initialAmountCents));
-    setAmountPrefilled(true);
-  }, [documentType, initialAmountCents]);
-
   const disableSubmit = useMemo(
-    () =>
-      isSubmitting ||
-      !file ||
-      !subject.trim() ||
-      (isQuoteOrInvoice && (!amount || !referenceNumber.trim())) ||
-      (isWarning && !body.trim()),
-    [
-      amount,
-      body,
-      file,
-      isQuoteOrInvoice,
-      isSubmitting,
-      isWarning,
-      referenceNumber,
-      subject
-    ]
+    () => isSubmitting || !file || !subject.trim() || (isWarning && !body.trim()),
+    [body, file, isSubmitting, isWarning, subject]
   );
 
   async function closePendingJob() {
     if (!pendingCloseJobId || documentType !== 'invoice') return true;
+
+    const precheck = await canCloseJobCard({ jobId: pendingCloseJobId });
+    if (!precheck.ok) {
+      const friendlyMessage =
+        precheck.error ===
+          'Job must be marked as ready or completed before it can be closed.' ||
+        precheck.error ===
+          'At least one completion image is required before closing the job.'
+          ? 'Please complete the job and upload at least one completion photo before closing.'
+          : precheck.error;
+
+      pushToast({
+        title: 'Cannot close job yet',
+        description: friendlyMessage,
+        tone: 'error'
+      });
+      setError(friendlyMessage);
+      return false;
+    }
+
     const closeResult = await closeJobCard({ jobId: pendingCloseJobId });
     if (!closeResult.ok) {
       pushToast({
-        title: 'Invoice uploaded, but job is still open',
+        title: 'Invoice created, but job is still open',
         description: closeResult.error,
         tone: 'error'
       });
@@ -145,34 +126,6 @@ export function UploadsActionsForm({
     setError(null);
 
     try {
-      const amountCents = isQuoteOrInvoice
-        ? parseAmountInputToCents(amount)
-        : undefined;
-      if (isQuoteOrInvoice && amountCents == null) {
-        throw new Error('Invalid amount. Use numbers with up to 2 decimals.');
-      }
-
-      if (pendingCloseJobId && documentType === 'invoice') {
-        const precheck = await canCloseJobCard({ jobId: pendingCloseJobId });
-        if (!precheck.ok) {
-          const friendlyMessage =
-            precheck.error ===
-              'Job must be marked as ready or completed before it can be closed.' ||
-            precheck.error ===
-              'At least one completion image is required before closing the job.'
-              ? 'Please complete the job and upload at least one completion photo before closing.'
-              : precheck.error;
-
-          pushToast({
-            title: 'Cannot close job yet',
-            description: friendlyMessage,
-            tone: 'error'
-          });
-          setError(friendlyMessage);
-          return;
-        }
-      }
-
       const signResponse = await fetch('/api/uploads/sign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -218,13 +171,7 @@ export function UploadsActionsForm({
           docType: signedPayload.docType,
           subject: subject.trim(),
           body: body.trim() || undefined,
-          urgency: isWarning ? 'high' : urgency,
-          amountCents,
-          referenceNumber: isQuoteOrInvoice
-            ? referenceNumber.trim()
-            : undefined,
-          dueDate: isInvoice && dueDate ? dueDate : undefined,
-          quoteId: isInvoice ? linkedQuoteId : undefined
+          urgency: isWarning ? 'high' : urgency
         })
       });
       if (!completeResponse.ok)
@@ -232,15 +179,7 @@ export function UploadsActionsForm({
           (await completeResponse.json()).error ?? 'Could not complete upload'
         );
 
-      const closed = await closePendingJob();
-      if (closed && pendingCloseJobId && documentType === 'invoice') {
-        pushToast({
-          title: 'Invoice uploaded and job closed',
-          tone: 'success'
-        });
-      } else {
-        pushToast({ title: 'Upload completed', tone: 'success' });
-      }
+      pushToast({ title: 'Upload completed', tone: 'success' });
       onSuccess?.();
       router.refresh();
     } catch (uploadError) {
@@ -298,6 +237,19 @@ export function UploadsActionsForm({
             router.refresh();
           }}
         />
+      ) : isQuoteOrInvoice ? (
+        <FinancialDocumentBuilder
+          vehicleId={vehicleId}
+          kind={documentType === 'quote' ? 'quote' : 'invoice'}
+          linkedQuoteId={linkedQuoteId}
+          customerAccountId={customerAccountId ?? undefined}
+          onDone={() => {
+            if (pendingCloseJobId && documentType === 'invoice') {
+              void closePendingJob();
+            }
+            onSuccess?.();
+          }}
+        />
       ) : (
         <>
           <label className="block text-sm font-medium">
@@ -320,73 +272,9 @@ export function UploadsActionsForm({
               value={subject}
               onChange={(event) => setSubject(event.target.value)}
               required
-              spellCheck
-              autoCorrect="on"
-              autoCapitalize="sentences"
               className="mt-1 w-full rounded border p-2"
             />
           </label>
-          {isQuoteOrInvoice ? (
-            <label className="block text-sm font-medium">
-              Amount
-              <input
-                type="text"
-                inputMode="decimal"
-                value={amount}
-                onChange={(event) => {
-                  setAmount(event.target.value);
-                  if (amountPrefilled) {
-                    setAmountPrefilled(false);
-                  }
-                }}
-                required
-                spellCheck={false}
-                autoCorrect="off"
-                autoCapitalize="off"
-                className={`mt-1 w-full rounded border p-2 transition ${
-                  amountPrefilled
-                    ? 'border-amber-400 bg-amber-50 ring-2 ring-amber-200'
-                    : ''
-                }`}
-                placeholder="0"
-              />
-              {amountPrefilled ? (
-                <p className="mt-1 text-xs text-amber-700">
-                  Prefilled from the linked quote amount.
-                </p>
-              ) : null}
-            </label>
-          ) : null}
-          {isQuoteOrInvoice ? (
-            <label className="block text-sm font-medium">
-              {documentType === 'invoice'
-                ? 'Invoice reference number'
-                : 'Quote reference number'}
-              <input
-                value={referenceNumber}
-                onChange={(event) => setReferenceNumber(event.target.value)}
-                required
-                spellCheck={false}
-                autoCorrect="off"
-                autoCapitalize="off"
-                className="mt-1 w-full rounded border p-2"
-                placeholder={
-                  documentType === 'invoice' ? 'INV-0001' : 'QTE-0001'
-                }
-              />
-            </label>
-          ) : null}
-          {isInvoice ? (
-            <label className="block text-sm font-medium">
-              Due date (optional)
-              <input
-                type="date"
-                value={dueDate}
-                onChange={(event) => setDueDate(event.target.value)}
-                className="mt-1 w-full rounded border p-2"
-              />
-            </label>
-          ) : null}
           <label className="block text-sm font-medium">
             Body / notes
             <textarea
@@ -394,9 +282,6 @@ export function UploadsActionsForm({
               onChange={(event) => setBody(event.target.value)}
               className="mt-1 w-full rounded border p-2"
               rows={3}
-              spellCheck
-              autoCorrect="on"
-              autoCapitalize="sentences"
             />
           </label>
           <label className="block text-sm font-medium">
