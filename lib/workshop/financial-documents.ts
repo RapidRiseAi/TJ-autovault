@@ -194,12 +194,14 @@ export async function buildFinancialDocumentPdf(params: {
   const tableX = left;
   const tableWidth = right - left;
   const tableRight = tableX + tableWidth;
-  const col = {
-    description: tableX + 10,
-    qtyRight: tableX + 312,
-    unitRight: tableX + 390,
-    discountRight: tableX + 465,
-    taxRight: tableX + 515,
+
+  const grid = {
+    descriptionLeft: tableX + 10,
+    descriptionRight: tableX + 230,
+    qtyRight: tableX + 265,
+    unitRight: tableX + 340,
+    discountRight: tableX + 415,
+    taxRight: tableX + 470,
     totalRight: tableRight - 10
   };
 
@@ -212,15 +214,30 @@ export async function buildFinancialDocumentPdf(params: {
     });
   };
 
+  const drawColumnDivider = (x: number, top: number, bottom: number) => {
+    page.drawLine({
+      start: { x, y: top },
+      end: { x, y: bottom },
+      thickness: 0.5,
+      color: rgb(0.86, 0.86, 0.88)
+    });
+  };
+
   page.drawRectangle({ x: tableX, y: y - 24, width: tableWidth, height: 24, color: rgb(0.94, 0.94, 0.95) });
   page.drawRectangle({ x: tableX, y: y - 24, width: tableWidth, height: 24, borderWidth: 1, borderColor: rgb(0.8, 0.8, 0.82) });
 
-  page.drawText('Description', { x: col.description, y: y - 16, size: 9, font: bold });
-  drawRightInColumn('Qty', col.qtyRight, y - 16, 9, bold);
-  drawRightInColumn('Unit', col.unitRight, y - 16, 9, bold);
-  drawRightInColumn('Discount', col.discountRight, y - 16, 9, bold);
-  drawRightInColumn('Tax', col.taxRight, y - 16, 9, bold);
-  drawRightInColumn('Total', col.totalRight, y - 16, 9, bold);
+  drawColumnDivider(grid.descriptionRight, y, y - 24);
+  drawColumnDivider(grid.qtyRight, y, y - 24);
+  drawColumnDivider(grid.unitRight, y, y - 24);
+  drawColumnDivider(grid.discountRight, y, y - 24);
+  drawColumnDivider(grid.taxRight, y, y - 24);
+
+  page.drawText('Description', { x: grid.descriptionLeft, y: y - 16, size: 9, font: bold });
+  drawRightInColumn('Qty', grid.qtyRight - 6, y - 16, 9, bold);
+  drawRightInColumn('Unit', grid.unitRight - 6, y - 16, 9, bold);
+  drawRightInColumn('Discount', grid.discountRight - 6, y - 16, 9, bold);
+  drawRightInColumn('Tax', grid.taxRight - 6, y - 16, 9, bold);
+  drawRightInColumn('Total', grid.totalRight, y - 16, 9, bold);
 
   y -= 24;
 
@@ -232,20 +249,26 @@ export async function buildFinancialDocumentPdf(params: {
     }
     page.drawRectangle({ x: tableX, y: rowY, width: tableWidth, height: rowHeight, borderWidth: 0.5, borderColor: rgb(0.86, 0.86, 0.88) });
 
-    page.drawText(clampText(item.description, 52), { x: col.description, y: rowY + 7, size: 9, font: regular });
-    drawRightInColumn(String(item.qty), col.qtyRight, rowY + 7);
-    drawRightInColumn(formatMoney(item.unitPriceCents, params.currencyCode), col.unitRight, rowY + 7);
-    drawRightInColumn(formatMoney(item.discountCents, params.currencyCode), col.discountRight, rowY + 7);
-    drawRightInColumn(formatMoney(item.taxCents, params.currencyCode), col.taxRight, rowY + 7);
-    drawRightInColumn(formatMoney(item.lineTotalCents, params.currencyCode), col.totalRight, rowY + 7);
+    drawColumnDivider(grid.descriptionRight, rowY + rowHeight, rowY);
+    drawColumnDivider(grid.qtyRight, rowY + rowHeight, rowY);
+    drawColumnDivider(grid.unitRight, rowY + rowHeight, rowY);
+    drawColumnDivider(grid.discountRight, rowY + rowHeight, rowY);
+    drawColumnDivider(grid.taxRight, rowY + rowHeight, rowY);
+
+    page.drawText(clampText(item.description, 34), { x: grid.descriptionLeft, y: rowY + 7, size: 9, font: regular });
+    drawRightInColumn(String(item.qty), grid.qtyRight - 6, rowY + 7, 8.8);
+    drawRightInColumn(formatMoney(item.unitPriceCents, params.currencyCode), grid.unitRight - 6, rowY + 7, 8.8);
+    drawRightInColumn(formatMoney(item.discountCents, params.currencyCode), grid.discountRight - 6, rowY + 7, 8.8);
+    drawRightInColumn(formatMoney(item.taxCents, params.currencyCode), grid.taxRight - 6, rowY + 7, 8.8);
+    drawRightInColumn(formatMoney(item.lineTotalCents, params.currencyCode), grid.totalRight, rowY + 7, 8.8);
 
     y -= rowHeight;
     if (y < 250) break;
   }
 
-  const totalsBoxX = right - 220;
+  const totalsBoxX = right - 230;
   const totalsBoxY = y - 96;
-  page.drawRectangle({ x: totalsBoxX, y: totalsBoxY, width: 220, height: 96, borderWidth: 1, borderColor: rgb(0.8, 0.8, 0.82) });
+  page.drawRectangle({ x: totalsBoxX, y: totalsBoxY, width: 230, height: 96, borderWidth: 1, borderColor: rgb(0.8, 0.8, 0.82) });
 
   const drawTotalLine = (label: string, value: string, yy: number, emphasize = false) => {
     page.drawText(label, {
@@ -257,7 +280,7 @@ export async function buildFinancialDocumentPdf(params: {
     const font = emphasize ? bold : regular;
     const size = emphasize ? 11 : 10;
     page.drawText(value, {
-      x: totalsBoxX + 210 - font.widthOfTextAtSize(value, size),
+      x: totalsBoxX + 220 - font.widthOfTextAtSize(value, size),
       y: yy,
       size,
       font
@@ -271,7 +294,7 @@ export async function buildFinancialDocumentPdf(params: {
 
   if (params.kind === 'invoice') {
     const statusY = totalsBoxY - 46;
-    page.drawRectangle({ x: totalsBoxX, y: statusY, width: 220, height: 40, borderWidth: 1, borderColor: rgb(0.8, 0.8, 0.82) });
+    page.drawRectangle({ x: totalsBoxX, y: statusY, width: 230, height: 40, borderWidth: 1, borderColor: rgb(0.8, 0.8, 0.82) });
     drawTotalLine('Paid', formatMoney(params.totals.amountPaidCents ?? 0, params.currencyCode), statusY + 24);
     drawTotalLine(
       'Balance due',
