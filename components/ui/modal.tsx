@@ -6,12 +6,14 @@ export function Modal({
   open,
   title,
   onClose,
-  children
+  children,
+  maxWidthClass
 }: {
   open: boolean;
   title: string;
   onClose: () => void;
   children: ReactNode;
+  maxWidthClass?: string;
 }) {
   useEffect(() => {
     function onEscape(event: KeyboardEvent) {
@@ -30,7 +32,7 @@ export function Modal({
       aria-modal="true"
       aria-label={title}
     >
-      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-black/10 bg-white p-6 shadow-[0_30px_90px_rgba(0,0,0,0.35)] sm:p-7">
+      <div className={`max-h-[90vh] w-full overflow-y-auto rounded-2xl border border-black/10 bg-white p-6 shadow-[0_30px_90px_rgba(0,0,0,0.35)] sm:p-7 ${maxWidthClass ?? 'max-w-2xl'}`}>
         <div className="mb-5 flex items-center justify-between border-b border-black/10 pb-3">
           <h2 className="flex-1 text-center text-xl font-semibold text-black">
             {title}
