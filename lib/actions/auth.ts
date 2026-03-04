@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
+import { sendEmailOtp } from '@/lib/auth/email-otp';
 
 function isMissingProspectColumnsError(
   error: { code?: string; message?: string } | null
@@ -210,7 +211,8 @@ export async function signupCustomerAction(formData: FormData) {
     phone
   });
 
+  await sendEmailOtp(email);
   await supabase.auth.signOut();
 
-  redirect('/login?created=1');
+  redirect(`/verify-email?email=${encodeURIComponent(email)}`);
 }

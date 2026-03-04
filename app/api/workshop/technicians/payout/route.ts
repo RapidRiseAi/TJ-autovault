@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
-import { dispatchWebPushForNotifications } from '@/lib/push/dispatch';
 
 function sanitizeFileName(fileName: string) {
   const [rawBase, ...rest] = fileName.trim().split('.');
@@ -76,7 +75,7 @@ export async function POST(request: Request) {
 
     if (payoutError) return redirectWithStatus(request, '?error=payout_failed');
 
-    const { data: payoutNotification } = await supabase
+    await supabase
       .from('notifications')
       .insert({
         workshop_account_id: actor.workshop_account_id,
@@ -88,10 +87,6 @@ export async function POST(request: Request) {
       })
       .select('id')
       .maybeSingle();
-
-    if (payoutNotification?.id) {
-      await dispatchWebPushForNotifications([payoutNotification.id]);
-    }
 
     const financeRef = `technician_payout:${technicianId}:${proofPath}`;
     const { error: financeError } = await supabase.from('workshop_finance_entries').upsert(

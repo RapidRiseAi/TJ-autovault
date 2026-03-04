@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
-import { dispatchWebPushForNotifications } from '@/lib/push/dispatch';
 
 const requestSchema = z.object({
   vehicleId: z.string().uuid(),
@@ -334,7 +333,7 @@ export async function POST(request: NextRequest) {
     actorRole === 'customer' && normalizedDocType === 'report';
 
   if (shouldNotifyCustomer) {
-    const { data: customerNotification } = await supabase
+    await supabase
       .from('notifications')
       .insert({
         workshop_account_id: vehicle.workshop_account_id,
@@ -352,10 +351,6 @@ export async function POST(request: NextRequest) {
       })
       .select('id')
       .maybeSingle();
-
-    if (customerNotification?.id) {
-      await dispatchWebPushForNotifications([customerNotification.id]);
-    }
   }
 
   if (shouldNotifyWorkshop) {

@@ -19,6 +19,9 @@ export default async function WorkshopNotificationsPage() {
         subtitle="Alerts from customer activity and workshop workflows."
         actions={<Button asChild variant="secondary"><Link href="/workshop/dashboard">Back to dashboard</Link></Button>}
       />
+      <div className="flex justify-end">
+        <Button asChild variant="outline"><Link href="/settings/notifications">Notification settings</Link></Button>
+      </div>
       <NotificationsLive fullPage />
     </main>
   );
