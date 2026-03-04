@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { getDashboardPathForRole } from '@/lib/auth/role-redirect';
+import { resolvePostLoginPath } from '@/lib/auth/role-redirect';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { AuthShell } from '@/components/auth/auth-shell';
@@ -13,7 +13,6 @@ const showOtp = process.env.NEXT_PUBLIC_ENABLE_EMAIL_OTP === 'true';
 
 const INACTIVE_TECHNICIAN_MESSAGE =
   'Your technician account has been deactivated. Contact your workshop admin.';
-const TEAM_DASHBOARD_EMAIL = 'team@rapidriseai.com';
 
 export default function LoginClient({
   created = false,
@@ -96,14 +95,13 @@ export default function LoginClient({
       }
     }
 
-    if ((data.user.email ?? '').trim().toLowerCase() === TEAM_DASHBOARD_EMAIL) {
-      window.dispatchEvent(new Event('route-progress:start'));
-      router.push('/team/dashboard');
-      return;
-    }
-
     window.dispatchEvent(new Event('route-progress:start'));
-    router.push(role ? getDashboardPathForRole(role) : '/customer/dashboard');
+    router.push(
+      resolvePostLoginPath({
+        role,
+        email: data.user.email
+      })
+    );
   }
 
   async function sendOtp() {

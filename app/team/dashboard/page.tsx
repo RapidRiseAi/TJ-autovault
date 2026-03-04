@@ -1,10 +1,11 @@
 import { redirect } from 'next/navigation';
 import { PageHeader } from '@/components/layout/page-header';
 import { Card } from '@/components/ui/card';
+import { resolvePostLoginPath } from '@/lib/auth/role-redirect';
+import { isTeamDashboardUser } from '@/lib/auth/team-access';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
-const TEAM_DASHBOARD_EMAIL = 'team@rapidriseai.com';
 const GB_IN_BYTES = 1024 * 1024 * 1024;
 
 type CustomerAccountRow = {
@@ -42,8 +43,20 @@ export default async function TeamDashboardPage() {
 
   if (!user) redirect('/login');
 
-  const email = (user.email ?? '').trim().toLowerCase();
-  if (email !== TEAM_DASHBOARD_EMAIL) redirect('/workshop/dashboard');
+  if (!isTeamDashboardUser(user.email)) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    redirect(
+      resolvePostLoginPath({
+        role: profile?.role,
+        email: user.email
+      })
+    );
+  }
 
   const admin = createAdminClient();
 

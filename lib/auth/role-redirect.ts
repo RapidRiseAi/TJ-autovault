@@ -1,4 +1,5 @@
 import { customerDashboard, workshopDashboard } from '@/lib/routes';
+import { isTeamDashboardUser } from '@/lib/auth/team-access';
 
 export type UserRole = 'admin' | 'technician' | 'customer' | 'inactive_technician';
 
@@ -18,4 +19,18 @@ export function getDashboardPathForRole(role?: UserRole | string | null) {
   }
 
   return customerDashboard();
+}
+
+export function resolvePostLoginPath({
+  role,
+  email
+}: {
+  role?: UserRole | string | null;
+  email?: string | null;
+}) {
+  if (isTeamDashboardUser(email)) {
+    return '/team/dashboard';
+  }
+
+  return getDashboardPathForRole(role);
 }
