@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/components/ui/toast-provider';
 
@@ -55,6 +55,18 @@ export function FinancialDocumentBuilder({
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<ItemRow[]>([{ ...EMPTY_ITEM }]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+
+  useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    setSubject(kind === 'quote' ? 'Quote' : 'Invoice');
+    setReferenceNumber('');
+    setIssueDate(today);
+    setDueDate('');
+    setExpiryDate('');
+    setNotes('');
+    setItems([{ ...EMPTY_ITEM }]);
+  }, [kind]);
 
   const canSubmit = useMemo(() => {
     return (

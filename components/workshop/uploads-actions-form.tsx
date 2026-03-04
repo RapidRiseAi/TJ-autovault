@@ -239,6 +239,7 @@ export function UploadsActionsForm({
         />
       ) : isQuoteOrInvoice ? (
         <FinancialDocumentBuilder
+          key={documentType}
           vehicleId={vehicleId}
           kind={documentType === 'quote' ? 'quote' : 'invoice'}
           linkedQuoteId={linkedQuoteId}
