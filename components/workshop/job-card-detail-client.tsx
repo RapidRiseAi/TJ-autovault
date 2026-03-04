@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast-provider';
@@ -16,7 +16,6 @@ import {
 } from '@/lib/actions/job-cards';
 import { formatJobCardStatus, JOB_CARD_STATUSES } from '@/lib/job-cards';
 import { parseAmountInputToCents } from '@/lib/money';
-import { FinancialDocumentBuilder } from '@/components/workshop/financial-document-builder';
 
 type Tab =
   | 'overview'
@@ -31,6 +30,14 @@ type StatusValue = Exclude<(typeof JOB_CARD_STATUSES)[number], 'not_started'>;
 const MANUAL_STATUS_OPTIONS: StatusValue[] = JOB_CARD_STATUSES.filter(
   (status) => !['not_started', 'completed', 'closed'].includes(status)
 ) as StatusValue[];
+
+function centsToInput(cents?: number) {
+  if (!cents) return '';
+  const whole = Math.floor(cents / 100);
+  const decimal = cents % 100;
+  if (!decimal) return String(whole);
+  return `${whole}.${String(decimal).padStart(2, '0')}`.replace(/0$/, '');
+}
 
 function formatDateTime(value?: string | null) {
   if (!value) return '—';
@@ -144,6 +151,18 @@ export function JobCardDetailClient(props: {
   const [photoUploadTitle, setPhotoUploadTitle] = useState('');
   const [photoUploadFile, setPhotoUploadFile] = useState<File | null>(null);
   const [logNote, setLogNote] = useState('');
+
+  const [invoiceSubject, setInvoiceSubject] = useState('Invoice');
+  const [invoiceAmount, setInvoiceAmount] = useState(
+    centsToInput(props.linkedQuoteAmountCents)
+  );
+  const [invoiceAmountPrefilled, setInvoiceAmountPrefilled] = useState(
+    Boolean(props.linkedQuoteAmountCents)
+  );
+  const [invoiceReference, setInvoiceReference] = useState('');
+  const [invoiceNote, setInvoiceNote] = useState('');
+  const [invoiceDueDate, setInvoiceDueDate] = useState('');
+  const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
 
   const hasCompletionStatus = ['ready', 'completed'].includes(props.status);
   const hasCompletionPhoto = props.photos.some(
@@ -306,6 +325,24 @@ export function JobCardDetailClient(props: {
       );
     }
   }
+
+  const invoiceDisabled = useMemo(
+    () =>
+      props.isLocked ||
+      isUploading ||
+      !invoiceFile ||
+      !invoiceSubject.trim() ||
+      !invoiceAmount.trim() ||
+      !invoiceReference.trim(),
+    [
+      invoiceAmount,
+      invoiceFile,
+      invoiceReference,
+      invoiceSubject,
+      isUploading,
+      props.isLocked
+    ]
+  );
 
   const openBlockers = props.blockers.filter((blocker) => !blocker.resolved_at);
   const pendingApprovals = props.approvals.filter(
@@ -558,10 +595,14 @@ export function JobCardDetailClient(props: {
                     setRequirementsPromptOpen(true);
                     return;
                   }
+                  setInvoiceAmount(centsToInput(props.linkedQuoteAmountCents));
+                  setInvoiceAmountPrefilled(
+                    Boolean(props.linkedQuoteAmountCents)
+                  );
                   setInvoiceModalOpen(true);
                 }}
               >
-                Close & create invoice
+                Close & upload invoice
               </Button>
             ) : null}
           </div>
@@ -1241,46 +1282,133 @@ export function JobCardDetailClient(props: {
       <Modal
         open={invoiceModalOpen}
         onClose={() => setInvoiceModalOpen(false)}
-        title="Close job and create invoice"
+        title="Close job and upload invoice"
       >
-        <div className="space-y-3">
-          <p className="text-xs text-gray-500">
-            Create a structured invoice with line items. A signed PDF will be generated automatically.
-          </p>
-          <FinancialDocumentBuilder
-            vehicleId={props.vehicleId}
-            kind="invoice"
-            linkedQuoteId={props.linkedQuoteId}
-            onDone={() => {
-              setIsClosingJob(true);
-              void (async () => {
-                try {
-                  const precheck = await canCloseJobCard({ jobId: props.jobId });
-                  if (!precheck.ok) {
-                    setRequirementsPromptOpen(true);
-                    throw new Error(precheck.error);
-                  }
+        <form
+          className="space-y-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!invoiceFile || invoiceDisabled) return;
 
-                  const closeResult = await closeJobCard({ jobId: props.jobId });
-                  if (!closeResult.ok) throw new Error(closeResult.error);
-
-                  setInvoiceModalOpen(false);
-                  pushToast({ title: 'Invoice created and job closed', tone: 'success' });
-                  window.location.href = `/workshop/vehicles/${props.vehicleId}`;
-                } catch (error) {
-                  pushToast({
-                    title: 'Invoice flow failed',
-                    description:
-                      error instanceof Error ? error.message : 'Please try again.',
-                    tone: 'error'
-                  });
-                } finally {
-                  setIsClosingJob(false);
+            setIsUploading(true);
+            void (async () => {
+              try {
+                const precheck = await canCloseJobCard({ jobId: props.jobId });
+                if (!precheck.ok) {
+                  setRequirementsPromptOpen(true);
+                  throw new Error(precheck.error);
                 }
-              })();
-            }}
+
+                await uploadDocument({
+                  file: invoiceFile,
+                  docType: 'invoice',
+                  subject: invoiceSubject.trim(),
+                  body: invoiceNote.trim() || undefined,
+                  amount: invoiceAmount,
+                  referenceNumber: invoiceReference.trim(),
+                  dueDate: invoiceDueDate || undefined,
+                  quoteId: props.linkedQuoteId
+                });
+
+                setIsClosingJob(true);
+                const closeResult = await closeJobCard({ jobId: props.jobId });
+                setIsClosingJob(false);
+
+                if (!closeResult.ok) {
+                  throw new Error(closeResult.error);
+                }
+
+                setInvoiceModalOpen(false);
+                pushToast({
+                  title: 'Invoice uploaded and job closed',
+                  tone: 'success'
+                });
+                window.location.href = `/workshop/vehicles/${props.vehicleId}`;
+              } catch (error) {
+                pushToast({
+                  title: 'Invoice flow failed',
+                  description:
+                    error instanceof Error
+                      ? error.message
+                      : 'Please try again.',
+                  tone: 'error'
+                });
+              } finally {
+                setIsUploading(false);
+                setIsClosingJob(false);
+              }
+            })();
+          }}
+        >
+          <p className="text-xs text-gray-500">
+            Invoice upload is limited to invoice documents only and stays inside
+            this job card view.
+          </p>
+          <input
+            value={invoiceSubject}
+            onChange={(event) => setInvoiceSubject(event.target.value)}
+            placeholder="Invoice subject"
+            required
+            className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
+            spellCheck
+            autoCorrect="on"
+            autoCapitalize="sentences"
           />
-        </div>
+          <input
+            type="text"
+            value={invoiceAmount}
+            onChange={(event) => {
+              setInvoiceAmount(event.target.value);
+              setInvoiceAmountPrefilled(false);
+            }}
+            placeholder="Amount"
+            required
+            spellCheck={false}
+            autoCorrect="off"
+            autoCapitalize="off"
+            className={`w-full rounded-xl border px-3 py-2 text-sm ${invoiceAmountPrefilled ? 'border-amber-300 bg-amber-50 ring-1 ring-amber-200' : 'border-neutral-300'}`}
+          />
+          <input
+            value={invoiceReference}
+            onChange={(event) => setInvoiceReference(event.target.value)}
+            placeholder="Invoice reference number"
+            required
+            spellCheck={false}
+            autoCorrect="off"
+            autoCapitalize="off"
+            className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
+          />
+          <input
+            type="date"
+            value={invoiceDueDate}
+            onChange={(event) => setInvoiceDueDate(event.target.value)}
+            className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
+          />
+          <textarea
+            value={invoiceNote}
+            onChange={(event) => setInvoiceNote(event.target.value)}
+            placeholder="Invoice note (optional)"
+            className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
+            rows={3}
+            spellCheck
+            autoCorrect="on"
+            autoCapitalize="sentences"
+          />
+          <input
+            type="file"
+            accept="application/pdf,image/*"
+            required
+            onChange={(event) =>
+              setInvoiceFile(event.target.files?.[0] ?? null)
+            }
+            className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
+          />
+          <Button disabled={invoiceDisabled || isClosingJob}>
+            {isUploading || isClosingJob
+              ? 'Processing…'
+              : 'Upload invoice and close'}
+          </Button>
+        </form>
       </Modal>
 
       <Modal

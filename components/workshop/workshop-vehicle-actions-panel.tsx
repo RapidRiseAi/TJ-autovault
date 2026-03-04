@@ -22,7 +22,6 @@ export function WorkshopVehicleActionsPanel({
   pendingInvoiceAmountCents,
   technicians,
   currentProfileId,
-  customerAccountId,
   prependTiles
 }: {
   vehicleId: string;
@@ -43,7 +42,6 @@ export function WorkshopVehicleActionsPanel({
   pendingInvoiceAmountCents?: number;
   technicians: Array<{ id: string; name: string }>;
   currentProfileId?: string;
-  customerAccountId?: string | null;
   prependTiles?: ReactNode;
 }) {
   const router = useRouter();
@@ -87,7 +85,6 @@ export function WorkshopVehicleActionsPanel({
         open={uploadOpen}
         onClose={() => setUploadOpen(false)}
         title="Upload document"
-        maxWidthClass="max-w-5xl"
       >
         <UploadsActionsForm
           vehicleId={vehicleId}
@@ -101,7 +98,6 @@ export function WorkshopVehicleActionsPanel({
           currentMileage={currentMileage}
           technicians={technicians}
           currentProfileId={currentProfileId}
-          customerAccountId={customerAccountId}
         />
       </Modal>
     </>
