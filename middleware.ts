@@ -1,13 +1,20 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import type { CookieOptions } from '@supabase/ssr';
-import { getDashboardPathForRole, type UserRole } from '@/lib/auth/role-redirect';
+import { resolvePostLoginPath, type UserRole } from '@/lib/auth/role-redirect';
+import { isTeamDashboardUser } from '@/lib/auth/team-access';
 import { shouldBypassMiddlewareForRequest } from '@/lib/auth/middleware-guards';
 
 type CookieToSet = { name: string; value: string; options?: CookieOptions };
 
 export async function middleware(request: NextRequest) {
   const response = NextResponse.next({ request });
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return response;
+  }
 
   // Let Next.js server-action internals proceed without middleware side-effects.
   if (shouldBypassMiddlewareForRequest(request.headers)) {
@@ -15,8 +22,8 @@ export async function middleware(request: NextRequest) {
   }
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseAnonKey,
     {
       cookies: {
         getAll() {
@@ -36,8 +43,9 @@ export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const isWorkshopRoute = path.startsWith('/workshop');
   const isCustomerRoute = path.startsWith('/customer');
+  const isTeamRoute = path.startsWith('/team');
 
-  if ((isWorkshopRoute || isCustomerRoute) && !user) {
+  if ((isWorkshopRoute || isCustomerRoute || isTeamRoute) && !user) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
@@ -65,18 +73,22 @@ export async function middleware(request: NextRequest) {
   }
 
   if ((path === '/login' || path === '/signup') && role && role !== 'inactive_technician') {
-    return redirectIfDifferent(getDashboardPathForRole(role));
+    return redirectIfDifferent(resolvePostLoginPath({ role, email: user.email }));
   }
 
   const hasWorkshopAccess = role === 'admin' || role === 'technician';
   const hasCustomerAccess = role === 'customer';
 
+  if (isTeamRoute && !isTeamDashboardUser(user.email)) {
+    return redirectIfDifferent(resolvePostLoginPath({ role, email: user.email }));
+  }
+
   if (isWorkshopRoute && !hasWorkshopAccess) {
-    return redirectIfDifferent(getDashboardPathForRole(role));
+    return redirectIfDifferent(resolvePostLoginPath({ role, email: user.email }));
   }
 
   if (isCustomerRoute && !hasCustomerAccess) {
-    return redirectIfDifferent(getDashboardPathForRole(role));
+    return redirectIfDifferent(resolvePostLoginPath({ role, email: user.email }));
   }
 
   return response;

@@ -11,6 +11,7 @@ import { SegmentRing } from '@/components/ui/segment-ring';
 import { EmptyState } from '@/components/ui/empty-state';
 import { getAvatarSrc, getCustomerDisplayName, getInitials, selectBestCustomerProfile } from '@/lib/workshop/customer-display';
 import { SendMessageModal } from '@/components/messages/send-message-modal';
+import { resolvePostLoginPath } from '@/lib/auth/role-redirect';
 
 type CustomerRow = {
   id: string;
@@ -108,7 +109,7 @@ export default async function WorkshopDashboardPage({ searchParams }: { searchPa
     .eq('id', user.id)
     .single();
   if (!profile?.workshop_account_id || (profile.role !== 'admin' && profile.role !== 'technician')) {
-    redirect('/customer/dashboard');
+    redirect(resolvePostLoginPath({ role: profile?.role, email: user.email }));
   }
 
   const workshopId = profile.workshop_account_id;
