@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
+import { dispatchNotificationEmailsNow, dispatchRecentWorkshopNotifications } from '@/lib/email/dispatch-now';
 
 const requestSchema = z.object({
   vehicleId: z.string().uuid(),
@@ -333,7 +334,7 @@ export async function POST(request: NextRequest) {
     actorRole === 'customer' && normalizedDocType === 'report';
 
   if (shouldNotifyCustomer) {
-    await supabase
+    const { data: customerNotification } = await supabase
       .from('notifications')
       .insert({
         workshop_account_id: vehicle.workshop_account_id,
@@ -351,16 +352,28 @@ export async function POST(request: NextRequest) {
       })
       .select('id')
       .maybeSingle();
+
+    if (customerNotification?.id) {
+      await dispatchNotificationEmailsNow([customerNotification.id]);
+    }
   }
 
   if (shouldNotifyWorkshop) {
+    const workshopHref = `/workshop/vehicles/${payload.vehicleId}`;
+
     await supabase.rpc('push_notification_to_workshop', {
       p_workshop_account_id: vehicle.workshop_account_id,
       p_kind: 'report',
       p_title: payload.subject || 'Customer report uploaded',
       p_body: payload.body || 'A customer uploaded a report document.',
-      p_href: `/workshop/vehicles/${payload.vehicleId}`,
+      p_href: workshopHref,
       p_data: notificationData
+    });
+
+    await dispatchRecentWorkshopNotifications({
+      workshopAccountId: vehicle.workshop_account_id,
+      kind: 'report',
+      href: workshopHref
     });
   }
 

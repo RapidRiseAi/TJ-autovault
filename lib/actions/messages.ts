@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { getCustomerContextOrCreate } from '@/lib/customer/get-customer-context-or-create';
+import { dispatchRecentMessageThreadNotifications } from '@/lib/email/dispatch-now';
 
 type MessageResult = { ok: true; conversationId: string } | { ok: false; error: string };
 
@@ -75,6 +76,7 @@ export async function createMessage(input: CreateMessageInput): Promise<MessageR
   if (error || !data) return { ok: false, error: error?.message ?? 'Unable to send message.' };
 
   const result = data as { conversation_id: string; vehicle_id: string | null };
+  await dispatchRecentMessageThreadNotifications(result.conversation_id);
   revalidateMessageViews(result.conversation_id, result.vehicle_id);
   return { ok: true, conversationId: result.conversation_id };
 }
@@ -96,6 +98,7 @@ export async function replyToMessage(input: ReplyInput): Promise<MessageResult> 
   if (error || !data) return { ok: false, error: error?.message ?? 'Unable to send reply.' };
 
   const result = data as { conversation_id: string; vehicle_id: string | null };
+  await dispatchRecentMessageThreadNotifications(result.conversation_id);
   revalidateMessageViews(result.conversation_id, result.vehicle_id);
   return { ok: true, conversationId: result.conversation_id };
 }

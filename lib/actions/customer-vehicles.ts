@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { getCustomerContextOrCreate } from '@/lib/customer/get-customer-context-or-create';
+import { dispatchRecentWorkshopNotifications } from '@/lib/email/dispatch-now';
 import { customerDashboard, customerVehicle } from '@/lib/routes';
 import { createClient } from '@/lib/supabase/server';
 import { addVehicleSchema } from '@/lib/validation/vehicle';
@@ -234,17 +235,25 @@ export async function decideJobCardApproval(input: {
     }
   });
 
+  const jobHref = `/workshop/jobs/${approval.job_card_id}`;
+
   await supabase.rpc('push_notification_to_workshop', {
     p_workshop_account_id: job.workshop_id,
     p_kind: 'job',
     p_title: `Customer ${input.decision} job card approval`,
     p_body: approval.title ?? 'Approval decision submitted',
-    p_href: `/workshop/jobs/${approval.job_card_id}`,
+    p_href: jobHref,
     p_data: {
       approval_id: approval.id,
       job_card_id: approval.job_card_id,
       status: input.decision
     }
+  });
+
+  await dispatchRecentWorkshopNotifications({
+    workshopAccountId: job.workshop_id,
+    kind: 'job',
+    href: jobHref
   });
 
   revalidatePath(`/customer/jobs/${approval.job_card_id}`);
@@ -401,6 +410,8 @@ export async function decideRecommendation(input: {
     }
   });
 
+  const recommendationHref = `/workshop/vehicles/${data.vehicle_id}`;
+
   await supabase.rpc('push_notification_to_workshop', {
     p_workshop_account_id: data.workshop_account_id,
     p_kind: 'recommendation',
@@ -409,12 +420,18 @@ export async function decideRecommendation(input: {
         ? 'Recommendation approved'
         : 'Recommendation declined',
     p_body: `Customer ${input.decision} recommendation: ${data.title ?? 'Recommendation'}`,
-    p_href: `/workshop/vehicles/${data.vehicle_id}`,
+    p_href: recommendationHref,
     p_data: {
       recommendation_id: data.id,
       vehicle_id: data.vehicle_id,
       status: input.decision
     }
+  });
+
+  await dispatchRecentWorkshopNotifications({
+    workshopAccountId: data.workshop_account_id,
+    kind: 'recommendation',
+    href: recommendationHref
   });
 
   revalidatePath(`/workshop/vehicles/${data.vehicle_id}`);

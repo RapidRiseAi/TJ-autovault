@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { dispatchRecentCustomerNotifications } from '@/lib/email/dispatch-now';
 import { createAdminClient } from '@/lib/supabase/admin';
 import {
   WORK_REQUEST_STATUSES,
@@ -886,18 +887,26 @@ export async function updateWorkRequestStatus(input: {
     }
   });
 
+  const customerHref = `/customer/vehicles/${request.vehicle_id}`;
+
   await ctx.supabase.rpc('push_notification', {
     p_workshop_account_id: request.workshop_account_id,
     p_to_customer_account_id: request.customer_account_id,
     p_kind: 'request',
     p_title: 'Work request update',
     p_body: `Your ${request.request_type} request is now ${request.status.replaceAll('_', ' ')}.`,
-    p_href: `/customer/vehicles/${request.vehicle_id}`,
+    p_href: customerHref,
     p_data: {
       work_request_id: request.id,
       status: request.status,
       request_type: request.request_type
     }
+  });
+
+  await dispatchRecentCustomerNotifications({
+    customerAccountId: request.customer_account_id,
+    kind: 'request',
+    href: customerHref
   });
 
   revalidatePath(`/workshop/work-requests`);
