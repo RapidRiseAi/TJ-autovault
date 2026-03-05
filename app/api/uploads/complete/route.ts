@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
-import { createAdminClient } from '@/lib/supabase/admin';
-import { sendEmail } from '@/lib/email/resend';
 import { dispatchNotificationEmailsNow, dispatchRecentWorkshopNotifications } from '@/lib/email/dispatch-now';
 
 const requestSchema = z.object({
@@ -87,7 +85,6 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = await createClient();
-  const admin = createAdminClient();
   const user = (await supabase.auth.getUser()).data.user;
   if (!user)
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -128,7 +125,7 @@ export async function POST(request: NextRequest) {
       .maybeSingle(),
     supabase
       .from('customer_accounts')
-      .select('name,linked_email,auth_user_id')
+      .select('name')
       .eq('id', vehicle.current_customer_account_id)
       .maybeSingle()
   ]);
@@ -358,45 +355,6 @@ export async function POST(request: NextRequest) {
 
     if (customerNotification?.id) {
       await dispatchNotificationEmailsNow([customerNotification.id]);
-    }
-
-    if (normalizedDocType === 'quote' || normalizedDocType === 'invoice') {
-      let recipientEmail = customerAccount?.linked_email?.trim().toLowerCase() || null;
-
-      if (!recipientEmail && customerAccount?.auth_user_id) {
-        try {
-          const authUser = await admin.auth.admin.getUserById(customerAccount.auth_user_id);
-          recipientEmail = authUser.data.user?.email?.trim().toLowerCase() || null;
-        } catch (resolveEmailError) {
-          console.error('Could not resolve upload notification recipient email', resolveEmailError);
-        }
-      }
-
-      if (recipientEmail) {
-        try {
-          let attachments: Array<{ filename: string; content: Buffer }> | undefined;
-
-          if (payload.contentType === 'application/pdf') {
-            const { data: fileBlob, error: downloadError } = await admin.storage
-              .from(payload.bucket)
-              .download(payload.path);
-
-            if (!downloadError && fileBlob) {
-              const bytes = Buffer.from(await fileBlob.arrayBuffer());
-              attachments = [{ filename: payload.originalName || `${normalizedDocType}.pdf`, content: bytes }];
-            }
-          }
-
-          await sendEmail(
-            recipientEmail,
-            normalizedDocType === 'quote' ? 'Quote uploaded' : 'Invoice uploaded',
-            `<p>Hello ${customerAccount?.name ?? 'there'},</p><p>Your ${normalizedDocType} has been uploaded and is available in your AutoVault portal.</p>`,
-            attachments ? { attachments } : undefined
-          );
-        } catch (uploadEmailError) {
-          console.error('Upload document email failed', uploadEmailError);
-        }
-      }
     }
   }
 
