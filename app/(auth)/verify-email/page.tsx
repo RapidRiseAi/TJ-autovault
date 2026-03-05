@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { AuthShell } from '@/components/layout/auth-shell';
+import { AuthShell } from '@/components/auth/auth-shell';
 import { Card } from '@/components/ui/card';
 import { VerifyEmailOtpCard } from '@/components/auth/verify-email-otp-card';
 
