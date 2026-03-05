@@ -5,13 +5,19 @@ const resendFromEmail = process.env.RESEND_FROM_EMAIL;
 
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
-export async function sendEmail(to: string, subject: string, html: string) {
+export async function sendEmail(
+  to: string,
+  subject: string,
+  html: string,
+  options?: { attachments?: Array<{ filename: string; content: Buffer | string }> }
+) {
   if (!resend || !resendFromEmail) return;
 
   await resend.emails.send({
     from: resendFromEmail,
     to,
     subject,
-    html
+    html,
+    attachments: options?.attachments
   });
 }
