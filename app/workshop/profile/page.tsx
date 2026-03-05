@@ -7,7 +7,6 @@ import {
   type WorkshopProfileActionState
 } from '@/components/workshop/workshop-profile-form';
 import { SignaturePanel } from '@/components/workshop/signature-panel';
-import { sendEmail } from '@/lib/email/resend';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 
@@ -22,15 +21,6 @@ function formatStorage(bytes: number) {
 function sanitizeOptionalField(formData: FormData, key: string) {
   const value = formData.get(key)?.toString().trim() ?? '';
   return value || null;
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
 }
 
 async function updateProfile(
@@ -171,72 +161,6 @@ async function updateProfile(
         ? 'Workshop profile saved and login email updated.'
         : 'Workshop profile saved. Check your inbox to confirm your new login email.'
       : 'Workshop profile saved.'
-  };
-}
-
-async function submitSupportTicket(
-  _state: WorkshopProfileActionState,
-  formData: FormData
-): Promise<WorkshopProfileActionState> {
-  'use server';
-
-  const supabase = await createClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
-
-  const message = (formData.get('supportMessage')?.toString() ?? '').trim();
-  if (!message) {
-    return { status: 'error', message: 'Please describe the issue you are facing.' };
-  }
-
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('id,display_name,role,workshop_account_id')
-    .eq('id', user.id)
-    .maybeSingle();
-
-  if (profileError || !profile) {
-    return {
-      status: 'error',
-      message: `Could not load your profile details: ${profileError?.message ?? 'Profile not found.'}`
-    };
-  }
-
-  const { error: ticketError } = await supabase.from('support_tickets').insert({
-    workshop_account_id: profile.workshop_account_id,
-    profile_id: profile.id,
-    customer_email: user.email ?? null,
-    subject: 'App support ticket',
-    message
-  });
-
-  if (ticketError) {
-    return {
-      status: 'error',
-      message: `Could not submit support ticket: ${ticketError.message}`
-    };
-  }
-
-  await sendEmail(
-    'team@rapidriseai.com',
-    'New app support ticket',
-    `<h2>New support ticket</h2>
-<p><strong>Email:</strong> ${escapeHtml(user.email ?? 'Unknown')}</p>
-<p><strong>Name:</strong> ${escapeHtml(profile.display_name ?? 'Unknown')}</p>
-<p><strong>Role:</strong> ${escapeHtml(profile.role ?? 'Unknown')}</p>
-<p><strong>Workshop ID:</strong> ${escapeHtml(profile.workshop_account_id ?? 'Unknown')}</p>
-<p><strong>Issue:</strong></p>
-<pre style="white-space:pre-wrap;font-family:inherit">${escapeHtml(message)}</pre>`
-  );
-
-  revalidatePath('/workshop/profile');
-  revalidatePath('/team/dashboard');
-
-  return {
-    status: 'success',
-    message: 'Support ticket sent. Our team will get back to you soon.'
   };
 }
 
@@ -518,31 +442,6 @@ export default async function WorkshopProfilePage() {
         </WorkshopProfileForm>
       </SectionCard>
 
-      <SectionCard className="rounded-3xl p-6">
-        <WorkshopProfileForm action={submitSupportTicket}>
-          <div className="md:col-span-2">
-            <h2 className="text-base font-semibold text-black">Customer support</h2>
-            <p className="mt-1 text-sm text-gray-600">
-              Tell us what issue you are facing and we&apos;ll email our team with your account details.
-            </p>
-          </div>
-          <div className="md:col-span-2">
-            <label
-              className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500"
-              htmlFor="supportMessage"
-            >
-              Problem description
-            </label>
-            <textarea
-              id="supportMessage"
-              name="supportMessage"
-              required
-              className="min-h-28 w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm"
-              placeholder="Describe what happened, where it happened, and what you expected."
-            />
-          </div>
-        </WorkshopProfileForm>
-      </SectionCard>
     </main>
   );
 }
