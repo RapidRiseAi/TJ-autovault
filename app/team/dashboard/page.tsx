@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation';
 import { PageHeader } from '@/components/layout/page-header';
 import { Card } from '@/components/ui/card';
-import { SignOutButton } from '@/components/layout/sign-out-button';
 import { resolvePostLoginPath } from '@/lib/auth/role-redirect';
 import { isTeamDashboardUser } from '@/lib/auth/team-access';
 import { createClient } from '@/lib/supabase/server';
@@ -15,15 +14,6 @@ type CustomerAccountRow = {
   linked_email: string | null;
   onboarding_status: string | null;
   plan_price_cents: number | string | null;
-};
-
-type SupportTicketRow = {
-  id: string;
-  customer_email: string | null;
-  message: string;
-  created_at: string;
-  workshop_accounts: { name: string | null } | null;
-  profiles: { display_name: string | null } | null;
 };
 
 function formatMoney(cents: number) {
@@ -70,18 +60,13 @@ export default async function TeamDashboardPage() {
 
   const admin = createAdminClient();
 
-  const [{ data: customers }, { data: vehicles }, { data: storageDocs }, { data: supportTickets }] = await Promise.all([
+  const [{ data: customers }, { data: vehicles }, { data: storageDocs }] = await Promise.all([
     admin
       .from('customer_accounts')
       .select('id,name,linked_email,onboarding_status,plan_price_cents')
       .order('name', { ascending: true }),
     admin.from('vehicles').select('id,current_customer_account_id').limit(50000),
-    admin.from('vehicle_documents').select('customer_account_id,size_bytes').limit(50000),
-    admin
-      .from('support_tickets')
-      .select('id,customer_email,message,created_at,workshop_accounts(name),profiles(display_name)')
-      .order('created_at', { ascending: false })
-      .limit(100)
+    admin.from('vehicle_documents').select('customer_account_id,size_bytes').limit(50000)
   ]);
 
   const customerRows = (customers ?? []) as CustomerAccountRow[];
@@ -121,17 +106,12 @@ export default async function TeamDashboardPage() {
     0
   );
 
-  const supportTicketRows = (supportTickets ?? []) as unknown as SupportTicketRow[];
-
   return (
     <main className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
       <PageHeader
         title="RapidRise Team Dashboard"
         subtitle="Private developer view for customer storage, payment status, and monthly income."
       />
-      <div className="flex justify-end">
-        <SignOutButton />
-      </div>
 
       <section className="grid gap-4 md:grid-cols-3">
         <Card className="rounded-2xl border-black/10 p-5">
@@ -188,47 +168,6 @@ export default async function TeamDashboardPage() {
           </table>
           {!paidCustomers.length ? (
             <p className="pt-4 text-sm text-gray-500">No paid customer accounts yet.</p>
-          ) : null}
-        </div>
-      </Card>
-
-      <Card className="rounded-2xl border-black/10 p-5">
-        <h2 className="text-base font-semibold text-black">Recent support tickets</h2>
-        <p className="mt-1 text-sm text-gray-600">
-          Submitted from workshop profile settings with reporter email and issue details.
-        </p>
-
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[760px] text-left text-sm">
-            <thead>
-              <tr className="border-b border-black/10 text-xs uppercase tracking-[0.12em] text-gray-500">
-                <th className="px-2 py-2">Created</th>
-                <th className="px-2 py-2">Workshop</th>
-                <th className="px-2 py-2">User</th>
-                <th className="px-2 py-2">Email</th>
-                <th className="px-2 py-2">Issue</th>
-              </tr>
-            </thead>
-            <tbody>
-              {supportTicketRows.map((ticket) => (
-                <tr key={ticket.id} className="border-b border-black/5 align-top">
-                  <td className="px-2 py-3 text-gray-700">
-                    {new Date(ticket.created_at).toLocaleString('en-ZA')}
-                  </td>
-                  <td className="px-2 py-3 text-gray-700">
-                    {ticket.workshop_accounts?.name ?? 'Unknown workshop'}
-                  </td>
-                  <td className="px-2 py-3 text-gray-700">
-                    {ticket.profiles?.display_name ?? 'Unknown user'}
-                  </td>
-                  <td className="px-2 py-3 text-gray-700">{ticket.customer_email ?? 'No email'}</td>
-                  <td className="px-2 py-3 text-gray-700 whitespace-pre-wrap">{ticket.message}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {!supportTicketRows.length ? (
-            <p className="pt-4 text-sm text-gray-500">No support tickets submitted yet.</p>
           ) : null}
         </div>
       </Card>

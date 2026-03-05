@@ -2,7 +2,6 @@ import Link from 'next/link';
 import { Bell } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
 import { SignOutButton } from '@/components/layout/sign-out-button';
-import { WorkshopSupportTicketButton } from '@/components/layout/workshop-support-ticket-button';
 
 function initialsFromName(name?: string | null) {
   if (!name) return 'W';
@@ -59,7 +58,7 @@ export async function WorkshopTopNav() {
           TJ service & repairs
         </Link>
 
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-3 sm:gap-4">
           <Link
             href="/workshop/notifications"
             className="inline-flex items-center gap-1.5 rounded-full border border-black/15 bg-white px-3.5 py-2 text-xs font-semibold text-brand-black shadow-sm transition hover:-translate-y-px hover:bg-gray-50 hover:shadow-md sm:text-sm"
@@ -67,7 +66,6 @@ export async function WorkshopTopNav() {
             <Bell className="h-4 w-4" />
             {count && count > 0 ? <span>{count}</span> : null}
           </Link>
-          <WorkshopSupportTicketButton />
           <Link
             href="/workshop/profile"
             className="inline-flex min-h-11 items-center gap-2 rounded-full border border-black/10 bg-white px-3 py-1.5 shadow-sm transition hover:-translate-y-px hover:border-black/20 hover:bg-gray-50 hover:shadow-md"

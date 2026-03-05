@@ -86,17 +86,10 @@ export function VehicleWorkflowActions({ vehicleId, invoices, workRequests, curr
       </Modal>
 
       <Modal open={open === 'payment'} onClose={() => setOpen(null)} title="Update payment status">
-        <form onSubmit={(event) => { event.preventDefault(); const formData = new FormData(event.currentTarget); void on(() => updateInvoicePaymentStatus({ invoiceId: String(formData.get('invoiceId')), paymentStatus: String(formData.get('paymentStatus')) as 'unpaid' | 'partial' | 'paid', paymentMethod: String(formData.get('paymentMethod') || '') })); }}>
+        <form onSubmit={(event) => { event.preventDefault(); const formData = new FormData(event.currentTarget); void on(() => updateInvoicePaymentStatus({ invoiceId: String(formData.get('invoiceId')), paymentStatus: String(formData.get('paymentStatus')) as 'unpaid' | 'partial' | 'paid' })); }}>
           <ModalFormShell>
             <select name="invoiceId">{unpaidInvoices.map((invoice) => { const ref = invoice.invoiceNumber || `#${invoice.id.slice(0, 8).toUpperCase()}`; const amount = new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format((invoice.totalCents ?? 0) / 100); return <option key={invoice.id} value={invoice.id}>{ref} · {amount} unpaid</option>; })}</select>
             <select name="paymentStatus"><option value="unpaid">Unpaid</option><option value="partial">Partial</option><option value="paid">Paid</option></select>
-            <select name="paymentMethod" defaultValue="">
-              <option value="">Select payment method</option>
-              <option value="cash">Cash</option>
-              <option value="eft">EFT</option>
-              <option value="card">Card</option>
-              <option value="other">Other</option>
-            </select>
             <Button disabled={isLoading}>{isLoading ? 'Updating...' : 'Update'}</Button>
             {msg ? <p className="text-xs text-red-700">{msg}</p> : null}
           </ModalFormShell>
