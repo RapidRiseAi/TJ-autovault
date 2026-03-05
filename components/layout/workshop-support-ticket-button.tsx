@@ -1,9 +1,9 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { LifeBuoy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Modal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast-provider';
 
 export function WorkshopSupportTicketButton() {
@@ -57,6 +57,8 @@ export function WorkshopSupportTicketButton() {
     }
   }
 
+  const canUseDom = typeof window !== 'undefined' && typeof document !== 'undefined';
+
   return (
     <>
       <Button
@@ -71,33 +73,58 @@ export function WorkshopSupportTicketButton() {
         <span className="hidden sm:inline">Support</span>
       </Button>
 
-      <Modal open={open} onClose={() => setOpen(false)} title="Contact support" maxWidthClass="max-w-xl">
-        <form onSubmit={onSubmit} className="space-y-3">
-          <p className="text-sm text-gray-600">
-            Describe the issue you are facing and we will send it to our support team.
-          </p>
-          <textarea
-            value={message}
-            onChange={(event) => setMessage(event.target.value)}
-            required
-            className="min-h-36 w-full rounded-2xl border border-black/15 bg-white px-4 py-3 text-sm"
-            placeholder="What happened, where it happened, and what you expected."
-          />
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              className="flex-1 rounded-xl"
-              onClick={() => setOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isSubmitting} className="flex-1 rounded-xl">
-              {isSubmitting ? 'Submitting...' : 'Submit report ticket'}
-            </Button>
-          </div>
-        </form>
-      </Modal>
+      {open && canUseDom
+        ? createPortal(
+            <div className="fixed inset-0 z-[100] grid place-items-center bg-black/55 p-4 backdrop-blur-[2px]">
+              <button
+                type="button"
+                className="absolute inset-0"
+                aria-label="Close support popup"
+                onClick={() => setOpen(false)}
+              />
+
+              <div className="relative z-10 w-full max-w-xl rounded-2xl border border-black/10 bg-white p-6 shadow-[0_30px_90px_rgba(0,0,0,0.35)]">
+                <div className="mb-4 flex items-center justify-between border-b border-black/10 pb-3">
+                  <h2 className="text-lg font-semibold text-black">Contact support</h2>
+                  <button
+                    type="button"
+                    onClick={() => setOpen(false)}
+                    className="rounded-xl border border-black/15 px-3 py-1.5 text-sm font-medium text-black hover:bg-gray-100"
+                  >
+                    Close
+                  </button>
+                </div>
+
+                <form onSubmit={onSubmit} className="space-y-3">
+                  <p className="text-sm text-gray-600">
+                    Describe the issue you are facing and we will send it to our support team.
+                  </p>
+                  <textarea
+                    value={message}
+                    onChange={(event) => setMessage(event.target.value)}
+                    required
+                    className="min-h-36 w-full rounded-2xl border border-black/15 bg-white px-4 py-3 text-sm"
+                    placeholder="What happened, where it happened, and what you expected."
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="flex-1 rounded-xl"
+                      onClick={() => setOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={isSubmitting} className="flex-1 rounded-xl">
+                      {isSubmitting ? 'Submitting...' : 'Submit report ticket'}
+                    </Button>
+                  </div>
+                </form>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
     </>
   );
 }
