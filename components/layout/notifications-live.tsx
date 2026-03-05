@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { ChevronRight, Circle, Loader2, Mail, Trash2 } from 'lucide-react';
-import { useEffect, useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { markAllNotificationsRead, markNotificationReadState, softDeleteNotification } from '@/lib/actions/customer-notifications';
@@ -37,29 +37,49 @@ export function NotificationsLive({ fullPage = false }: { fullPage?: boolean }) 
   const [isPending, startTransition] = useTransition();
   const [loadError, setLoadError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'messages'>('all');
+  const seenNotificationIdsRef = useRef<Set<string>>(new Set());
 
   const messageThreadFromRoute = searchParams.get('messageThread');
-  const [openThreadId, setOpenThreadId] = useState<string | null>(messageThreadFromRoute);
+  const [openThreadId, setOpenThreadId] = useState<string | null>(null);
 
   useEffect(() => {
-    setOpenThreadId(messageThreadFromRoute);
+    if (!messageThreadFromRoute) setOpenThreadId(null);
   }, [messageThreadFromRoute]);
 
   useEffect(() => {
+    if (typeof window === 'undefined' || typeof Notification !== 'function') return;
+    if (!items.length) return;
+
+    if (seenNotificationIdsRef.current.size === 0) {
+      items.forEach((item) => seenNotificationIdsRef.current.add(item.id));
+      return;
+    }
+
+    const newItems = items.filter((item) => !seenNotificationIdsRef.current.has(item.id));
+    newItems.forEach((item) => seenNotificationIdsRef.current.add(item.id));
+  }, [items]);
+
+  useEffect(() => {
+    let isActive = true;
     let poll: ReturnType<typeof setInterval> | null = null;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
 
     const init = async () => {
       const user = (await supabase.auth.getUser()).data.user;
       if (!user) {
-        setIsLoading(false);
+        if (isActive) setIsLoading(false);
         return;
       }
+      if (!isActive) return;
+
       setUid(user.id);
 
       const [{ data: profile }, { data: customerAccount }] = await Promise.all([
         supabase.from('profiles').select('role').eq('id', user.id).maybeSingle(),
         supabase.from('customer_accounts').select('id').eq('auth_user_id', user.id).maybeSingle()
       ]);
+
+      if (!isActive) return;
 
       const isWorkshop = profile?.role === 'admin' || profile?.role === 'technician';
       setIsWorkshopUser(isWorkshop);
@@ -77,6 +97,8 @@ export function NotificationsLive({ fullPage = false }: { fullPage?: boolean }) 
         else query = query.eq('to_profile_id', user.id);
 
         const { data, error } = await query;
+        if (!isActive) return;
+
         if (error) {
           setLoadError('Unable to load notifications right now.');
           setItems([]);
@@ -88,28 +110,40 @@ export function NotificationsLive({ fullPage = false }: { fullPage?: boolean }) 
       };
 
       await load();
-      const channel = supabase
-        .channel(`notifications-${user.id}`)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => void load())
-        .subscribe((status) => {
-          if (status !== 'SUBSCRIBED' && !poll) poll = setInterval(() => void load(), 10000);
-        });
 
-      return () => {
-        channel.unsubscribe();
-        if (poll) clearInterval(poll);
-      };
+      const realtimeFilter = isWorkshop
+        ? `to_profile_id=eq.${user.id}`
+        : customerAccount?.id
+          ? `to_customer_account_id=eq.${customerAccount.id}`
+          : `to_profile_id=eq.${user.id}`;
+
+      channel = supabase
+        .channel(`notifications-${user.id}-${fullPage ? 'full' : 'menu'}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: realtimeFilter }, () => void load())
+        .subscribe();
+
+      poll = setInterval(() => {
+        void load();
+      }, 10000);
     };
 
     void init();
-  }, [fullPage, supabase]);
 
-  if (!uid) return fullPage ? <p className="text-sm text-gray-500">No notifications yet.</p> : null;
+    return () => {
+      isActive = false;
+      if (poll) clearInterval(poll);
+      if (channel) {
+        void supabase.removeChannel(channel);
+      }
+    };
+  }, [fullPage, supabase]);
 
   const unread = items.filter((item) => !item.is_read).length;
   const filteredItems = filter === 'messages' ? items.filter((item) => item.kind === 'message') : items;
   const listHref = isWorkshopUser ? '/workshop/notifications' : '/customer/notifications';
   const itemHref = (item: Notification) => item.href || listHref;
+
+  if (!uid) return fullPage ? <p className="text-sm text-gray-500">No notifications yet.</p> : null;
 
   if (!fullPage) {
     return (

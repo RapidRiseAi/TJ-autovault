@@ -6,6 +6,7 @@ import { SectionCard } from '@/components/ui/section-card';
 import { Button } from '@/components/ui/button';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
+import { dispatchNotificationEmailsNow } from '@/lib/email/dispatch-now';
 
 function sanitizeFileName(fileName: string) {
   const [rawBase, ...rest] = fileName.trim().split('.');
@@ -218,7 +219,7 @@ async function sendStaffMessage(formData: FormData) {
       redirect('/workshop/technicians?error=message_invalid');
     }
 
-    await adminSupabase.from('notifications').insert({
+    const { data: oneNotification } = await adminSupabase.from('notifications').insert({
       workshop_account_id: actor.workshop_account_id,
       to_profile_id: technician.id,
       kind: 'message',
@@ -231,7 +232,11 @@ async function sendStaffMessage(formData: FormData) {
         recipient_profile_id: technician.id,
         thread_key: buildStaffThreadKey(actor.id, technician.id)
       }
-    });
+    }).select('id').maybeSingle();
+
+    if (oneNotification?.id) {
+      await dispatchNotificationEmailsNow([oneNotification.id]);
+    }
   } else if (mode === 'to_workshop') {
     if (actor.role !== 'technician') redirect('/workshop/dashboard');
 
@@ -244,7 +249,7 @@ async function sendStaffMessage(formData: FormData) {
     const adminRecipients = (admins ?? []).filter((recipient) => recipient.id !== actor.id);
     if (!adminRecipients.length) redirect('/workshop/technicians?error=message_invalid');
 
-    await adminSupabase.from('notifications').insert(
+    const { data: manyNotifications } = await adminSupabase.from('notifications').insert(
       adminRecipients.map((recipient) => ({
         workshop_account_id: actor.workshop_account_id,
         to_profile_id: recipient.id,
@@ -259,7 +264,12 @@ async function sendStaffMessage(formData: FormData) {
           thread_key: buildStaffThreadKey(actor.id, recipient.id)
         }
       }))
-    );
+    ).select('id');
+
+    const ids = (manyNotifications ?? []).map((row) => row.id).filter(Boolean) as string[];
+    if (ids.length) {
+      await dispatchNotificationEmailsNow(ids);
+    }
   } else {
     redirect('/workshop/technicians?error=message_invalid');
   }
