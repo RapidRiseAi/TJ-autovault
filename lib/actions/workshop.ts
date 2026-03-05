@@ -62,6 +62,7 @@ type InvoiceFinanceSyncInput = {
   workshopAccountId: string;
   invoiceId: string;
   paymentStatus: 'unpaid' | 'partial' | 'paid';
+  paymentMethod?: string | null;
   totalCents: number;
   occurredOnIso?: string | null;
   actorId?: string | null;
@@ -86,9 +87,9 @@ async function syncInvoiceIncomeEntry(
         external_ref_type: 'invoice',
         external_ref_id: input.invoiceId,
         metadata: {
-      invoice_id: input.invoiceId,
-      payment_method: normalizedPaymentMethod || null
-    },
+          invoice_id: input.invoiceId,
+          payment_method: input.paymentMethod ?? null
+        },
         created_by: input.actorId ?? null
       },
       { onConflict: 'workshop_account_id,source_type,external_ref_type,external_ref_id' }
@@ -766,6 +767,7 @@ export async function updateInvoicePaymentStatus(input: {
     workshopAccountId: data.workshop_account_id,
     invoiceId: input.invoiceId,
     paymentStatus: input.paymentStatus,
+    paymentMethod: normalizedPaymentMethod || null,
     totalCents: Number(data.total_cents ?? 0),
     occurredOnIso: data.updated_at,
     actorId: ctx.profile.id
