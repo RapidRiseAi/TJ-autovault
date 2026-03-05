@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { sendEmail } from '@/lib/email/resend';
-import { dispatchNotificationEmailsNow } from '@/lib/email/dispatch-now';
 import {
   buildFinancialDocumentPdf,
   computeFinancialLineItems,
@@ -112,13 +110,13 @@ export async function POST(request: NextRequest) {
       payload.customerAccountId ?? vehicle?.current_customer_account_id ?? null;
 
     let customer:
-      | { id: string; name: string; linked_email?: string | null; billing_address?: string | null }
+      | { id: string; name: string; billing_address?: string | null }
       | null = null;
 
     if (resolvedCustomerId) {
       const enhancedCustomer = await supabase
         .from('customer_accounts')
-        .select('id,name,linked_email,billing_address')
+        .select('id,name,billing_address')
         .eq('id', resolvedCustomerId)
         .eq('workshop_account_id', profile.workshop_account_id)
         .maybeSingle();
@@ -493,49 +491,23 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    const { data: customerNotification } = await supabase
-      .from('notifications')
-      .insert({
-        workshop_account_id: profile.workshop_account_id,
-        to_customer_account_id: customer.id,
-        kind: payload.kind,
-        title: payload.subject,
-        body:
-          payload.kind === 'quote'
-            ? `A new quote (${payload.referenceNumber}) is available.`
-            : `A new invoice (${payload.referenceNumber}) is available.`,
-        href: `/customer/vehicles/${vehicle.id}`,
-        data: {
-          vehicle_id: vehicle.id,
-          linked_entity_id: linkedId,
-          document_id: doc.id,
-          document_type: payload.kind
-        }
-      })
-      .select('id')
-      .maybeSingle();
-
-    if (customerNotification?.id) {
-      await dispatchNotificationEmailsNow([customerNotification.id]);
-    }
-
-    if (customer.linked_email?.trim()) {
-      await sendEmail(
-        customer.linked_email.trim().toLowerCase(),
+    await supabase.from('notifications').insert({
+      workshop_account_id: profile.workshop_account_id,
+      to_customer_account_id: customer.id,
+      kind: payload.kind,
+      title: payload.subject,
+      body:
         payload.kind === 'quote'
-          ? `Quote ${payload.referenceNumber}`
-          : `Invoice ${payload.referenceNumber}`,
-        `<p>Hello ${customer.name},</p><p>Your ${payload.kind} <strong>${payload.referenceNumber}</strong> is ready.</p><p>You can also view it in your AutoVault portal.</p>`,
-        {
-          attachments: [
-            {
-              filename: `${payload.referenceNumber}.pdf`,
-              content: Buffer.from(pdfBytes)
-            }
-          ]
-        }
-      );
-    }
+          ? `A new quote (${payload.referenceNumber}) is available.`
+          : `A new invoice (${payload.referenceNumber}) is available.`,
+      href: `/customer/vehicles/${vehicle.id}`,
+      data: {
+        vehicle_id: vehicle.id,
+        linked_entity_id: linkedId,
+        document_id: doc.id,
+        document_type: payload.kind
+      }
+    });
 
     return NextResponse.json({ ok: true, id: linkedId, documentId: doc.id });
   } catch (error) {

@@ -11,7 +11,7 @@ export async function buildCustomerStatementPdf(params: {
   customerName: string;
   from: string;
   to: string;
-  rows: Array<{ date: string; kind: 'invoice' | 'quote'; number: string; status: string; amountCents: number; paidCents?: number; balanceCents?: number; paymentMethod?: string; vehicle?: string }>;
+  rows: Array<{ date: string; kind: 'invoice' | 'quote'; number: string; status: string; amountCents: number; paidCents?: number; balanceCents?: number; vehicle?: string }>;
 }) {
   const pdf = await PDFDocument.create();
   const page = pdf.addPage([595, 842]);
@@ -34,10 +34,9 @@ export async function buildCustomerStatementPdf(params: {
   page.drawText('Type', { x: left + 70, y, size: 9, font: bold });
   page.drawText('Number', { x: left + 110, y, size: 9, font: bold });
   page.drawText('Status', { x: left + 220, y, size: 9, font: bold });
-  page.drawText('Method', { x: left + 275, y, size: 9, font: bold });
-  page.drawText('Vehicle', { x: left + 335, y, size: 9, font: bold });
-  page.drawText('Amount', { x: left + 420, y, size: 9, font: bold });
-  page.drawText('Balance', { x: left + 495, y, size: 9, font: bold });
+  page.drawText('Vehicle', { x: left + 280, y, size: 9, font: bold });
+  page.drawText('Amount', { x: left + 390, y, size: 9, font: bold });
+  page.drawText('Balance', { x: left + 470, y, size: 9, font: bold });
   y -= 10;
   page.drawLine({ start: { x: left, y }, end: { x: 555, y }, thickness: 1, color: rgb(0.85, 0.85, 0.85) });
   y -= 12;
@@ -53,10 +52,9 @@ export async function buildCustomerStatementPdf(params: {
     page.drawText(row.kind === 'invoice' ? 'INV' : 'QUO', { x: left + 70, y, size: 8, font: regular });
     page.drawText(row.number.slice(0, 14), { x: left + 110, y, size: 8, font: regular });
     page.drawText(row.status.slice(0, 10), { x: left + 220, y, size: 8, font: regular });
-    page.drawText((row.paymentMethod || '-').slice(0, 9), { x: left + 275, y, size: 8, font: regular });
-    page.drawText((row.vehicle || '-').slice(0, 13), { x: left + 335, y, size: 8, font: regular });
-    page.drawText(formatMoney(row.amountCents), { x: left + 420, y, size: 8, font: regular });
-    page.drawText(formatMoney(row.balanceCents ?? 0), { x: left + 495, y, size: 8, font: regular });
+    page.drawText((row.vehicle || '-').slice(0, 17), { x: left + 280, y, size: 8, font: regular });
+    page.drawText(formatMoney(row.amountCents), { x: left + 390, y, size: 8, font: regular });
+    page.drawText(formatMoney(row.balanceCents ?? 0), { x: left + 470, y, size: 8, font: regular });
 
     y -= 13;
     if (y < 80) break;
