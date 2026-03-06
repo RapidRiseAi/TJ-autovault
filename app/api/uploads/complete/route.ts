@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
-import { dispatchNotificationEmailsNow, dispatchRecentWorkshopNotifications } from '@/lib/email/dispatch-now';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { dispatchRecentCustomerNotifications, dispatchRecentWorkshopNotifications } from '@/lib/email/dispatch-now';
 
 const requestSchema = z.object({
   vehicleId: z.string().uuid(),
@@ -85,6 +86,7 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = await createClient();
+  const admin = createAdminClient();
   const user = (await supabase.auth.getUser()).data.user;
   if (!user)
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -103,7 +105,7 @@ export async function POST(request: NextRequest) {
     { data: customerMembership },
     { data: workshopMembership },
     { data: profile },
-    { data: customerAccount }
+    { data: customerAccount, error: customerAccountError }
   ] = await Promise.all([
     supabase
       .from('customer_accounts')
@@ -123,12 +125,19 @@ export async function POST(request: NextRequest) {
       .select('id,role,display_name')
       .eq('id', user.id)
       .maybeSingle(),
-    supabase
+    admin
       .from('customer_accounts')
-      .select('name')
+      .select('name,linked_email,auth_user_id')
       .eq('id', vehicle.current_customer_account_id)
       .maybeSingle()
   ]);
+
+  if (customerAccountError) {
+    return NextResponse.json(
+      { error: customerAccountError.message },
+      { status: 400 }
+    );
+  }
 
   if (!customerMembership && !workshopMembership)
     return NextResponse.json({ error: 'Access denied' }, { status: 403 });
@@ -334,27 +343,32 @@ export async function POST(request: NextRequest) {
     actorRole === 'customer' && normalizedDocType === 'report';
 
   if (shouldNotifyCustomer) {
-    const { data: customerNotification } = await supabase
-      .from('notifications')
-      .insert({
-        workshop_account_id: vehicle.workshop_account_id,
-        to_customer_account_id: vehicle.current_customer_account_id,
-        kind:
-          normalizedDocType === 'invoice'
-            ? 'invoice'
-            : normalizedDocType === 'quote'
-              ? 'quote'
-              : 'report',
-        title: payload.subject || `New ${normalizedDocType.replace('_', ' ')}`,
-        body: payload.body || 'A document was uploaded for your vehicle.',
-        href: `/customer/vehicles/${payload.vehicleId}`,
-        data: notificationData
-      })
-      .select('id')
-      .maybeSingle();
+    const notificationKind =
+      normalizedDocType === 'invoice'
+        ? 'invoice'
+        : normalizedDocType === 'quote'
+          ? 'quote'
+          : 'report';
+    const customerHref = `/customer/vehicles/${payload.vehicleId}`;
 
-    if (customerNotification?.id) {
-      await dispatchNotificationEmailsNow([customerNotification.id]);
+    const { error: notificationError } = await supabase.rpc('push_notification', {
+      p_workshop_account_id: vehicle.workshop_account_id,
+      p_to_customer_account_id: vehicle.current_customer_account_id,
+      p_kind: notificationKind,
+      p_title: payload.subject || `New ${normalizedDocType.replace('_', ' ')}`,
+      p_body: payload.body || 'A document was uploaded for your vehicle.',
+      p_href: customerHref,
+      p_data: notificationData
+    });
+
+    if (notificationError) {
+      console.error('Could not create customer notification for upload', notificationError);
+    } else {
+      await dispatchRecentCustomerNotifications({
+        customerAccountId: vehicle.current_customer_account_id,
+        kind: notificationKind,
+        href: customerHref
+      });
     }
   }
 
