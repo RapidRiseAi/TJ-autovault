@@ -8,14 +8,6 @@ async function runDispatch(notificationIds: string[]) {
   if (!ids.length) return;
 
   try {
-    const admin = createAdminClient();
-    await admin
-      .from('notification_email_queue')
-      .upsert(
-        ids.map((notificationId) => ({ notification_id: notificationId })),
-        { onConflict: 'notification_id', ignoreDuplicates: true }
-      );
-
     await dispatchNotificationEmails({ notificationIds: ids, limit: Math.max(ids.length, 10) });
   } catch {
     // keep user-facing flows resilient; daily cron retry will process pending queue rows.
