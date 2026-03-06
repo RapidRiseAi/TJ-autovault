@@ -62,7 +62,6 @@ type InvoiceFinanceSyncInput = {
   workshopAccountId: string;
   invoiceId: string;
   paymentStatus: 'unpaid' | 'partial' | 'paid';
-  paymentMethod?: string | null;
   totalCents: number;
   occurredOnIso?: string | null;
   actorId?: string | null;
@@ -86,10 +85,7 @@ async function syncInvoiceIncomeEntry(
         occurred_on: occurredOn,
         external_ref_type: 'invoice',
         external_ref_id: input.invoiceId,
-        metadata: {
-          invoice_id: input.invoiceId,
-          payment_method: input.paymentMethod ?? null
-        },
+        metadata: { invoice_id: input.invoiceId },
         created_by: input.actorId ?? null
       },
       { onConflict: 'workshop_account_id,source_type,external_ref_type,external_ref_id' }
@@ -723,23 +719,13 @@ export async function createInvoice(input: {
 export async function updateInvoicePaymentStatus(input: {
   invoiceId: string;
   paymentStatus: 'unpaid' | 'partial' | 'paid';
-  paymentMethod?: string | null;
 }): Promise<Result> {
   const ctx = await getWorkshopContext();
   if (!ctx) return { ok: false, error: 'Unauthorized' };
 
-  const normalizedPaymentMethod = (input.paymentMethod ?? '').trim();
-
-  if (input.paymentStatus === 'paid' && !normalizedPaymentMethod) {
-    return { ok: false, error: 'Please select how the invoice was paid.' };
-  }
-
   const { data, error } = await ctx.supabase
     .from('invoices')
-    .update({
-      payment_status: input.paymentStatus,
-      payment_method: normalizedPaymentMethod || null
-    })
+    .update({ payment_status: input.paymentStatus })
     .eq('id', input.invoiceId)
     .eq('workshop_account_id', ctx.profile.workshop_account_id)
     .select('vehicle_id,customer_account_id,workshop_account_id,total_cents,updated_at')
@@ -757,17 +743,13 @@ export async function updateInvoicePaymentStatus(input: {
     event_type: 'payment_status_changed',
     title: `Payment ${input.paymentStatus}`,
     importance: input.paymentStatus === 'paid' ? 'info' : 'warning',
-    metadata: {
-      invoice_id: input.invoiceId,
-      payment_method: normalizedPaymentMethod || null
-    }
+    metadata: { invoice_id: input.invoiceId }
   });
 
   await syncInvoiceIncomeEntry(ctx.supabase, {
     workshopAccountId: data.workshop_account_id,
     invoiceId: input.invoiceId,
     paymentStatus: input.paymentStatus,
-    paymentMethod: normalizedPaymentMethod || null,
     totalCents: Number(data.total_cents ?? 0),
     occurredOnIso: data.updated_at,
     actorId: ctx.profile.id
