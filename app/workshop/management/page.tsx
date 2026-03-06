@@ -75,9 +75,14 @@ function TrendBars({
           const height = value === 0 ? 0 : Math.max(10, Math.round((value / max) * 128));
           return (
             <div key={`${title}-${row.monthKey}`} className="space-y-2 text-center">
-              <p className="text-[10px] font-medium text-gray-600">{formatValue(value)}</p>
               <div className="mx-auto flex h-36 items-end justify-center">
-                <div className={`w-5 rounded-t-md ${colorClass}`} style={{ height }} title={`${row.label}: ${formatValue(value)}`} />
+                <div className={`relative w-6 overflow-hidden rounded-t-md ${colorClass}`} style={{ height }} title={`${row.label}: ${formatValue(value)}`}>
+                  {value > 0 ? (
+                    <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap text-[9px] font-semibold leading-none text-white rotate-[-90deg]">
+                      {formatValue(value)}
+                    </span>
+                  ) : null}
+                </div>
               </div>
               <p className="text-[10px] text-gray-500">{row.label}</p>
             </div>
