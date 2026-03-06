@@ -64,6 +64,7 @@ function TrendBars({
 }) {
   const values = rows.map((row) => Math.max(0, row[keyName]));
   const max = Math.max(...values, 1);
+  const formatValue = (value: number) => (keyName === 'customers' ? String(value) : formatMoney(value));
 
   return (
     <Card className="rounded-3xl border-black/10 p-5">
@@ -75,7 +76,13 @@ function TrendBars({
           return (
             <div key={`${title}-${row.monthKey}`} className="space-y-2 text-center">
               <div className="mx-auto flex h-36 items-end justify-center">
-                <div className={`w-5 rounded-t-md ${colorClass}`} style={{ height }} title={`${row.label}: ${keyName === 'customers' ? value : formatMoney(value)}`} />
+                <div className={`relative w-6 overflow-hidden rounded-t-md ${colorClass}`} style={{ height }} title={`${row.label}: ${formatValue(value)}`}>
+                  {value > 0 ? (
+                    <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap text-[9px] font-semibold leading-none text-white rotate-[-90deg]">
+                      {formatValue(value)}
+                    </span>
+                  ) : null}
+                </div>
               </div>
               <p className="text-[10px] text-gray-500">{row.label}</p>
             </div>
