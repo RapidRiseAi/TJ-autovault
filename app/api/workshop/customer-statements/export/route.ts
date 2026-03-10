@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
     ? Promise.resolve({ data: [] as Array<Record<string, unknown>> })
     : supabase
         .from('invoices')
-        .select('id,invoice_number,status,payment_status,payment_method,total_cents,amount_paid_cents,balance_due_cents,created_at,vehicle_id,vehicles(registration_number)')
+        .select('id,invoice_number,status,payment_status,total_cents,amount_paid_cents,balance_due_cents,created_at,vehicle_id,vehicles(registration_number)')
         .eq('workshop_account_id', profile.workshop_account_id)
         .eq('customer_account_id', customerId)
         .gte('created_at', `${from}T00:00:00.000Z`)
@@ -92,19 +92,17 @@ export async function GET(request: NextRequest) {
       amountCents: Number(invoice.total_cents ?? 0),
       paidCents: Number(invoice.amount_paid_cents ?? 0),
       balanceCents: Number(invoice.balance_due_cents ?? invoice.total_cents ?? 0),
-      paymentMethod: String(invoice.payment_method ?? ''),
       vehicle: ((invoice.vehicles as { registration_number?: string } | null)?.registration_number ?? '-')
     })))
   ].sort((a, b) => a.date.localeCompare(b.date));
 
   if (format === 'csv') {
-    const header = ['Date', 'Type', 'Number', 'Status', 'Payment method', 'Vehicle', 'Amount', 'Paid', 'Balance'];
+    const header = ['Date', 'Type', 'Number', 'Status', 'Vehicle', 'Amount', 'Paid', 'Balance'];
     const body = rows.map((row) => [
       csvEscape(row.date),
       csvEscape(row.kind),
       csvEscape(row.number),
       csvEscape(row.status),
-      csvEscape('paymentMethod' in row ? (row.paymentMethod ?? '') : ''),
       csvEscape(row.vehicle),
       csvEscape(String(row.amountCents / 100)),
       csvEscape(String((('paidCents' in row ? row.paidCents : 0) ?? 0) / 100)),
