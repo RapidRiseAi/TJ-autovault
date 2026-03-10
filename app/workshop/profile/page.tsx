@@ -441,7 +441,6 @@ export default async function WorkshopProfilePage() {
           ) : null}
         </WorkshopProfileForm>
       </SectionCard>
-
     </main>
   );
 }
