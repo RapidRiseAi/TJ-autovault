@@ -305,18 +305,19 @@ export async function buildFinancialDocumentPdf(params: {
   const totalRowHeight = 28;
   const totalLabelX = cols.total;
   const totalRowWidth = cols.right - totalLabelX;
-  page.drawRectangle({ x: totalLabelX, y: rowTop - totalRowHeight, width: totalRowWidth, height: totalRowHeight, color: rgb(1, 1, 1) });
-  page.drawRectangle({ x: totalLabelX, y: rowTop - totalRowHeight, width: totalRowWidth, height: totalRowHeight, borderWidth: thin, borderColor: rgb(0, 0, 0) });
-  page.drawText('Total', { x: totalLabelX + 16, y: rowTop - 18, size: 10.5, font: bold });
+  const totalRowBottom = rowTop - totalRowHeight - 8;
+  page.drawRectangle({ x: totalLabelX, y: totalRowBottom, width: totalRowWidth, height: totalRowHeight, color: rgb(1, 1, 1) });
+  page.drawRectangle({ x: totalLabelX, y: totalRowBottom, width: totalRowWidth, height: totalRowHeight, borderWidth: thin, borderColor: rgb(0, 0, 0) });
+  page.drawText('Total', { x: totalLabelX + 16, y: totalRowBottom + 10, size: 10.5, font: bold });
   const grandTotal = money(params.totals.totalCents);
   page.drawText(grandTotal, {
     x: cols.right - 8 - bold.widthOfTextAtSize(grandTotal, 10.5),
-    y: rowTop - 18,
+    y: totalRowBottom + 10,
     size: 10.5,
     font: bold
   });
 
-  const bankY = rowTop - 62;
+  const bankY = totalRowBottom - 36;
   page.drawText(`BANK NAME: ${params.workshop.bankName || '-'}`, { x: left, y: bankY, size: 10, font: regular });
   page.drawText(`ACC NAME: ${params.workshop.name || '-'}`, { x: left, y: bankY - 15, size: 10, font: regular });
   page.drawText(`ACC NO: ${params.workshop.bankAccountNumber || '-'}`, { x: left, y: bankY - 30, size: 10, font: regular });
