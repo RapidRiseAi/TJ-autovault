@@ -91,6 +91,17 @@ function clampText(value: string, max: number) {
   return `${value.slice(0, Math.max(0, max - 1)).trimEnd()}…`;
 }
 
+function toRgbHex(hex?: string) {
+  if (!hex) return rgb(0.08, 0.2, 0.43);
+  const match = hex.trim().match(/^#?([a-f\d]{6})$/i);
+  if (!match) return rgb(0.08, 0.2, 0.43);
+  const parsed = match[1];
+  const r = parseInt(parsed.slice(0, 2), 16) / 255;
+  const g = parseInt(parsed.slice(2, 4), 16) / 255;
+  const b = parseInt(parsed.slice(4, 6), 16) / 255;
+  return rgb(r, g, b);
+}
+
 function isPastDate(value?: string | null) {
   if (!value) return false;
   const comparedDate = new Date(value);
@@ -103,6 +114,8 @@ function isPastDate(value?: string | null) {
 
 export async function buildFinancialDocumentPdf(params: {
   kind: 'quote' | 'invoice';
+  brandColor?: string;
+  logoBytes?: Uint8Array;
   workshop: {
     name: string;
     contactEmail?: string | null;
@@ -115,7 +128,12 @@ export async function buildFinancialDocumentPdf(params: {
     footer?: string | null;
   };
   customer: { name: string; billingAddress?: string | null };
-  vehicle: { registrationNumber?: string | null; make?: string | null; model?: string | null; vin?: string | null };
+  vehicle: {
+    registrationNumber?: string | null;
+    make?: string | null;
+    model?: string | null;
+    vin?: string | null;
+  };
   subject: string;
   referenceNumber: string;
   issueDate: string;
@@ -123,21 +141,28 @@ export async function buildFinancialDocumentPdf(params: {
   notes?: string | null;
   currencyCode?: string;
   items: FinancialLineComputed[];
-  totals: { subtotalCents: number; discountCents: number; taxCents: number; totalCents: number; amountPaidCents?: number; balanceDueCents?: number };
+  totals: {
+    subtotalCents: number;
+    discountCents: number;
+    taxCents: number;
+    totalCents: number;
+    amountPaidCents?: number;
+    balanceDueCents?: number;
+  };
 }) {
   const pdf = await PDFDocument.create();
   const page = pdf.addPage([595, 842]);
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const brand = toRgbHex(params.brandColor);
 
-  const pageWidth = 595;
-  const left = 42;
-  const right = pageWidth - 42;
-  const brand = rgb(0.1, 0.18, 0.34);
-  const textMuted = rgb(0.35, 0.37, 0.41);
-  const border = rgb(0.82, 0.84, 0.88);
+  const left = 38;
+  const right = 557;
+  const width = right - left;
+  const border = rgb(0.78, 0.8, 0.84);
+  const textMuted = rgb(0.33, 0.36, 0.42);
 
-  const drawRight = (text: string, y: number, size = 10, font = regular, color = rgb(0.1, 0.12, 0.15)) => {
+  const drawRight = (text: string, y: number, size = 10, font = regular, color = textMuted) => {
     page.drawText(text, {
       x: right - font.widthOfTextAtSize(text, size),
       y,
@@ -147,238 +172,171 @@ export async function buildFinancialDocumentPdf(params: {
     });
   };
 
-  const drawLabelValue = (label: string, value: string, x: number, y: number, width = 240) => {
-    page.drawText(label, { x, y, size: 8, font: bold, color: textMuted });
-    page.drawText(clampText(value, 90), { x, y: y - 12, size: 10, font: regular, maxWidth: width, color: rgb(0.14, 0.16, 0.19) });
-  };
-
-  const drawLeftInColumn = (text: string, leftX: number, yPos: number, size = 9, font = regular) => {
-    page.drawText(text, {
-      x: leftX,
-      y: yPos,
-      size,
-      font
-    });
-  };
-
-  const drawColumnDivider = (x: number, top: number, bottom: number) => {
-    page.drawLine({
-      start: { x, y: top },
-      end: { x, y: bottom },
-      thickness: 0.5,
-      color: border
-    });
-  };
-
-  let y = 800;
-
-  page.drawRectangle({ x: left, y: y - 8, width: 8, height: 42, color: brand });
-  page.drawText(params.workshop.name || 'Workshop', { x: left + 16, y, size: 20, font: bold, color: rgb(0.05, 0.05, 0.05) });
-  page.drawText(params.kind === 'quote' ? 'QUOTE' : 'INVOICE', {
-    x: right - bold.widthOfTextAtSize(params.kind === 'quote' ? 'QUOTE' : 'INVOICE', 24),
-    y: y - 1,
-    size: 24,
+  page.drawText(params.kind === 'quote' ? 'QUOTE' : 'Invoice', {
+    x: left,
+    y: 790,
+    size: 40,
     font: bold,
-    color: brand
+    color: params.kind === 'quote' ? brand : rgb(0.1, 0.1, 0.1)
   });
 
-  y -= 22;
-  page.drawText(clampText(params.workshop.contactEmail || '-', 70), {
-    x: left + 16,
-    y,
-    size: 10,
-    font: regular,
-    color: textMuted
-  });
-  y -= 14;
-  page.drawText(clampText(params.workshop.contactPhone || '-', 40), {
-    x: left + 16,
-    y,
-    size: 10,
-    font: regular,
-    color: textMuted
-  });
-
-  drawRight(params.referenceNumber, 776, 11, bold);
-  drawRight(`Issue date: ${params.issueDate}`, 760, 10, regular, textMuted);
-  if (params.dueOrExpiryDate) {
-    drawRight(`${params.kind === 'quote' ? 'Valid until' : 'Due date'}: ${params.dueOrExpiryDate}`, 746, 10, regular, textMuted);
+  if (params.logoBytes) {
+    try {
+      const logo = await pdf.embedPng(params.logoBytes).catch(async () => pdf.embedJpg(params.logoBytes));
+      const scaled = logo.scale(0.2);
+      page.drawImage(logo, {
+        x: right - scaled.width,
+        y: 760,
+        width: scaled.width,
+        height: scaled.height
+      });
+    } catch {
+      // fallback when image cannot be embedded
+    }
   }
 
-  y -= 22;
-  page.drawRectangle({ x: left, y: y - 154, width: right - left, height: 154, borderWidth: 1, borderColor: border });
-  page.drawRectangle({ x: left, y: y - 154, width: right - left, height: 26, color: rgb(0.96, 0.97, 0.99) });
+  const midYTop = 700;
+  const centerX = left + width * 0.6;
 
-  drawLabelValue('SUBJECT', params.subject, left + 12, y - 16, 500);
-  drawLabelValue('CUSTOMER', params.customer.name || '-', left + 12, y - 50);
-  drawLabelValue('CUSTOMER ADDRESS', params.customer.billingAddress || '-', left + 270, y - 50);
+  page.drawText(clampText(params.customer.name || '-', 50), { x: left, y: midYTop, size: 11, font: regular });
+  page.drawText(clampText(params.customer.billingAddress || '-', 64), {
+    x: left,
+    y: midYTop - 16,
+    size: 10,
+    font: regular,
+    color: textMuted,
+    lineHeight: 11,
+    maxWidth: 250
+  });
 
-  const vehicleLabel = [params.vehicle.make, params.vehicle.model].filter(Boolean).join(' ') || '-';
-  drawLabelValue('VEHICLE', `${vehicleLabel}${params.vehicle.registrationNumber ? ` (${params.vehicle.registrationNumber})` : ''}`, left + 12, y - 92);
-  drawLabelValue('VIN', params.vehicle.vin || '-', left + 270, y - 92);
+  const middleLabelX = left + 260;
+  page.drawText(params.kind === 'quote' ? 'Quote date' : 'Invoice date', { x: middleLabelX, y: midYTop, size: 10, font: bold });
+  page.drawText(params.issueDate, { x: middleLabelX + 6, y: midYTop - 14, size: 10, font: regular });
+  page.drawText(params.kind === 'quote' ? 'Valid date' : 'Due date', { x: middleLabelX, y: midYTop - 34, size: 10, font: bold });
+  page.drawText(params.dueOrExpiryDate || '-', { x: middleLabelX + 6, y: midYTop - 48, size: 10, font: regular });
+  page.drawText(`${params.kind === 'quote' ? 'Quote' : 'Invoice'} number`, { x: middleLabelX, y: midYTop - 68, size: 10, font: bold });
+  page.drawText(params.referenceNumber, { x: middleLabelX + 6, y: midYTop - 82, size: 10, font: regular });
 
-  drawLabelValue('BILLING ADDRESS', params.workshop.billingAddress || '-', left + 12, y - 134, 500);
+  page.drawLine({
+    start: { x: centerX, y: midYTop + 8 },
+    end: { x: centerX, y: midYTop - 95 },
+    thickness: 1,
+    color: rgb(0.52, 0.54, 0.58)
+  });
 
-  y -= 178;
+  page.drawText(clampText(params.workshop.name || '-', 38), { x: centerX + 14, y: midYTop, size: 11, font: bold });
+  page.drawText(`Co Reg: ${params.workshop.taxNumber || '-'}`, { x: centerX + 14, y: midYTop - 14, size: 9.5, font: regular });
+  page.drawText(`Tel: ${params.workshop.contactPhone || '-'}`, { x: centerX + 14, y: midYTop - 27, size: 9.5, font: regular });
+  page.drawText(`Email: ${params.workshop.contactEmail || '-'}`, { x: centerX + 14, y: midYTop - 40, size: 9.5, font: regular });
+  page.drawText(clampText(params.workshop.billingAddress || '-', 44), {
+    x: centerX + 14,
+    y: midYTop - 54,
+    size: 9.5,
+    font: regular,
+    maxWidth: 150,
+    lineHeight: 10
+  });
 
-  const tableX = left;
-  const tableWidth = right - left;
-  const tableRight = tableX + tableWidth;
+  const vehicleLabel = [params.vehicle.make, params.vehicle.model, params.vehicle.registrationNumber].filter(Boolean).join(' ');
+  page.drawText(clampText(vehicleLabel || params.subject, 76), { x: left, y: 575, size: 10.5, font: bold });
 
-  const grid = {
-    descriptionLeft: tableX + 10,
-    descriptionRight: tableX + 180,
-    qtyLeft: tableX + 188,
-    qtyRight: tableX + 228,
-    unitLeft: tableX + 236,
-    unitRight: tableX + 308,
-    discountLeft: tableX + 316,
-    discountRight: tableX + 388,
-    taxLeft: tableX + 396,
-    taxRight: tableX + 448,
-    totalLeft: tableX + 456,
-    totalRight: tableRight - 10
+  const tableTop = 555;
+  page.drawRectangle({ x: left, y: tableTop - 26, width, height: 26, borderWidth: 1, borderColor: rgb(0, 0, 0) });
+
+  const col = {
+    desc: left,
+    qty: left + 320,
+    unit: left + 380,
+    total: left + 440,
+    right
   };
 
-  page.drawRectangle({ x: tableX, y: y - 24, width: tableWidth, height: 24, color: rgb(0.95, 0.96, 0.98) });
-  page.drawRectangle({ x: tableX, y: y - 24, width: tableWidth, height: 24, borderWidth: 1, borderColor: border });
+  page.drawLine({ start: { x: col.qty, y: tableTop }, end: { x: col.qty, y: tableTop - 26 }, thickness: 1, color: rgb(0, 0, 0) });
+  page.drawLine({ start: { x: col.unit, y: tableTop }, end: { x: col.unit, y: tableTop - 26 }, thickness: 1, color: rgb(0, 0, 0) });
+  page.drawLine({ start: { x: col.total, y: tableTop }, end: { x: col.total, y: tableTop - 26 }, thickness: 1, color: rgb(0, 0, 0) });
 
-  drawColumnDivider(grid.descriptionRight, y, y - 24);
-  drawColumnDivider(grid.qtyRight, y, y - 24);
-  drawColumnDivider(grid.unitRight, y, y - 24);
-  drawColumnDivider(grid.discountRight, y, y - 24);
-  drawColumnDivider(grid.taxRight, y, y - 24);
+  page.drawText('Description', { x: left + 8, y: tableTop - 17, size: 10, font: bold });
+  page.drawText('Qty', { x: col.qty + 22, y: tableTop - 17, size: 10, font: bold });
+  page.drawText('Unit price', { x: col.unit + 10, y: tableTop - 17, size: 10, font: bold });
+  page.drawText('Total', { x: col.total + 20, y: tableTop - 17, size: 10, font: bold });
 
-  page.drawText('Description', { x: grid.descriptionLeft, y: y - 16, size: 9, font: bold, color: brand });
-  drawLeftInColumn('Qty', grid.qtyLeft, y - 16, 9, bold);
-  drawLeftInColumn('Unit', grid.unitLeft, y - 16, 9, bold);
-  drawLeftInColumn('Discount', grid.discountLeft, y - 16, 9, bold);
-  drawLeftInColumn('Tax', grid.taxLeft, y - 16, 9, bold);
-  drawLeftInColumn('Total', grid.totalLeft, y - 16, 9, bold);
+  let y = tableTop - 26;
+  for (const item of params.items.slice(0, 10)) {
+    const rowHeight = 34;
+    page.drawRectangle({ x: left, y: y - rowHeight, width, height: rowHeight, borderWidth: 1, borderColor: rgb(0, 0, 0) });
+    page.drawLine({ start: { x: col.qty, y }, end: { x: col.qty, y: y - rowHeight }, thickness: 1, color: rgb(0, 0, 0) });
+    page.drawLine({ start: { x: col.unit, y }, end: { x: col.unit, y: y - rowHeight }, thickness: 1, color: rgb(0, 0, 0) });
+    page.drawLine({ start: { x: col.total, y }, end: { x: col.total, y: y - rowHeight }, thickness: 1, color: rgb(0, 0, 0) });
 
-  y -= 24;
+    page.drawText(clampText(item.description, 58), { x: left + 8, y: y - 21, size: 10, font: regular });
+    page.drawText(String(item.qty), { x: col.qty + 27, y: y - 21, size: 10, font: regular });
 
-  const rowHeight = 20;
-  const visibleItems = params.items.slice(0, 18);
-  for (const [index, item] of visibleItems.entries()) {
-    const rowY = y - rowHeight;
-    if (index % 2 === 0) {
-      page.drawRectangle({ x: tableX, y: rowY, width: tableWidth, height: rowHeight, color: rgb(0.989, 0.992, 0.996) });
-    }
-    page.drawRectangle({ x: tableX, y: rowY, width: tableWidth, height: rowHeight, borderWidth: 0.5, borderColor: border });
+    const unitText = clampText(formatMoney(item.unitPriceCents, params.currencyCode), 14);
+    const unitX = col.total - 10 - regular.widthOfTextAtSize(unitText, 10);
+    page.drawText(unitText, { x: unitX, y: y - 21, size: 10, font: regular });
 
-    drawColumnDivider(grid.descriptionRight, rowY + rowHeight, rowY);
-    drawColumnDivider(grid.qtyRight, rowY + rowHeight, rowY);
-    drawColumnDivider(grid.unitRight, rowY + rowHeight, rowY);
-    drawColumnDivider(grid.discountRight, rowY + rowHeight, rowY);
-    drawColumnDivider(grid.taxRight, rowY + rowHeight, rowY);
-
-    page.drawText(clampText(item.description, 24), { x: grid.descriptionLeft, y: rowY + 7, size: 9, font: regular });
-    drawLeftInColumn(String(item.qty), grid.qtyLeft, rowY + 7, 8.8);
-    drawLeftInColumn(clampText(formatMoney(item.unitPriceCents, params.currencyCode), 12), grid.unitLeft, rowY + 7, 8.8);
-    drawLeftInColumn(clampText(formatMoney(item.discountCents, params.currencyCode), 12), grid.discountLeft, rowY + 7, 8.8);
-    drawLeftInColumn(clampText(formatMoney(item.taxCents, params.currencyCode), 10), grid.taxLeft, rowY + 7, 8.8);
-    drawLeftInColumn(clampText(formatMoney(item.lineTotalCents, params.currencyCode), 14), grid.totalLeft, rowY + 7, 8.8);
+    const lineText = clampText(formatMoney(item.lineTotalCents, params.currencyCode), 14);
+    const totalX = right - 10 - regular.widthOfTextAtSize(lineText, 10);
+    page.drawText(lineText, { x: totalX, y: y - 21, size: 10, font: regular });
 
     y -= rowHeight;
-    if (y < 250) break;
   }
 
-  if (params.items.length > visibleItems.length) {
-    page.drawText(`+ ${params.items.length - visibleItems.length} more line items`, {
-      x: tableX + 10,
-      y: y - 14,
-      size: 8,
-      font: regular,
-      color: textMuted
-    });
-    y -= 16;
-  }
+  const totalsTop = y;
+  const totalsX = col.unit;
+  const totalsWidth = right - totalsX;
+  const rowH = 24;
 
-  const totalsBoxX = right - 250;
-  const totalsBoxY = y - 96;
-  page.drawRectangle({ x: totalsBoxX, y: totalsBoxY, width: 250, height: 96, borderWidth: 1, borderColor: border });
-
-  const drawTotalLine = (label: string, value: string, yy: number, emphasize = false) => {
-    page.drawText(label, {
-      x: totalsBoxX + 10,
-      y: yy,
-      size: emphasize ? 11 : 10,
-      font: emphasize ? bold : regular
-    });
+  const drawTotalsRow = (label: string, value: string, rowIndex: number, emphasize = false) => {
+    const rowY = totalsTop - rowH * (rowIndex + 1);
+    page.drawRectangle({ x: totalsX, y: rowY, width: totalsWidth, height: rowH, borderWidth: 1, borderColor: border });
+    page.drawText(label, { x: totalsX + 10, y: rowY + 8, size: emphasize ? 11 : 10, font: emphasize ? bold : regular });
     const font = emphasize ? bold : regular;
     const size = emphasize ? 11 : 10;
     page.drawText(value, {
-      x: totalsBoxX + 240 - font.widthOfTextAtSize(value, size),
-      y: yy,
+      x: right - 10 - font.widthOfTextAtSize(value, size),
+      y: rowY + 8,
       size,
       font
     });
   };
 
-  drawTotalLine('Subtotal', formatMoney(params.totals.subtotalCents, params.currencyCode), totalsBoxY + 72);
-  drawTotalLine('Discount', formatMoney(params.totals.discountCents, params.currencyCode), totalsBoxY + 56);
-  drawTotalLine('Tax', formatMoney(params.totals.taxCents, params.currencyCode), totalsBoxY + 40);
-  page.drawRectangle({ x: totalsBoxX, y: totalsBoxY + 12, width: 250, height: 20, color: rgb(0.95, 0.97, 0.99) });
-  drawTotalLine('Total', formatMoney(params.totals.totalCents, params.currencyCode), totalsBoxY + 20, true);
+  drawTotalsRow('Subtotal', formatMoney(params.totals.subtotalCents, params.currencyCode), 0);
+  drawTotalsRow('Discount', formatMoney(params.totals.discountCents, params.currencyCode), 1);
+  drawTotalsRow('Tax', formatMoney(params.totals.taxCents, params.currencyCode), 2);
+  drawTotalsRow('Total', formatMoney(params.totals.totalCents, params.currencyCode), 3, true);
 
-  if (params.kind === 'invoice') {
-    const statusY = totalsBoxY - 46;
-    page.drawRectangle({ x: totalsBoxX, y: statusY, width: 250, height: 40, borderWidth: 1, borderColor: border });
-    drawTotalLine('Paid', formatMoney(params.totals.amountPaidCents ?? 0, params.currencyCode), statusY + 24);
-    drawTotalLine('Balance due', formatMoney(params.totals.balanceDueCents ?? params.totals.totalCents, params.currencyCode), statusY + 8, true);
+  const notesY = 180;
+  page.drawText('Notes', { x: left, y: notesY, size: 12, font: bold });
+  page.drawRectangle({ x: left, y: notesY - 56, width: 300, height: 48, borderWidth: 1, borderColor: border });
+  page.drawText(clampText(params.notes?.trim() || '-', 200), { x: left + 8, y: notesY - 25, size: 10, font: regular, color: textMuted });
 
-    const balanceDue = params.totals.balanceDueCents ?? params.totals.totalCents;
-    const paid = balanceDue <= 0;
-    const overdue = !paid && isPastDate(params.dueOrExpiryDate);
-    const badgeLabel = paid ? 'PAID' : overdue ? 'OVERDUE' : 'PENDING';
-    const badgeColor = paid ? rgb(0.14, 0.55, 0.29) : overdue ? rgb(0.72, 0.17, 0.17) : rgb(0.75, 0.52, 0.12);
-    const badgeWidth = 74;
-    const badgeX = right - badgeWidth;
-    page.drawRectangle({ x: badgeX, y: statusY - 26, width: badgeWidth, height: 18, borderWidth: 1, borderColor: badgeColor });
-    page.drawText(badgeLabel, {
-      x: badgeX + (badgeWidth - bold.widthOfTextAtSize(badgeLabel, 9)) / 2,
-      y: statusY - 20,
-      size: 9,
+  page.drawText(`Tax/VAT: ${params.workshop.taxNumber || '-'}`, {
+    x: left,
+    y: 82,
+    size: 10,
+    font: regular,
+    color: textMuted
+  });
+  page.drawText(
+    `Bank Name: ${params.workshop.bankName || '-'}    ACC NAME: ${params.workshop.name || '-'}    ACC NO: ${params.workshop.bankAccountNumber || '-'}    BRANCH: ${params.workshop.bankBranchCode || '-'}`,
+    { x: left, y: 66, size: 9, font: regular, color: textMuted, maxWidth: 360 }
+  );
+
+  const balanceDue = params.totals.balanceDueCents ?? params.totals.totalCents;
+  if (params.kind === 'invoice' && balanceDue > 0 && isPastDate(params.dueOrExpiryDate)) {
+    const badge = 'OVERDUE';
+    const badgeWidth = 88;
+    const badgeX = left + (width - badgeWidth) / 2;
+    page.drawRectangle({ x: badgeX, y: 24, width: badgeWidth, height: 30, borderWidth: 2, borderColor: rgb(0.82, 0.12, 0.12) });
+    page.drawText(badge, {
+      x: badgeX + (badgeWidth - bold.widthOfTextAtSize(badge, 11)) / 2,
+      y: 34,
+      size: 11,
       font: bold,
-      color: badgeColor
+      color: rgb(0.82, 0.12, 0.12)
     });
   }
-
-  const notesY = 168;
-  page.drawText('Notes', { x: left, y: notesY, size: 10, font: bold });
-  page.drawRectangle({ x: left, y: notesY - 56, width: 300, height: 48, borderWidth: 1, borderColor: rgb(0.85, 0.85, 0.87) });
-  page.drawText(clampText(params.notes?.trim() || '-', 320), {
-    x: left + 8,
-    y: notesY - 24,
-    size: 9,
-    font: regular,
-    maxWidth: 285,
-    lineHeight: 12,
-    color: rgb(0.2, 0.2, 0.2)
-  });
-
-  const footerTop = 78;
-  page.drawLine({ start: { x: left, y: footerTop }, end: { x: right, y: footerTop }, color: rgb(0.82, 0.82, 0.84), thickness: 1 });
-
-  page.drawText(`Tax/VAT: ${params.workshop.taxNumber || '-'}`, { x: left, y: footerTop - 16, size: 8.5, font: regular, color: textMuted });
-  page.drawText(`Bank: ${params.workshop.bankName || '-'}  |  Account: ${params.workshop.bankAccountNumber || '-'}  |  Branch: ${params.workshop.bankBranchCode || '-'}`, {
-    x: left,
-    y: footerTop - 30,
-    size: 8.5,
-    font: regular,
-    color: textMuted,
-    maxWidth: 360
-  });
-
-  page.drawText(clampText(params.workshop.footer?.trim() || 'Thank you for your business.', 200), {
-    x: right - 190,
-    y: footerTop - 30,
-    size: 8.5,
-    font: regular,
-    color: textMuted,
-    maxWidth: 190
-  });
 
   return pdf.save();
 }
