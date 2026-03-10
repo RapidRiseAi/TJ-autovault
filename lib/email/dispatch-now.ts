@@ -8,14 +8,6 @@ async function runDispatch(notificationIds: string[]) {
   if (!ids.length) return;
 
   try {
-    const admin = createAdminClient();
-    await admin
-      .from('notification_email_queue')
-      .upsert(
-        ids.map((notificationId) => ({ notification_id: notificationId })),
-        { onConflict: 'notification_id', ignoreDuplicates: true }
-      );
-
     await dispatchNotificationEmails({ notificationIds: ids, limit: Math.max(ids.length, 10) });
   } catch {
     // keep user-facing flows resilient; daily cron retry will process pending queue rows.
@@ -78,25 +70,20 @@ export async function dispatchRecentWorkshopNotifications(input: {
 export async function dispatchRecentCustomerNotifications(input: {
   customerAccountId: string;
   kind: string;
-  href?: string;
+  href: string;
 }) {
   if (!input.customerAccountId) return;
 
   try {
     const admin = createAdminClient();
     const since = new Date(Date.now() - 2 * 60 * 1000).toISOString();
-    let query = admin
+    const { data } = await admin
       .from('notifications')
       .select('id')
       .eq('to_customer_account_id', input.customerAccountId)
       .eq('kind', input.kind)
-      .gte('created_at', since);
-
-    if (input.href) {
-      query = query.eq('href', input.href);
-    }
-
-    const { data } = await query
+      .eq('href', input.href)
+      .gte('created_at', since)
       .order('created_at', { ascending: false })
       .limit(10);
 
