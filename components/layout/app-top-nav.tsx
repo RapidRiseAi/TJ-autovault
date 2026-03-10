@@ -2,7 +2,6 @@ import Link from 'next/link';
 import { Bell } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
 import { SignOutButton } from '@/components/layout/sign-out-button';
-import { WorkshopSupportTicketButton } from '@/components/layout/workshop-support-ticket-button';
 
 const customerLinks = [
   { href: '/customer/dashboard', label: 'Dashboard' },
@@ -53,7 +52,6 @@ export async function AppTopNav() {
             <Bell className="h-4 w-4" />
             {count && count > 0 ? <span>{count}</span> : null}
           </Link>
-          <WorkshopSupportTicketButton />
           <SignOutButton />
         </div>
       </div>
