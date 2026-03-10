@@ -7,7 +7,6 @@ import {
   computeFinancialLineItems,
   financialDocumentPayloadSchema
 } from '@/lib/workshop/financial-documents';
-import { addDaysToIsoDate, getNextDocumentReference } from '@/lib/workshop/document-references';
 
 function isMissingColumnError(error: unknown) {
   const message =
@@ -15,39 +14,6 @@ function isMissingColumnError(error: unknown) {
       ? String((error as { message?: unknown }).message ?? '')
       : '';
   return /column .* does not exist/i.test(message);
-}
-
-
-export async function GET(request: NextRequest) {
-  const kind = request.nextUrl.searchParams.get('kind');
-  if (kind !== 'quote' && kind !== 'invoice') {
-    return NextResponse.json({ error: 'Invalid kind' }, { status: 400 });
-  }
-
-  const supabase = await createClient();
-  const user = (await supabase.auth.getUser()).data.user;
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('workshop_account_id')
-    .eq('id', user.id)
-    .in('role', ['admin', 'technician'])
-    .maybeSingle();
-
-  if (!profile?.workshop_account_id) {
-    return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-  }
-
-  const referenceNumber = await getNextDocumentReference({
-    supabase,
-    workshopAccountId: profile.workshop_account_id,
-    kind
-  });
-
-  return NextResponse.json({ referenceNumber });
 }
 
 export async function POST(request: NextRequest) {
@@ -196,23 +162,8 @@ export async function POST(request: NextRequest) {
 
     const { computed, totals } = computeFinancialLineItems(payload.lineItems);
 
-    const issueDate = payload.issueDate || new Date().toISOString().slice(0, 10);
-    const referenceNumber =
-      payload.referenceNumber?.trim() ||
-      (await getNextDocumentReference({
-        supabase,
-        workshopAccountId: profile.workshop_account_id,
-        kind: payload.kind
-      }));
-
-    const dueDate =
-      payload.kind === 'invoice'
-        ? payload.dueDate || addDaysToIsoDate(issueDate, 7)
-        : null;
-    const expiryDate =
-      payload.kind === 'quote'
-        ? payload.expiryDate || addDaysToIsoDate(issueDate, 7)
-        : null;
+    const dueDate = payload.kind === 'invoice' ? payload.dueDate || null : null;
+    const expiryDate = payload.kind === 'quote' ? payload.expiryDate || null : null;
 
     const workshopSnapshot = {
       name: workshop.name,
@@ -242,8 +193,8 @@ export async function POST(request: NextRequest) {
           customer_account_id: customer.id,
           vehicle_id: vehicle.id,
           status: 'sent',
-          quote_number: referenceNumber,
-          issue_date: issueDate,
+          quote_number: payload.referenceNumber,
+          issue_date: payload.issueDate,
           expiry_date: expiryDate,
           notes: payload.notes || null,
           subject: payload.subject,
@@ -267,7 +218,7 @@ export async function POST(request: NextRequest) {
                 customer_account_id: customer.id,
                 vehicle_id: vehicle.id,
                 status: 'sent',
-                quote_number: referenceNumber,
+                quote_number: payload.referenceNumber,
                 notes: payload.notes || null,
                 total_cents: totals.totalCents,
                 subtotal_cents: totals.subtotalCents,
@@ -330,8 +281,8 @@ export async function POST(request: NextRequest) {
           vehicle_id: vehicle.id,
           status: 'sent',
           payment_status: 'unpaid',
-          invoice_number: referenceNumber,
-          issue_date: issueDate,
+          invoice_number: payload.referenceNumber,
+          issue_date: payload.issueDate,
           due_date: dueDate,
           notes: payload.notes || null,
           subject: payload.subject,
@@ -358,7 +309,7 @@ export async function POST(request: NextRequest) {
                 vehicle_id: vehicle.id,
                 status: 'sent',
                 payment_status: 'unpaid',
-                invoice_number: referenceNumber,
+                invoice_number: payload.referenceNumber,
                 due_date: dueDate,
                 notes: payload.notes || null,
                 total_cents: totals.totalCents
@@ -440,8 +391,8 @@ export async function POST(request: NextRequest) {
         vin: vehicle.vin
       },
       subject: payload.subject,
-      referenceNumber,
-      issueDate,
+      referenceNumber: payload.referenceNumber,
+      issueDate: payload.issueDate,
       dueOrExpiryDate: payload.kind === 'quote' ? expiryDate : dueDate,
       notes: payload.notes,
       currencyCode: payload.currencyCode,
@@ -478,7 +429,7 @@ export async function POST(request: NextRequest) {
         doc_type: payload.kind,
         storage_bucket: 'vehicle-files',
         storage_path: pdfPath,
-        original_name: `${referenceNumber}.pdf`,
+        original_name: `${payload.referenceNumber}.pdf`,
         mime_type: 'application/pdf',
         size_bytes: pdfBytes.length,
         subject: payload.subject,
@@ -534,13 +485,13 @@ export async function POST(request: NextRequest) {
       actor_profile_id: profile.id,
       actor_role: profile.role,
       event_type: payload.kind === 'quote' ? 'quote_created' : 'invoice_created',
-      title: `${payload.kind === 'quote' ? 'Quote' : 'Invoice'} ${referenceNumber}`,
+      title: `${payload.kind === 'quote' ? 'Quote' : 'Invoice'} ${payload.referenceNumber}`,
       description: payload.subject,
       importance: 'info',
       metadata: {
         linked_id: linkedId,
         document_id: doc.id,
-        reference_number: referenceNumber,
+        reference_number: payload.referenceNumber,
         ...(payload.kind === 'invoice'
           ? { invoice_id: linkedId }
           : { quote_id: linkedId })
@@ -555,8 +506,8 @@ export async function POST(request: NextRequest) {
       p_title: payload.subject,
       p_body:
         payload.kind === 'quote'
-          ? `A new quote (${referenceNumber}) is available.`
-          : `A new invoice (${referenceNumber}) is available.`,
+          ? `A new quote (${payload.referenceNumber}) is available.`
+          : `A new invoice (${payload.referenceNumber}) is available.`,
       p_href: customerHref,
       p_data: {
         vehicle_id: vehicle.id,

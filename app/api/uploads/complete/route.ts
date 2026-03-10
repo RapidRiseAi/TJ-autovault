@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { dispatchRecentCustomerNotifications, dispatchRecentWorkshopNotifications } from '@/lib/email/dispatch-now';
-import { addDaysToIsoDate, getNextDocumentReference } from '@/lib/workshop/document-references';
 
 const requestSchema = z.object({
   vehicleId: z.string().uuid(),
@@ -244,19 +243,11 @@ export async function POST(request: NextRequest) {
   let linkedEntityId: string | null = null;
 
   if (normalizedDocType === 'quote') {
-    if (!payload.amountCents || !payload.subject)
+    if (!payload.amountCents || !payload.subject || !payload.referenceNumber)
       return NextResponse.json(
-        { error: 'Quote amount and subject are required' },
+        { error: 'Quote amount, subject, and reference are required' },
         { status: 400 }
       );
-    const quoteReference =
-      payload.referenceNumber?.trim() ||
-      (await getNextDocumentReference({
-        supabase,
-        workshopAccountId: vehicle.workshop_account_id,
-        kind: 'quote'
-      }));
-
     const { data: quote, error: quoteError } = await supabase
       .from('quotes')
       .insert({
@@ -267,7 +258,7 @@ export async function POST(request: NextRequest) {
         subtotal_cents: payload.amountCents,
         notes: payload.body || null,
         status: 'sent',
-        quote_number: quoteReference,
+        quote_number: payload.referenceNumber,
         document_id: doc.id
       })
       .select('id')
@@ -283,9 +274,9 @@ export async function POST(request: NextRequest) {
       .update({ quote_id: quote.id })
       .eq('id', doc.id);
   } else if (normalizedDocType === 'invoice') {
-    if (!payload.amountCents || !payload.subject)
+    if (!payload.amountCents || !payload.subject || !payload.referenceNumber)
       return NextResponse.json(
-        { error: 'Invoice amount and subject are required' },
+        { error: 'Invoice amount, subject, and reference are required' },
         { status: 400 }
       );
 
@@ -303,16 +294,6 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
     }
-    const invoiceReference =
-      payload.referenceNumber?.trim() ||
-      (await getNextDocumentReference({
-        supabase,
-        workshopAccountId: vehicle.workshop_account_id,
-        kind: 'invoice'
-      }));
-
-    const dueDate = payload.dueDate || addDaysToIsoDate(new Date().toISOString().slice(0, 10), 7);
-
     const { data: invoice, error: invoiceError } = await supabase
       .from('invoices')
       .insert({
@@ -322,8 +303,8 @@ export async function POST(request: NextRequest) {
         total_cents: payload.amountCents,
         status: 'sent',
         payment_status: 'unpaid',
-        invoice_number: invoiceReference,
-        due_date: dueDate,
+        invoice_number: payload.referenceNumber,
+        due_date: payload.dueDate || null,
         subject: payload.subject,
         notes: payload.body || null,
         quote_id: payload.quoteId || null,
