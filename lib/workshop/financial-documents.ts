@@ -190,8 +190,8 @@ export async function buildFinancialDocumentPdf(params: {
   }
 
   const blockTop = 670;
-  const middleX = 295;
-  const rightStart = 340;
+  const middleX = 270;
+  const rightStart = 392;
 
   page.drawText(clampText(params.customer.name || '-', 40), { x: left, y: blockTop, size: 10.5, font: regular });
   const customerLines = clampText(params.customer.billingAddress || '-', 120).split(/\n|,/).slice(0, 4);
@@ -211,7 +211,7 @@ export async function buildFinancialDocumentPdf(params: {
     size: 9.5,
     font: bold
   });
-  page.drawText(params.issueDate, { x: middleX + 8, y: blockTop - 14, size: 9.5, font: regular });
+  page.drawText(params.issueDate, { x: middleX + 4, y: blockTop - 14, size: 9.5, font: regular });
 
   page.drawText(params.kind === 'quote' ? 'Valid date' : 'Due date', {
     x: middleX,
@@ -219,7 +219,7 @@ export async function buildFinancialDocumentPdf(params: {
     size: 9.5,
     font: bold
   });
-  page.drawText(params.dueOrExpiryDate || '-', { x: middleX + 8, y: blockTop - 44, size: 9.5, font: regular });
+  page.drawText(params.dueOrExpiryDate || '-', { x: middleX + 4, y: blockTop - 44, size: 9.5, font: regular });
 
   page.drawText(params.kind === 'quote' ? 'Quote number' : 'Invoice number', {
     x: middleX,
@@ -227,11 +227,11 @@ export async function buildFinancialDocumentPdf(params: {
     size: 9.5,
     font: bold
   });
-  page.drawText(params.referenceNumber, { x: middleX + 8, y: blockTop - 74, size: 9.5, font: regular });
+  page.drawText(params.referenceNumber, { x: middleX + 4, y: blockTop - 74, size: 9.5, font: regular });
 
   page.drawLine({
-    start: { x: 378, y: blockTop + 8 },
-    end: { x: 378, y: blockTop - 86 },
+    start: { x: 372, y: blockTop + 8 },
+    end: { x: 372, y: blockTop - 86 },
     thickness: thin,
     color: rgb(0.2, 0.2, 0.2)
   });
@@ -305,6 +305,7 @@ export async function buildFinancialDocumentPdf(params: {
   const totalRowHeight = 28;
   const totalLabelX = cols.total;
   const totalRowWidth = cols.right - totalLabelX;
+  page.drawRectangle({ x: totalLabelX, y: rowTop - totalRowHeight, width: totalRowWidth, height: totalRowHeight, color: rgb(1, 1, 1) });
   page.drawRectangle({ x: totalLabelX, y: rowTop - totalRowHeight, width: totalRowWidth, height: totalRowHeight, borderWidth: thin, borderColor: rgb(0, 0, 0) });
   page.drawText('Total', { x: totalLabelX + 16, y: rowTop - 18, size: 10.5, font: bold });
   const grandTotal = money(params.totals.totalCents);
