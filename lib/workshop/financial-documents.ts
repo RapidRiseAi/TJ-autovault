@@ -162,16 +162,6 @@ export async function buildFinancialDocumentPdf(params: {
   const border = rgb(0.78, 0.8, 0.84);
   const textMuted = rgb(0.33, 0.36, 0.42);
 
-  const drawRight = (text: string, y: number, size = 10, font = regular, color = textMuted) => {
-    page.drawText(text, {
-      x: right - font.widthOfTextAtSize(text, size),
-      y,
-      size,
-      font,
-      color
-    });
-  };
-
   page.drawText(params.kind === 'quote' ? 'QUOTE' : 'Invoice', {
     x: left,
     y: 790,
