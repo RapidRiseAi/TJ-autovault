@@ -26,6 +26,14 @@ const EMPTY_ITEM: ItemRow = {
   category: ''
 };
 
+
+function addDaysIso(dateIso: string, days = 7) {
+  const date = new Date(`${dateIso}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return '';
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
 function toCents(value: string) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed < 0) return null;
@@ -50,27 +58,62 @@ export function FinancialDocumentBuilder({
   const [subject, setSubject] = useState(kind === 'quote' ? 'Quote' : 'Invoice');
   const [referenceNumber, setReferenceNumber] = useState('');
   const [issueDate, setIssueDate] = useState(new Date().toISOString().slice(0, 10));
-  const [dueDate, setDueDate] = useState('');
-  const [expiryDate, setExpiryDate] = useState('');
+  const [dueDate, setDueDate] = useState(addDaysIso(new Date().toISOString().slice(0, 10)));
+  const [expiryDate, setExpiryDate] = useState(addDaysIso(new Date().toISOString().slice(0, 10)));
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<ItemRow[]>([{ ...EMPTY_ITEM }]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isReferenceManuallyEdited, setIsReferenceManuallyEdited] = useState(false);
+  const [isDueDateManuallyEdited, setIsDueDateManuallyEdited] = useState(false);
+  const [isExpiryDateManuallyEdited, setIsExpiryDateManuallyEdited] = useState(false);
 
 
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10);
     setSubject(kind === 'quote' ? 'Quote' : 'Invoice');
-    setReferenceNumber('');
     setIssueDate(today);
-    setDueDate('');
-    setExpiryDate('');
+    setDueDate(addDaysIso(today));
+    setExpiryDate(addDaysIso(today));
     setNotes('');
     setItems([{ ...EMPTY_ITEM }]);
+    setIsReferenceManuallyEdited(false);
+    setIsDueDateManuallyEdited(false);
+    setIsExpiryDateManuallyEdited(false);
   }, [kind]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadReferenceNumber() {
+      try {
+        const response = await fetch(`/api/workshop/financial-documents?kind=${kind}`);
+        if (!response.ok) return;
+        const body = (await response.json()) as { referenceNumber?: string };
+        if (active && body.referenceNumber && !isReferenceManuallyEdited) {
+          setReferenceNumber(body.referenceNumber);
+        }
+      } catch {
+        // ignore auto-reference failures and let server assign at submit time.
+      }
+    }
+
+    loadReferenceNumber();
+    return () => {
+      active = false;
+    };
+  }, [kind, isReferenceManuallyEdited]);
+
+  useEffect(() => {
+    const plus7 = addDaysIso(issueDate);
+    if (kind === 'invoice') {
+      if (!isDueDateManuallyEdited) setDueDate(plus7);
+    } else {
+      if (!isExpiryDateManuallyEdited) setExpiryDate(plus7);
+    }
+  }, [issueDate, kind, isDueDateManuallyEdited, isExpiryDateManuallyEdited]);
 
   const canSubmit = useMemo(() => {
     return (
-      referenceNumber.trim().length > 0 &&
       subject.trim().length > 0 &&
       items.every((item) => {
         const qtyValid = item.qty.trim().length > 0 && Number(item.qty) > 0;
@@ -86,7 +129,7 @@ export function FinancialDocumentBuilder({
         return item.description.trim() && qtyValid && unitValid && discountValid && taxValid;
       })
     );
-  }, [items, referenceNumber, subject]);
+  }, [items, subject]);
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -119,7 +162,7 @@ export function FinancialDocumentBuilder({
           issueDate,
           dueDate: kind === 'invoice' ? dueDate || undefined : undefined,
           expiryDate: kind === 'quote' ? expiryDate || undefined : undefined,
-          referenceNumber: referenceNumber.trim(),
+          referenceNumber: referenceNumber.trim() || undefined,
           subject: subject.trim(),
           notes: notes.trim() || undefined,
           lineItems,
@@ -164,12 +207,15 @@ export function FinancialDocumentBuilder({
         </label>
         <label>
           Reference number
-          <p className="mt-1 text-xs text-gray-500">Unique number (e.g. INV-001).</p>
+          <p className="mt-1 text-xs text-gray-500">Auto-generated reference number.</p>
           <input
             className="mt-1 w-full rounded border p-2"
             value={referenceNumber}
-            onChange={(event) => setReferenceNumber(event.target.value)}
-            placeholder={kind === 'quote' ? 'Q-001' : 'INV-001'}
+            onChange={(event) => {
+              setReferenceNumber(event.target.value);
+              setIsReferenceManuallyEdited(true);
+            }}
+            placeholder={kind === 'quote' ? 'QTE-0001' : 'INV-0001'}
           />
         </label>
       </div>
@@ -188,23 +234,29 @@ export function FinancialDocumentBuilder({
         {kind === 'invoice' ? (
           <label>
             Due date
-            <p className="mt-1 text-xs text-gray-500">When payment is due.</p>
+            <p className="mt-1 text-xs text-gray-500">Auto-set to 7 days after issue date.</p>
             <input
               type="date"
               className="mt-1 w-full rounded border p-2"
               value={dueDate}
-              onChange={(event) => setDueDate(event.target.value)}
+              onChange={(event) => {
+                setDueDate(event.target.value);
+                setIsDueDateManuallyEdited(true);
+              }}
             />
           </label>
         ) : (
           <label>
             Valid until
-            <p className="mt-1 text-xs text-gray-500">Quote expiry date.</p>
+            <p className="mt-1 text-xs text-gray-500">Auto-set to 7 days after issue date.</p>
             <input
               type="date"
               className="mt-1 w-full rounded border p-2"
               value={expiryDate}
-              onChange={(event) => setExpiryDate(event.target.value)}
+              onChange={(event) => {
+                setExpiryDate(event.target.value);
+                setIsExpiryDateManuallyEdited(true);
+              }}
             />
           </label>
         )}
