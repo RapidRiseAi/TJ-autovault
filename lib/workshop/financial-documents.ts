@@ -253,39 +253,81 @@ export async function buildFinancialDocumentPdf(params: {
   const tableRight = right - 24;
   const tableWidth = tableRight - tableLeft;
   const tableTop = 530;
+  const showDiscount = params.items.some((item) => item.discountCents > 0);
+
+  const rowItems = params.items.slice(0, 6);
+  const qtyTexts = rowItems.map((item) => String(item.qty));
+  const unitTexts = rowItems.map((item) => money(item.unitPriceCents));
+  const totalTexts = rowItems.map((item) => money(item.lineTotalCents));
+  const discountTexts = rowItems.map((item) => money(item.discountCents));
+
+  const maxTextWidth = (texts: string[], size = 10, font = regular) =>
+    texts.reduce((max, text) => Math.max(max, font.widthOfTextAtSize(text, size)), 0);
+
+  const qtyWidth = Math.max(62, maxTextWidth(['Qty', ...qtyTexts], 10, bold) + 22);
+  const unitWidth = Math.max(86, maxTextWidth(['Unit price', ...unitTexts], 10, bold) + 24);
+  const discountWidth = showDiscount
+    ? Math.max(88, maxTextWidth(['Discount', ...discountTexts], 10, bold) + 24)
+    : 0;
+  const totalWidth = Math.max(96, maxTextWidth(['Total', ...totalTexts], 10, bold) + 24);
+  const reservedRight = qtyWidth + unitWidth + discountWidth + totalWidth;
+  const descriptionWidth = Math.max(170, tableWidth - reservedRight);
+
   const cols = {
-    desc: tableLeft,
-    qty: tableLeft + 300,
-    unit: tableLeft + 362,
-    total: tableLeft + 430,
-    right: tableRight
+    descLeft: tableLeft,
+    descRight: tableLeft + descriptionWidth,
+    qtyRight: tableLeft + descriptionWidth + qtyWidth,
+    unitRight: tableLeft + descriptionWidth + qtyWidth + unitWidth,
+    discountRight: tableLeft + descriptionWidth + qtyWidth + unitWidth + discountWidth,
+    totalRight: tableRight
   };
 
   page.drawRectangle({ x: tableLeft, y: tableTop - 28, width: tableWidth, height: 28, borderWidth: thin, borderColor: rgb(0, 0, 0) });
-  page.drawLine({ start: { x: cols.qty, y: tableTop }, end: { x: cols.qty, y: tableTop - 28 }, thickness: thin, color: rgb(0, 0, 0) });
-  page.drawLine({ start: { x: cols.unit, y: tableTop }, end: { x: cols.unit, y: tableTop - 28 }, thickness: thin, color: rgb(0, 0, 0) });
-  page.drawLine({ start: { x: cols.total, y: tableTop }, end: { x: cols.total, y: tableTop - 28 }, thickness: thin, color: rgb(0, 0, 0) });
+  page.drawLine({ start: { x: cols.descRight, y: tableTop }, end: { x: cols.descRight, y: tableTop - 28 }, thickness: thin, color: rgb(0, 0, 0) });
+  page.drawLine({ start: { x: cols.qtyRight, y: tableTop }, end: { x: cols.qtyRight, y: tableTop - 28 }, thickness: thin, color: rgb(0, 0, 0) });
+  page.drawLine({ start: { x: cols.unitRight, y: tableTop }, end: { x: cols.unitRight, y: tableTop - 28 }, thickness: thin, color: rgb(0, 0, 0) });
+  if (showDiscount) {
+    page.drawLine({ start: { x: cols.discountRight, y: tableTop }, end: { x: cols.discountRight, y: tableTop - 28 }, thickness: thin, color: rgb(0, 0, 0) });
+  }
 
-  page.drawText('Description', { x: tableLeft + 10, y: tableTop - 18, size: 10, font: bold });
-  page.drawText('Qty', { x: cols.qty + 24, y: tableTop - 18, size: 10, font: bold });
-  page.drawText('Unit price', { x: cols.unit + 8, y: tableTop - 18, size: 10, font: bold });
-  page.drawText('Total', { x: cols.total + 18, y: tableTop - 18, size: 10, font: bold });
+  page.drawText('Description', { x: cols.descLeft + 10, y: tableTop - 18, size: 10, font: bold });
+  page.drawText('Qty', { x: cols.descRight + 10, y: tableTop - 18, size: 10, font: bold });
+  page.drawText('Unit price', { x: cols.qtyRight + 8, y: tableTop - 18, size: 10, font: bold });
+  if (showDiscount) {
+    page.drawText('Discount', { x: cols.unitRight + 8, y: tableTop - 18, size: 10, font: bold });
+  }
+  page.drawText('Total', {
+    x: (showDiscount ? cols.discountRight : cols.unitRight) + 8,
+    y: tableTop - 18,
+    size: 10,
+    font: bold
+  });
 
   let rowTop = tableTop - 28;
-  for (const item of params.items.slice(0, 6)) {
+  for (const item of rowItems) {
     const rowHeight = 34;
     const rowBottom = rowTop - rowHeight;
     page.drawRectangle({ x: tableLeft, y: rowBottom, width: tableWidth, height: rowHeight, borderWidth: thin, borderColor: rgb(0, 0, 0) });
-    page.drawLine({ start: { x: cols.qty, y: rowTop }, end: { x: cols.qty, y: rowBottom }, thickness: thin, color: rgb(0, 0, 0) });
-    page.drawLine({ start: { x: cols.unit, y: rowTop }, end: { x: cols.unit, y: rowBottom }, thickness: thin, color: rgb(0, 0, 0) });
-    page.drawLine({ start: { x: cols.total, y: rowTop }, end: { x: cols.total, y: rowBottom }, thickness: thin, color: rgb(0, 0, 0) });
+    page.drawLine({ start: { x: cols.descRight, y: rowTop }, end: { x: cols.descRight, y: rowBottom }, thickness: thin, color: rgb(0, 0, 0) });
+    page.drawLine({ start: { x: cols.qtyRight, y: rowTop }, end: { x: cols.qtyRight, y: rowBottom }, thickness: thin, color: rgb(0, 0, 0) });
+    page.drawLine({ start: { x: cols.unitRight, y: rowTop }, end: { x: cols.unitRight, y: rowBottom }, thickness: thin, color: rgb(0, 0, 0) });
+    if (showDiscount) {
+      page.drawLine({ start: { x: cols.discountRight, y: rowTop }, end: { x: cols.discountRight, y: rowBottom }, thickness: thin, color: rgb(0, 0, 0) });
+    }
 
-    page.drawText(clampText(item.description, 55), { x: tableLeft + 10, y: rowTop - 21, size: 10, font: regular });
-    page.drawText(String(item.qty), { x: cols.qty + 26, y: rowTop - 21, size: 10, font: regular });
+    page.drawText(clampText(item.description, 58), { x: cols.descLeft + 10, y: rowTop - 21, size: 10, font: regular });
+
+    const qtyText = String(item.qty);
+    page.drawText(qtyText, {
+      x: cols.qtyRight - 10 - regular.widthOfTextAtSize(qtyText, 10),
+      y: rowTop - 21,
+      size: 10,
+      font: regular
+    });
 
     const unitValue = money(item.unitPriceCents);
     page.drawText(unitValue, {
-      x: cols.total - 8 - regular.widthOfTextAtSize(unitValue, 10),
+      x: cols.unitRight - 10 - regular.widthOfTextAtSize(unitValue, 10),
       y: rowTop - 21,
       size: 10,
       font: regular
@@ -293,31 +335,54 @@ export async function buildFinancialDocumentPdf(params: {
 
     const totalValue = money(item.lineTotalCents);
     page.drawText(totalValue, {
-      x: cols.right - 8 - regular.widthOfTextAtSize(totalValue, 10),
+      x: cols.totalRight - 10 - regular.widthOfTextAtSize(totalValue, 10),
       y: rowTop - 21,
       size: 10,
       font: regular
     });
 
+    if (showDiscount) {
+      const discountValue = money(item.discountCents);
+      page.drawText(discountValue, {
+        x: cols.discountRight - 10 - regular.widthOfTextAtSize(discountValue, 10),
+        y: rowTop - 21,
+        size: 10,
+        font: regular
+      });
+    }
+
     rowTop = rowBottom;
   }
 
-  const totalRowHeight = 28;
-  const totalLabelX = cols.total;
-  const totalRowWidth = cols.right - totalLabelX;
-  const totalRowBottom = rowTop - totalRowHeight - 8;
-  page.drawRectangle({ x: totalLabelX, y: totalRowBottom, width: totalRowWidth, height: totalRowHeight, color: rgb(1, 1, 1) });
-  page.drawRectangle({ x: totalLabelX, y: totalRowBottom, width: totalRowWidth, height: totalRowHeight, borderWidth: thin, borderColor: rgb(0, 0, 0) });
-  page.drawText('Total', { x: totalLabelX + 16, y: totalRowBottom + 10, size: 10.5, font: bold });
-  const grandTotal = money(params.totals.totalCents);
-  page.drawText(grandTotal, {
-    x: cols.right - 8 - bold.widthOfTextAtSize(grandTotal, 10.5),
-    y: totalRowBottom + 10,
-    size: 10.5,
-    font: bold
+  const summaryWidth = 220;
+  const summaryLeft = tableRight - summaryWidth;
+  const summaryRowHeight = 22;
+  const summaryTop = rowTop - 8;
+
+  const summaryRows: Array<{ label: string; value: string; bold?: boolean }> = [
+    { label: 'Subtotal', value: money(params.totals.subtotalCents) },
+    ...(showDiscount ? [{ label: 'Discount', value: money(params.totals.discountCents) }] : []),
+    { label: 'Tax', value: money(params.totals.taxCents) },
+    { label: 'Total', value: money(params.totals.totalCents), bold: true }
+  ];
+
+  summaryRows.forEach((row, index) => {
+    const y = summaryTop - summaryRowHeight * (index + 1);
+    page.drawRectangle({ x: summaryLeft, y, width: summaryWidth, height: summaryRowHeight, color: rgb(1, 1, 1) });
+    page.drawRectangle({ x: summaryLeft, y, width: summaryWidth, height: summaryRowHeight, borderWidth: thin, borderColor: rgb(0, 0, 0) });
+    const font = row.bold ? bold : regular;
+    const size = row.bold ? 10.5 : 10;
+    page.drawText(row.label, { x: summaryLeft + 12, y: y + 7, size, font });
+    page.drawText(row.value, {
+      x: summaryLeft + summaryWidth - 10 - font.widthOfTextAtSize(row.value, size),
+      y: y + 7,
+      size,
+      font
+    });
   });
 
-  const bankY = totalRowBottom - 36;
+  const summaryBottom = summaryTop - summaryRowHeight * summaryRows.length;
+  const bankY = summaryBottom - 34;
   page.drawText(`BANK NAME: ${params.workshop.bankName || '-'}`, { x: left, y: bankY, size: 10, font: regular });
   page.drawText(`ACC NAME: ${params.workshop.name || '-'}`, { x: left, y: bankY - 15, size: 10, font: regular });
   page.drawText(`ACC NO: ${params.workshop.bankAccountNumber || '-'}`, { x: left, y: bankY - 30, size: 10, font: regular });
