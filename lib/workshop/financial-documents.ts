@@ -18,7 +18,7 @@ export const financialDocumentPayloadSchema = z.object({
   issueDate: z.string(),
   dueDate: z.string().optional(),
   expiryDate: z.string().optional(),
-  referenceNumber: z.string().trim().min(1).max(60),
+  referenceNumber: z.string().trim().min(1).max(60).optional(),
   subject: z.string().trim().min(1).max(120),
   notes: z.string().trim().max(3000).optional(),
   currencyCode: z.string().trim().default('ZAR'),
@@ -142,9 +142,9 @@ export async function buildFinancialDocumentPdf(params: {
 
   page.drawText(params.workshop.name || 'Workshop', { x: left, y, size: 20, font: bold, color: rgb(0.05, 0.05, 0.05) });
   page.drawText(params.kind === 'quote' ? 'QUOTE' : 'INVOICE', {
-    x: right - bold.widthOfTextAtSize(params.kind === 'quote' ? 'QUOTE' : 'INVOICE', 28),
-    y: y - 2,
-    size: 28,
+    x: right - bold.widthOfTextAtSize(params.kind === 'quote' ? 'QUOTE' : 'INVOICE', 24),
+    y: y - 1,
+    size: 24,
     font: bold,
     color: rgb(0.05, 0.05, 0.05)
   });
@@ -177,7 +177,8 @@ export async function buildFinancialDocumentPdf(params: {
   }
 
   y -= 22;
-  page.drawRectangle({ x: left, y: y - 154, width: right - left, height: 154, borderWidth: 1, borderColor: rgb(0.82, 0.82, 0.82) });
+  page.drawRectangle({ x: left, y: y - 154, width: right - left, height: 154, borderWidth: 1, borderColor: rgb(0.75, 0.75, 0.78) });
+  page.drawRectangle({ x: left, y: y - 154, width: right - left, height: 26, color: rgb(0.96, 0.96, 0.97) });
 
   drawLabelValue('SUBJECT', params.subject, left + 12, y - 16, 500);
   drawLabelValue('CUSTOMER', params.customer.name || '-', left + 12, y - 50);
