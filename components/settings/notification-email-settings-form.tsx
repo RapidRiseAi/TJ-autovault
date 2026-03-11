@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import type { NotificationEmailSettings, NotificationEmailSettingsState } from '@/lib/actions/notification-email-settings';
 import { saveNotificationEmailSettings } from '@/lib/actions/notification-email-settings';
@@ -16,8 +16,70 @@ function Toggle({ name, label, defaultChecked }: { name: string; label: string; 
   );
 }
 
+const EVENT_FIELDS = [
+  { key: 'notifyMessages', label: 'Messages' },
+  { key: 'notifyQuotes', label: 'Quotes' },
+  { key: 'notifyInvoices', label: 'Invoices' },
+  { key: 'notifyRequests', label: 'Requests' },
+  { key: 'notifyReports', label: 'Reports / uploads' },
+  { key: 'notifyRecommendations', label: 'Recommendations' },
+  { key: 'notifyJobUpdates', label: 'Job updates' },
+  { key: 'notifyPayouts', label: 'Payouts' },
+  { key: 'notifySystem', label: 'System notifications' }
+] as const;
+
+const BASIC_PLAN_RECOMMENDED = new Set([
+  'notifyMessages',
+  'notifyQuotes',
+  'notifyInvoices'
+]);
+
 export function NotificationEmailSettingsForm({ initial }: { initial: NotificationEmailSettings }) {
   const [state, action, pending] = useActionState(saveNotificationEmailSettings, initialState);
+  const [eventSelections, setEventSelections] = useState<Record<string, boolean>>({
+    notifyMessages: initial.notifyMessages,
+    notifyQuotes: initial.notifyQuotes,
+    notifyInvoices: initial.notifyInvoices,
+    notifyRequests: initial.notifyRequests,
+    notifyReports: initial.notifyReports,
+    notifyRecommendations: initial.notifyRecommendations,
+    notifySystem: initial.notifySystem,
+    notifyJobUpdates: initial.notifyJobUpdates,
+    notifyPayouts: initial.notifyPayouts
+  });
+  const [selectionWarning, setSelectionWarning] = useState('');
+
+  const selectedCount = useMemo(
+    () => Object.values(eventSelections).filter(Boolean).length,
+    [eventSelections]
+  );
+  const selectionLimit = initial.notificationSelectionLimit;
+  const limitReached = selectionLimit !== null && selectedCount >= selectionLimit;
+
+  useEffect(() => {
+    setEventSelections({
+      notifyMessages: initial.notifyMessages,
+      notifyQuotes: initial.notifyQuotes,
+      notifyInvoices: initial.notifyInvoices,
+      notifyRequests: initial.notifyRequests,
+      notifyReports: initial.notifyReports,
+      notifyRecommendations: initial.notifyRecommendations,
+      notifySystem: initial.notifySystem,
+      notifyJobUpdates: initial.notifyJobUpdates,
+      notifyPayouts: initial.notifyPayouts
+    });
+    setSelectionWarning('');
+  }, [
+    initial.notifyMessages,
+    initial.notifyQuotes,
+    initial.notifyInvoices,
+    initial.notifyRequests,
+    initial.notifyReports,
+    initial.notifyRecommendations,
+    initial.notifySystem,
+    initial.notifyJobUpdates,
+    initial.notifyPayouts
+  ]);
 
   return (
     <form action={action} className="space-y-4 rounded-2xl border border-black/10 bg-white p-4">
@@ -43,17 +105,51 @@ export function NotificationEmailSettingsForm({ initial }: { initial: Notificati
 
       <div className="space-y-2">
         <h2 className="text-sm font-semibold">Events</h2>
+        {initial.planCode === '1' ? (
+          <p className="text-xs text-amber-700">
+            Plan 1 allows 3 notification types. Recommended: Messages, Quotes, and Invoices.
+          </p>
+        ) : null}
+        {selectionLimit !== null ? (
+          <p className="text-xs text-zinc-600">
+            Selected {selectedCount} of {selectionLimit} allowed types.
+          </p>
+        ) : null}
         <div className="grid gap-2 sm:grid-cols-2">
-          <Toggle name="notifyMessages" label="Messages" defaultChecked={initial.notifyMessages} />
-          <Toggle name="notifyQuotes" label="Quotes" defaultChecked={initial.notifyQuotes} />
-          <Toggle name="notifyInvoices" label="Invoices" defaultChecked={initial.notifyInvoices} />
-          <Toggle name="notifyRequests" label="Requests" defaultChecked={initial.notifyRequests} />
-          <Toggle name="notifyReports" label="Reports / uploads" defaultChecked={initial.notifyReports} />
-          <Toggle name="notifyRecommendations" label="Recommendations" defaultChecked={initial.notifyRecommendations} />
-          <Toggle name="notifyJobUpdates" label="Job updates" defaultChecked={initial.notifyJobUpdates} />
-          <Toggle name="notifyPayouts" label="Payouts" defaultChecked={initial.notifyPayouts} />
-          <Toggle name="notifySystem" label="System notifications" defaultChecked={initial.notifySystem} />
+          {EVENT_FIELDS.map((field) => {
+            const checked = eventSelections[field.key];
+            const disabled = Boolean(selectionLimit !== null && !checked && limitReached);
+            return (
+              <label key={field.key} className="flex items-center justify-between gap-3 rounded-lg border border-black/10 px-3 py-2 text-sm">
+                <span className="flex items-center gap-2">
+                  <span>{field.label}</span>
+                  {initial.planCode === '1' && BASIC_PLAN_RECOMMENDED.has(field.key) ? (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-amber-800">
+                      Recommended
+                    </span>
+                  ) : null}
+                </span>
+                <input
+                  name={field.key}
+                  type="checkbox"
+                  checked={checked}
+                  disabled={disabled}
+                  className="h-4 w-4"
+                  onChange={(event) => {
+                    const nextChecked = event.target.checked;
+                    if (selectionLimit !== null && nextChecked && !checked && selectedCount >= selectionLimit) {
+                      setSelectionWarning(`This plan allows only ${selectionLimit} notification types.`);
+                      return;
+                    }
+                    setSelectionWarning('');
+                    setEventSelections((prev) => ({ ...prev, [field.key]: nextChecked }));
+                  }}
+                />
+              </label>
+            );
+          })}
         </div>
+        {selectionWarning ? <p className="text-xs text-red-700">{selectionWarning}</p> : null}
       </div>
 
       {state.message ? (
