@@ -134,11 +134,8 @@ async function updateProfile(
         contact_signature: sanitizeOptionalField(formData, 'contactSignature'),
         billing_address: sanitizeOptionalField(formData, 'billingAddress'),
         tax_number: sanitizeOptionalField(formData, 'taxNumber'),
-        co_reg_number: sanitizeOptionalField(formData, 'coRegNumber'),
         bank_name: sanitizeOptionalField(formData, 'bankName'),
-        bank_account_name: sanitizeOptionalField(formData, 'bankAccountName'),
         bank_account_number: sanitizeOptionalField(formData, 'bankAccountNumber'),
-        bank_account_type: sanitizeOptionalField(formData, 'bankAccountType'),
         bank_branch_code: sanitizeOptionalField(formData, 'bankBranchCode'),
         invoice_payment_terms_days: Number(formData.get('invoiceTermsDays') ?? 0) || null,
         quote_validity_days: Number(formData.get('quoteValidityDays') ?? 0) || null,
@@ -184,7 +181,7 @@ export default async function WorkshopProfilePage() {
     ? await supabase
         .from('workshop_accounts')
         .select(
-          'name,contact_email,contact_phone,website_url,booking_url,contact_signature,billing_address,tax_number,co_reg_number,bank_name,bank_account_name,bank_account_number,bank_account_type,bank_branch_code,invoice_payment_terms_days,quote_validity_days,invoice_footer'
+          'name,contact_email,contact_phone,website_url,booking_url,contact_signature,billing_address,tax_number,bank_name,bank_account_number,bank_branch_code,invoice_payment_terms_days,quote_validity_days,invoice_footer'
         )
         .eq('id', profile.workshop_account_id)
         .maybeSingle()
@@ -393,10 +390,6 @@ export default async function WorkshopProfilePage() {
                 <input id="taxNumber" name="taxNumber" defaultValue={workshop?.tax_number ?? ''} className="w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm" />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500" htmlFor="coRegNumber">Company registration (Co Reg)</label>
-                <input id="coRegNumber" name="coRegNumber" defaultValue={workshop?.co_reg_number ?? ''} className="w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm" />
-              </div>
-              <div>
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500" htmlFor="invoiceTermsDays">Default invoice terms (days)</label>
                 <input id="invoiceTermsDays" name="invoiceTermsDays" type="number" min={0} defaultValue={workshop?.invoice_payment_terms_days ?? ''} className="w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm" />
               </div>
@@ -409,16 +402,8 @@ export default async function WorkshopProfilePage() {
                 <input id="bankName" name="bankName" defaultValue={workshop?.bank_name ?? ''} className="w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm" />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500" htmlFor="bankAccountName">Bank account name</label>
-                <input id="bankAccountName" name="bankAccountName" defaultValue={workshop?.bank_account_name ?? ''} className="w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm" />
-              </div>
-              <div>
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500" htmlFor="bankAccountNumber">Bank account number</label>
                 <input id="bankAccountNumber" name="bankAccountNumber" defaultValue={workshop?.bank_account_number ?? ''} className="w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm" />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500" htmlFor="bankAccountType">Bank account type</label>
-                <input id="bankAccountType" name="bankAccountType" defaultValue={workshop?.bank_account_type ?? ''} className="w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm" placeholder="Cheque / Savings / Business" />
               </div>
               <div>
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500" htmlFor="bankBranchCode">Bank branch code</label>
