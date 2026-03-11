@@ -102,12 +102,6 @@ export async function POST(request: NextRequest) {
         }
       | null = null;
 
-    const branding = await supabase
-      .from('workshop_branding_settings')
-      .select('logo_url,primary_color')
-      .eq('workshop_account_id', profile.workshop_account_id)
-      .maybeSingle();
-
     const enhancedWorkshop = await supabase
       .from('workshop_accounts')
       .select(
@@ -422,22 +416,8 @@ export async function POST(request: NextRequest) {
       linkedId = invoice.data.id;
     }
 
-    let logoBytes: Uint8Array | undefined;
-    if (branding.data?.logo_url) {
-      try {
-        const response = await fetch(branding.data.logo_url);
-        if (response.ok) {
-          logoBytes = new Uint8Array(await response.arrayBuffer());
-        }
-      } catch {
-        logoBytes = undefined;
-      }
-    }
-
     const pdfBytes = await buildFinancialDocumentPdf({
       kind: payload.kind,
-      brandColor: branding.data?.primary_color ?? undefined,
-      logoBytes,
       workshop: {
         name: workshop.name,
         contactEmail: workshop.contact_email,
