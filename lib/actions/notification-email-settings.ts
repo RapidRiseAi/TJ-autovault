@@ -20,8 +20,6 @@ export type NotificationEmailSettings = {
   recipientTwoEmail: string;
   recipientTwoLabel: string;
   recipientTwoActive: boolean;
-  planCode: string;
-  notificationSelectionLimit: number | null;
 };
 
 export type NotificationEmailSettingsState = {
@@ -45,113 +43,8 @@ const defaultSettings: NotificationEmailSettings = {
   recipientOneActive: true,
   recipientTwoEmail: '',
   recipientTwoLabel: '',
-  recipientTwoActive: true,
-  planCode: '2',
-  notificationSelectionLimit: null
+  recipientTwoActive: true
 };
-
-function normalizePlanCode(input: string | null | undefined) {
-  const value = (input ?? '').toString().trim().toLowerCase();
-  if (!value) return '2';
-  if (['1', 'plan1', 'plan_1', 'basic', 'free'].includes(value)) return '1';
-  if (['6', 'plan6', 'plan_6', 'enterprise', 'premium'].includes(value)) return '6';
-  if (['2', 'plan2', 'plan_2', 'pro', 'business', 'growth', 'standard'].includes(value)) return '2';
-  return value;
-}
-
-function defaultsForPlan(planCode: string) {
-  if (planCode !== '1') {
-    return {
-      notifyMessages: true,
-      notifyQuotes: true,
-      notifyInvoices: true,
-      notifyRequests: true,
-      notifyReports: true,
-      notifyRecommendations: true,
-      notifySystem: true,
-      notifyJobUpdates: true,
-      notifyPayouts: true
-    };
-  }
-
-  return {
-    notifyMessages: true,
-    notifyQuotes: true,
-    notifyInvoices: true,
-    notifyRequests: false,
-    notifyReports: false,
-    notifyRecommendations: false,
-    notifySystem: false,
-    notifyJobUpdates: false,
-    notifyPayouts: false
-  };
-}
-
-function enforcePlanLimit(planCode: string, values: {
-  notifyMessages: boolean;
-  notifyQuotes: boolean;
-  notifyInvoices: boolean;
-  notifyRequests: boolean;
-  notifyReports: boolean;
-  notifyRecommendations: boolean;
-  notifySystem: boolean;
-  notifyJobUpdates: boolean;
-  notifyPayouts: boolean;
-}) {
-  if (planCode !== '1') return values;
-
-  return {
-    ...values,
-    notifyMessages: true,
-    notifyQuotes: true,
-    notifyInvoices: true,
-    notifyRequests: false,
-    notifyReports: false,
-    notifyRecommendations: false,
-    notifySystem: false,
-    notifyJobUpdates: false,
-    notifyPayouts: false
-  };
-}
-
-function notificationLimitForPlan(planCode: string) {
-  return planCode === '1' ? 3 : null;
-}
-
-async function resolvePlanCode(supabase: Awaited<ReturnType<typeof createClient>>, userId: string, selectedPlan?: string | null) {
-  const selected = normalizePlanCode(selectedPlan);
-  if (selected === '1' || selected === '2' || selected === '6') return selected;
-
-  const { data: customerMembership } = await supabase
-    .from('customer_users')
-    .select('customer_account:customer_accounts(tier)')
-    .eq('profile_id', userId)
-    .maybeSingle();
-
-  const customerTier = (customerMembership?.customer_account as { tier?: string | null } | null)?.tier;
-  if (customerTier === 'basic') return '1';
-  if (customerTier === 'pro' || customerTier === 'business') return '2';
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role,workshop_account_id')
-    .eq('id', userId)
-    .maybeSingle();
-
-  if (profile?.role === 'admin' || profile?.role === 'technician') {
-    const { data: workshop } = await supabase
-      .from('workshop_accounts')
-      .select('plan')
-      .eq('id', profile.workshop_account_id)
-      .maybeSingle();
-
-    if (workshop?.plan === 'free') return '1';
-    if (workshop?.plan === 'enterprise') return '6';
-    return '2';
-  }
-
-  return '2';
-}
 
 function checkboxValue(formData: FormData, key: string) {
   return formData.get(key) === 'on';
@@ -161,12 +54,6 @@ export async function getNotificationEmailSettings(): Promise<NotificationEmailS
   const supabase = await createClient();
   const user = (await supabase.auth.getUser()).data.user;
   if (!user) return defaultSettings;
-
-  const planCode = await resolvePlanCode(
-    supabase,
-    user.id,
-    (user.user_metadata?.selected_plan as string | undefined) ?? null
-  );
 
   const [{ data: prefs }, { data: recipients }] = await Promise.all([
     supabase
@@ -187,39 +74,23 @@ export async function getNotificationEmailSettings(): Promise<NotificationEmailS
   const one = byPos.get(1);
   const two = byPos.get(2);
 
-  const planDefaults = defaultsForPlan(planCode);
-  const effectiveToggles = enforcePlanLimit(planCode, {
-    notifyMessages: prefs?.notify_messages ?? planDefaults.notifyMessages,
-    notifyQuotes: prefs?.notify_quotes ?? planDefaults.notifyQuotes,
-    notifyInvoices: prefs?.notify_invoices ?? planDefaults.notifyInvoices,
-    notifyRequests: prefs?.notify_requests ?? planDefaults.notifyRequests,
-    notifyReports: prefs?.notify_reports ?? planDefaults.notifyReports,
-    notifyRecommendations:
-      prefs?.notify_recommendations ?? planDefaults.notifyRecommendations,
-    notifySystem: prefs?.notify_system ?? planDefaults.notifySystem,
-    notifyJobUpdates: prefs?.notify_job_updates ?? planDefaults.notifyJobUpdates,
-    notifyPayouts: prefs?.notify_payouts ?? planDefaults.notifyPayouts
-  });
-
   return {
     emailEnabled: prefs?.email_enabled ?? true,
-    notifyMessages: effectiveToggles.notifyMessages,
-    notifyQuotes: effectiveToggles.notifyQuotes,
-    notifyInvoices: effectiveToggles.notifyInvoices,
-    notifyRequests: effectiveToggles.notifyRequests,
-    notifyReports: effectiveToggles.notifyReports,
-    notifyRecommendations: effectiveToggles.notifyRecommendations,
-    notifySystem: effectiveToggles.notifySystem,
-    notifyJobUpdates: effectiveToggles.notifyJobUpdates,
-    notifyPayouts: effectiveToggles.notifyPayouts,
+    notifyMessages: prefs?.notify_messages ?? true,
+    notifyQuotes: prefs?.notify_quotes ?? true,
+    notifyInvoices: prefs?.notify_invoices ?? true,
+    notifyRequests: prefs?.notify_requests ?? true,
+    notifyReports: prefs?.notify_reports ?? true,
+    notifyRecommendations: prefs?.notify_recommendations ?? true,
+    notifySystem: prefs?.notify_system ?? true,
+    notifyJobUpdates: prefs?.notify_job_updates ?? true,
+    notifyPayouts: prefs?.notify_payouts ?? true,
     recipientOneEmail: one?.email ?? '',
     recipientOneLabel: one?.label ?? '',
     recipientOneActive: one?.is_active ?? true,
     recipientTwoEmail: two?.email ?? '',
     recipientTwoLabel: two?.label ?? '',
-    recipientTwoActive: two?.is_active ?? true,
-    planCode,
-    notificationSelectionLimit: notificationLimitForPlan(planCode)
+    recipientTwoActive: two?.is_active ?? true
   };
 }
 
@@ -231,13 +102,6 @@ export async function saveNotificationEmailSettings(
   const user = (await supabase.auth.getUser()).data.user;
   if (!user) return { ok: false, message: 'Please sign in.' };
 
-  const planCode = await resolvePlanCode(
-    supabase,
-    user.id,
-    (user.user_metadata?.selected_plan as string | undefined) ?? null
-  );
-  const notificationSelectionLimit = notificationLimitForPlan(planCode);
-
   const recipientOneEmail = (formData.get('recipientOneEmail')?.toString().trim() ?? '').toLowerCase();
   const recipientTwoEmail = (formData.get('recipientTwoEmail')?.toString().trim() ?? '').toLowerCase();
 
@@ -246,25 +110,6 @@ export async function saveNotificationEmailSettings(
   }
 
   const nowIso = new Date().toISOString();
-
-  const selectedEventCount = [
-    checkboxValue(formData, 'notifyMessages'),
-    checkboxValue(formData, 'notifyQuotes'),
-    checkboxValue(formData, 'notifyInvoices'),
-    checkboxValue(formData, 'notifyRequests'),
-    checkboxValue(formData, 'notifyReports'),
-    checkboxValue(formData, 'notifyRecommendations'),
-    checkboxValue(formData, 'notifySystem'),
-    checkboxValue(formData, 'notifyJobUpdates'),
-    checkboxValue(formData, 'notifyPayouts')
-  ].filter(Boolean).length;
-
-  if (notificationSelectionLimit !== null && selectedEventCount > notificationSelectionLimit) {
-    return {
-      ok: false,
-      message: `Plan ${planCode} allows up to ${notificationSelectionLimit} notification types. Suggested defaults: Messages, Quotes, and Invoices.`
-    };
-  }
 
   const { error: prefError } = await supabase
     .from('notification_email_preferences')

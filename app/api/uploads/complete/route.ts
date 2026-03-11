@@ -2,11 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import {
-  dispatchNotificationEmailsNow,
-  dispatchRecentCustomerNotifications,
-  dispatchRecentWorkshopNotifications
-} from '@/lib/email/dispatch-now';
+import { dispatchRecentCustomerNotifications, dispatchRecentWorkshopNotifications } from '@/lib/email/dispatch-now';
 import { addDaysToIsoDate, getNextDocumentReference } from '@/lib/workshop/document-references';
 
 const requestSchema = z.object({
@@ -64,58 +60,6 @@ function urgencyToImportance(
   if (urgency === 'high' || urgency === 'critical') return 'urgent';
   if (urgency === 'low' || urgency === 'medium') return 'warning';
   return 'info';
-}
-
-function extractNotificationId(payload: unknown): string | null {
-  if (typeof payload === 'string') return payload;
-  if (!payload || typeof payload !== 'object') return null;
-
-  const candidate = (payload as { id?: unknown }).id;
-  return typeof candidate === 'string' ? candidate : null;
-}
-
-async function dispatchInvoiceOrQuoteNotificationEmail(input: {
-  supabase: Awaited<ReturnType<typeof createClient>>;
-  customerAccountId: string;
-  notificationKind: 'invoice' | 'quote';
-  notificationData: Record<string, unknown>;
-  title: string;
-  body: string;
-  href: string;
-}) {
-  const since = new Date(Date.now() - 2 * 60 * 1000).toISOString();
-  const { data: existingNotification } = await input.supabase
-    .from('notifications')
-    .select('id,data')
-    .eq('to_customer_account_id', input.customerAccountId)
-    .eq('kind', input.notificationKind)
-    .gte('created_at', since)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (!existingNotification?.id) {
-    await dispatchRecentCustomerNotifications({
-      customerAccountId: input.customerAccountId,
-      kind: input.notificationKind
-    });
-    return;
-  }
-
-  await input.supabase
-    .from('notifications')
-    .update({
-      title: input.title,
-      body: input.body,
-      href: input.href,
-      data: {
-        ...((existingNotification.data as Record<string, unknown> | null) ?? {}),
-        ...input.notificationData
-      }
-    })
-    .eq('id', existingNotification.id);
-
-  await dispatchNotificationEmailsNow([existingNotification.id]);
 }
 
 export async function POST(request: NextRequest) {
@@ -426,41 +370,24 @@ export async function POST(request: NextRequest) {
           : 'report';
     const customerHref = `/customer/vehicles/${payload.vehicleId}`;
 
-    if (notificationKind === 'invoice' || notificationKind === 'quote') {
-      await dispatchInvoiceOrQuoteNotificationEmail({
-        supabase,
-        customerAccountId: vehicle.current_customer_account_id,
-        notificationKind,
-        notificationData,
-        title: payload.subject || `New ${normalizedDocType.replace('_', ' ')}`,
-        body: payload.body || 'A document was uploaded for your vehicle.',
-        href: customerHref
-      });
-    } else {
-      const { data: notificationResult, error: notificationError } = await supabase.rpc('push_notification', {
-        p_workshop_account_id: vehicle.workshop_account_id,
-        p_to_customer_account_id: vehicle.current_customer_account_id,
-        p_kind: notificationKind,
-        p_title: payload.subject || `New ${normalizedDocType.replace('_', ' ')}`,
-        p_body: payload.body || 'A document was uploaded for your vehicle.',
-        p_href: customerHref,
-        p_data: notificationData
-      });
+    const { error: notificationError } = await supabase.rpc('push_notification', {
+      p_workshop_account_id: vehicle.workshop_account_id,
+      p_to_customer_account_id: vehicle.current_customer_account_id,
+      p_kind: notificationKind,
+      p_title: payload.subject || `New ${normalizedDocType.replace('_', ' ')}`,
+      p_body: payload.body || 'A document was uploaded for your vehicle.',
+      p_href: customerHref,
+      p_data: notificationData
+    });
 
-      if (notificationError) {
-        console.error('Could not create customer notification for upload', notificationError);
-      } else {
-        const notificationId = extractNotificationId(notificationResult);
-        if (notificationId) {
-          await dispatchNotificationEmailsNow([notificationId]);
-        } else {
-          await dispatchRecentCustomerNotifications({
-            customerAccountId: vehicle.current_customer_account_id,
-            kind: notificationKind,
-            href: notificationKind === 'report' ? customerHref : undefined
-          });
-        }
-      }
+    if (notificationError) {
+      console.error('Could not create customer notification for upload', notificationError);
+    } else {
+      await dispatchRecentCustomerNotifications({
+        customerAccountId: vehicle.current_customer_account_id,
+        kind: notificationKind,
+        href: notificationKind === 'report' ? customerHref : undefined
+      });
     }
   }
 
