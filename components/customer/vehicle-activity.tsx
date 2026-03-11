@@ -42,7 +42,11 @@ export function WorldTimeline({ activities, vehicleId, viewerRole, deletionReque
   const filtered = useMemo(() => {
     const categoryFiltered = filter === 'all'
       ? activities
-      : activities.filter((item) => item.category === filter);
+      : filter === 'uploads'
+        ? activities.filter((item) =>
+            item.category === 'uploads' || item.category === 'quotes' || item.category === 'invoices'
+          )
+        : activities.filter((item) => item.category === filter);
     const actorFiltered = actorFilter === 'all'
       ? categoryFiltered
       : categoryFiltered.filter((item) => item.actorType === actorFilter);
@@ -150,8 +154,11 @@ export function WorldTimeline({ activities, vehicleId, viewerRole, deletionReque
                   <p className="mt-1 text-xs text-gray-500">{activity.subtitle}</p>
                   <p className="mt-1 text-xs text-gray-500">{activity.createdAt ? new Date(activity.createdAt).toLocaleString() : 'Unknown date'} · {activity.actorLabel}</p>
                   {activity.description ? <p className="mt-2 text-sm text-gray-700">{activity.description}</p> : null}
-                  {activity.downloadHref || activity.actionHref ? (
+                  {activity.downloadHref || activity.actionHref || (viewerRole === 'workshop' && vehicleId && activity.category === 'quotes' && activity.quoteId) ? (
                     <div className="mt-3 flex flex-wrap gap-2">
+                      {viewerRole === 'workshop' && vehicleId && activity.category === 'quotes' && activity.quoteId ? (
+                        <Button asChild size="sm"><Link href={`/workshop/vehicles/${vehicleId}?upload=invoice&quoteId=${activity.quoteId}`}>Create invoice</Link></Button>
+                      ) : null}
                       {activity.downloadHref ? <Button asChild size="sm" variant="outline"><Link href={activity.downloadHref}>Preview</Link></Button> : null}
                       {activity.downloadHref ? <Button asChild size="sm" variant="outline"><Link href={activity.downloadHref} download>Download</Link></Button> : null}
                       {activity.actionHref ? <Button asChild size="sm"><Link href={activity.actionHref}>{activity.actionLabel ?? 'Open details'}</Link></Button> : null}

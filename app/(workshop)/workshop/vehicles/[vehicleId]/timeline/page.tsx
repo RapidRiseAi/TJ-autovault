@@ -49,7 +49,7 @@ export default async function WorkshopVehicleTimelinePage({ params, searchParams
       .limit(300),
     supabase
       .from('vehicle_documents')
-      .select('id,created_at,document_type,original_name,subject,storage_bucket,storage_path,importance,invoice_id')
+      .select('id,created_at,document_type,original_name,subject,storage_bucket,storage_path,importance,invoice_id,quote_id')
       .eq('vehicle_id', vehicleId)
       .eq('workshop_account_id', workshopId)
       .order('created_at', { ascending: false })

@@ -1,4 +1,5 @@
 import { notFound, redirect } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
 import { PageHeader } from '@/components/layout/page-header';
 import { Card } from '@/components/ui/card';
 import { createClient } from '@/lib/supabase/server';
@@ -42,6 +43,17 @@ type CustomerDetail = {
   }>;
 };
 
+type CustomerOptionalColumn =
+  | 'linked_email'
+  | 'billing_name'
+  | 'billing_company'
+  | 'billing_address'
+  | 'billing_email'
+  | 'billing_phone'
+  | 'billing_tax_number'
+  | 'auth_user_id'
+  | 'onboarding_status';
+
 function isMissingProspectColumnsError(
   error: { code?: string; message?: string } | null
 ) {
@@ -59,11 +71,68 @@ function isMissingProspectColumnsError(
     combined.includes('billing_email') ||
     combined.includes('billing_phone') ||
     combined.includes('billing_tax_number')
-    combined.includes('billing_tax_number') ||
-    combined.includes('auth_user_id')
   );
 }
 
+const BILLING_COLUMN_NAMES = [
+  'billing_name',
+  'billing_company',
+  'billing_address',
+  'billing_email',
+  'billing_phone',
+  'billing_tax_number'
+] as const;
+
+const CUSTOMER_OPTIONAL_COLUMNS: CustomerOptionalColumn[] = [
+  'linked_email',
+  ...BILLING_COLUMN_NAMES,
+  'auth_user_id',
+  'onboarding_status'
+];
+
+function extractMissingBillingColumns(
+  error: { code?: string; message?: string } | null,
+  keys: string[]
+) {
+  if (!error) return [] as string[];
+  const combined = `${error.code ?? ''} ${error.message ?? ''}`.toLowerCase();
+  return keys.filter((column) => combined.includes(column));
+}
+
+
+
+function splitBillingAddress(address: string | null | undefined) {
+  const parts = (address ?? '')
+    .split(/\n|,/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  return {
+    street: parts[0] ?? '',
+    city: parts[1] ?? '',
+    province: parts[2] ?? '',
+    postalCode: parts[3] ?? ''
+  };
+}
+
+function composeBillingAddress({
+  street,
+  city,
+  province,
+  postalCode
+}: {
+  street: string;
+  city: string;
+  province: string;
+  postalCode: string;
+}) {
+  const lineOne = street.trim();
+  const lineTwo = [city, province, postalCode]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(', ');
+  return [lineOne, lineTwo].filter(Boolean).join('\n');
+}
 
 function isMissingCustomerBillingColumnError(
   error: { code?: string; message?: string } | null
@@ -162,20 +231,20 @@ export default async function WorkshopCustomerPage({
 
   const workshopId = profile.workshop_account_id;
 
-  const customerSelectVariants = [
-    'id,name,linked_email,billing_name,billing_company,billing_address,billing_email,billing_phone,billing_tax_number,auth_user_id,onboarding_status,customer_users(profile_id,profiles(display_name,avatar_url))',
-    'id,name,linked_email,billing_name,billing_company,billing_address,billing_email,billing_phone,billing_tax_number,onboarding_status,customer_users(profile_id,profiles(display_name,avatar_url))',
-    'id,name,linked_email,billing_name,billing_company,billing_address,billing_email,billing_phone,billing_tax_number,auth_user_id,customer_users(profile_id,profiles(display_name,avatar_url))',
-    'id,name,linked_email,billing_name,billing_company,billing_address,billing_email,billing_phone,billing_tax_number,customer_users(profile_id,profiles(display_name,avatar_url))',
-    'id,name,customer_users(profile_id,profiles(display_name,avatar_url))'
-  ];
-
+  let availableCustomerColumns = [...CUSTOMER_OPTIONAL_COLUMNS];
   let customerQuery: {
     data: unknown;
     error: { code?: string; message?: string } | null;
   } = { data: null, error: null };
 
-  for (const selectClause of customerSelectVariants) {
+  for (let attempt = 0; attempt <= CUSTOMER_OPTIONAL_COLUMNS.length; attempt += 1) {
+    const selectClause = [
+      'id',
+      'name',
+      ...availableCustomerColumns,
+      'customer_users(profile_id,profiles(display_name,avatar_url))'
+    ].join(',');
+
     const query = await supabase
       .from('customer_accounts')
       .select(selectClause)
@@ -186,55 +255,16 @@ export default async function WorkshopCustomerPage({
     customerQuery = { data: query.data, error: query.error };
     if (!query.error) break;
     if (!isMissingProspectColumnsError(query.error)) break;
-  }
 
-  const customerRaw = customerQuery.data as Partial<CustomerDetail> | null;
-  const customer = customerRaw
-    ? {
-        id: customerRaw.id ?? customerAccountId,
-        name: customerRaw.name ?? 'Customer',
-        linked_email: customerRaw.linked_email ?? null,
-        billing_name: customerRaw.billing_name ?? null,
-        billing_company: customerRaw.billing_company ?? null,
-        billing_address: customerRaw.billing_address ?? null,
-        billing_email: customerRaw.billing_email ?? null,
-        billing_phone: customerRaw.billing_phone ?? null,
-        billing_tax_number: customerRaw.billing_tax_number ?? null,
-        auth_user_id: customerRaw.auth_user_id ?? null,
-        onboarding_status: customerRaw.onboarding_status ?? null,
-        customer_users: customerRaw.customer_users ?? []
-      }
-    : null;
+    const missingColumns = extractMissingBillingColumns(query.error, availableCustomerColumns);
+    if (!missingColumns.length) {
+      availableCustomerColumns = [];
+      continue;
+    }
 
-  const withProspectColumns = await supabase
-    .from('customer_accounts')
-    .select(
-      'id,name,linked_email,billing_name,billing_company,billing_address,billing_email,billing_phone,billing_tax_number,auth_user_id,onboarding_status,customer_users(profile_id,profiles(display_name,avatar_url))'
-    )
-    .eq('id', customerAccountId)
-    .eq('workshop_account_id', workshopId)
-    .single();
-
-  let customerQuery = withProspectColumns;
-
-  if (customerQuery.error && isMissingProspectColumnsError(customerQuery.error)) {
-    customerQuery = await supabase
-      .from('customer_accounts')
-      .select(
-        'id,name,linked_email,onboarding_status,customer_users(profile_id,profiles(display_name,avatar_url))'
-      )
-      .eq('id', customerAccountId)
-      .eq('workshop_account_id', workshopId)
-      .single();
-  }
-
-  if (customerQuery.error && isMissingProspectColumnsError(customerQuery.error)) {
-    customerQuery = await supabase
-      .from('customer_accounts')
-      .select('id,name,customer_users(profile_id,profiles(display_name,avatar_url))')
-      .eq('id', customerAccountId)
-      .eq('workshop_account_id', workshopId)
-      .single();
+    availableCustomerColumns = availableCustomerColumns.filter(
+      (column) => !missingColumns.includes(column)
+    );
   }
 
   const customerRaw = customerQuery.data as Partial<CustomerDetail> | null;
@@ -259,6 +289,7 @@ export default async function WorkshopCustomerPage({
 
   const customerDisplayName =
     customer.customer_users?.[0]?.profiles?.[0]?.display_name || customer.name;
+  const billingAddressDefaults = splitBillingAddress(customer.billing_address);
 
 
   async function updateCustomerBillingDetails(
@@ -286,7 +317,16 @@ export default async function WorkshopCustomerPage({
 
     const billingName = (formData.get('billing_name')?.toString() ?? '').trim();
     const billingCompany = (formData.get('billing_company')?.toString() ?? '').trim();
-    const billingAddress = (formData.get('billing_address')?.toString() ?? '').trim();
+    const billingAddressStreet = (formData.get('billing_address_street')?.toString() ?? '').trim();
+    const billingAddressCity = (formData.get('billing_address_city')?.toString() ?? '').trim();
+    const billingAddressProvince = (formData.get('billing_address_province')?.toString() ?? '').trim();
+    const billingAddressPostalCode = (formData.get('billing_address_postal_code')?.toString() ?? '').trim();
+    const billingAddress = composeBillingAddress({
+      street: billingAddressStreet,
+      city: billingAddressCity,
+      province: billingAddressProvince,
+      postalCode: billingAddressPostalCode
+    });
     const billingEmail = (formData.get('billing_email')?.toString() ?? '').trim().toLowerCase();
     const billingPhone = (formData.get('billing_phone')?.toString() ?? '').trim();
     const billingTaxNumber = (formData.get('billing_tax_number')?.toString() ?? '').trim();
@@ -297,67 +337,81 @@ export default async function WorkshopCustomerPage({
 
     const displayName = billingName || billingCompany;
 
-    const fullUpdate = await supabase
-      .from('customer_accounts')
-      .update({
-        name: displayName,
-        billing_name: billingName || null,
-        billing_company: billingCompany || null,
-        billing_address: billingAddress || null,
-        billing_email: billingEmail || null,
-        billing_phone: billingPhone || null,
-        billing_tax_number: billingTaxNumber || null
-      })
-      .eq('id', customerAccountId)
-      .eq('workshop_account_id', currentProfile.workshop_account_id)
-      .select('id')
-      .maybeSingle();
+    let updatePayload: Record<string, string | null> = {
+      name: displayName,
+      billing_name: billingName || null,
+      billing_company: billingCompany || null,
+      billing_address: billingAddress || null,
+      billing_email: billingEmail || null,
+      billing_phone: billingPhone || null,
+      billing_tax_number: billingTaxNumber || null
+    };
 
-    const fullUpdateMissingColumns =
-      fullUpdate.error && isMissingCustomerBillingColumnError(fullUpdate.error);
+    let billingColumnsMissing = false;
+    const missingBillingColumns = new Set<string>();
+    let accountUpdateResult: {
+      data: { id: string } | null;
+      error: { code?: string; message?: string } | null;
+    } | null = null;
 
-    const accountQuery =
-      fullUpdateMissingColumns
-    const accountQuery =
-      fullUpdate.error && isMissingCustomerBillingColumnError(fullUpdate.error)
-        ? await supabase
-            .from('customer_accounts')
-            .update({
-              name: displayName,
-              billing_address: billingAddress || null
-            })
-            .eq('id', customerAccountId)
-            .eq('workshop_account_id', currentProfile.workshop_account_id)
-            .select('id')
-            .maybeSingle()
-        : fullUpdate;
+    for (let attempt = 0; attempt <= BILLING_COLUMN_NAMES.length; attempt += 1) {
+      const result = await supabase
+        .from('customer_accounts')
+        .update(updatePayload)
+        .eq('id', customerAccountId)
+        .eq('workshop_account_id', currentProfile.workshop_account_id)
+        .select('id')
+        .maybeSingle();
 
-    const accountFallbackQuery =
-      accountQuery.error && isMissingCustomerBillingColumnError(accountQuery.error)
-        ? await supabase
-            .from('customer_accounts')
-            .update({ name: displayName })
-            .eq('id', customerAccountId)
-            .eq('workshop_account_id', currentProfile.workshop_account_id)
-            .select('id')
-            .maybeSingle()
-        : accountQuery;
+      if (!result.error) {
+        accountUpdateResult = result;
+        break;
+      }
 
-    const account = accountFallbackQuery.data;
-    if (accountFallbackQuery.error || !account) {
+      if (!isMissingCustomerBillingColumnError(result.error)) {
+        accountUpdateResult = result;
+        break;
+      }
+
+      billingColumnsMissing = true;
+      const payloadColumns = Object.keys(updatePayload).filter(
+        (column) => column !== 'name'
+      );
+      const missingColumns = extractMissingBillingColumns(result.error, payloadColumns);
+      for (const missingColumn of missingColumns) {
+        missingBillingColumns.add(missingColumn);
+      }
+
+      if (!missingColumns.length) {
+        updatePayload = { name: displayName };
+      } else {
+        const nextPayload = { ...updatePayload };
+        for (const missingColumn of missingColumns) {
+          delete nextPayload[missingColumn];
+        }
+        updatePayload = nextPayload;
+      }
+
+      accountUpdateResult = result;
+    }
+
+    const account = accountUpdateResult?.data;
+    if (accountUpdateResult?.error || !account) {
       return {
         status: 'error',
         message:
-          accountFallbackQuery.error?.message ??
+          accountUpdateResult?.error?.message ??
           'Could not save billing details.'
       };
     }
 
-    if (fullUpdateMissingColumns) {
+    if (billingColumnsMissing) {
+      const missingColumnsText = Array.from(missingBillingColumns).sort().join(', ');
       return {
         status: 'error',
-        message:
-          'Could not save all billing fields because your database is missing the latest billing columns. Please run the latest migrations, then try again.'
+        message: missingColumnsText
+          ? `Could not save all billing fields because your database is missing these columns: ${missingColumnsText}. Please run the latest migrations, then try again.`
+          : 'Could not save all billing fields because your database is missing the latest billing columns. Please run the latest migrations, then try again.'
       };
     }
 
@@ -399,6 +453,8 @@ export default async function WorkshopCustomerPage({
         href
       });
     }
+
+    revalidatePath(`/workshop/customers/${customerAccountId}`);
 
     return {
       status: 'success',
@@ -506,7 +562,10 @@ export default async function WorkshopCustomerPage({
               defaults={{
                 billingName: customer.billing_name ?? customer.name,
                 billingCompany: customer.billing_company ?? '',
-                billingAddress: customer.billing_address ?? '',
+                billingAddressStreet: billingAddressDefaults.street,
+                billingAddressCity: billingAddressDefaults.city,
+                billingAddressProvince: billingAddressDefaults.province,
+                billingAddressPostalCode: billingAddressDefaults.postalCode,
                 billingEmail: customer.billing_email ?? customer.linked_email ?? '',
                 billingPhone: customer.billing_phone ?? '',
                 billingTaxNumber: customer.billing_tax_number ?? ''
