@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { dispatchRecentCustomerNotifications } from '@/lib/email/dispatch-now';
@@ -98,14 +100,23 @@ export async function POST(request: NextRequest) {
           bank_name?: string | null;
           bank_account_number?: string | null;
           bank_branch_code?: string | null;
+          co_reg_number?: string | null;
+          bank_account_name?: string | null;
+          bank_account_type?: string | null;
           invoice_footer?: string | null;
         }
       | null = null;
 
+    const branding = await supabase
+      .from('workshop_branding_settings')
+      .select('logo_url,primary_color')
+      .eq('workshop_account_id', profile.workshop_account_id)
+      .maybeSingle();
+
     const enhancedWorkshop = await supabase
       .from('workshop_accounts')
       .select(
-        'id,name,contact_email,contact_phone,billing_address,tax_number,bank_name,bank_account_number,bank_branch_code,invoice_footer'
+        'id,name,contact_email,contact_phone,billing_address,tax_number,co_reg_number,bank_name,bank_account_name,bank_account_number,bank_account_type,bank_branch_code,invoice_footer'
       )
       .eq('id', profile.workshop_account_id)
       .maybeSingle();
@@ -132,6 +143,9 @@ export async function POST(request: NextRequest) {
             bank_name: null,
             bank_account_number: null,
             bank_branch_code: null,
+            co_reg_number: null,
+            bank_account_name: null,
+            bank_account_type: null,
             invoice_footer: null
           }
         : null;
@@ -151,13 +165,18 @@ export async function POST(request: NextRequest) {
           linked_email?: string | null;
           auth_user_id?: string | null;
           billing_address?: string | null;
+          billing_name?: string | null;
+          billing_company?: string | null;
+          billing_email?: string | null;
+          billing_phone?: string | null;
+          billing_tax_number?: string | null;
         }
       | null = null;
 
     if (resolvedCustomerId) {
       const enhancedCustomer = await supabase
         .from('customer_accounts')
-        .select('id,name,linked_email,auth_user_id,billing_address')
+        .select('id,name,linked_email,auth_user_id,billing_name,billing_company,billing_address,billing_email,billing_phone,billing_tax_number')
         .eq('id', resolvedCustomerId)
         .eq('workshop_account_id', profile.workshop_account_id)
         .maybeSingle();
@@ -178,7 +197,7 @@ export async function POST(request: NextRequest) {
         }
 
         customer = fallbackCustomer.data
-          ? { ...fallbackCustomer.data, billing_address: null }
+          ? { ...fallbackCustomer.data, billing_address: null, billing_name: null, billing_company: null, billing_email: null, billing_phone: null, billing_tax_number: null }
           : null;
       } else if (enhancedCustomer.error) {
         return NextResponse.json({ error: enhancedCustomer.error.message }, { status: 400 });
@@ -223,13 +242,21 @@ export async function POST(request: NextRequest) {
       bank_name: workshop.bank_name,
       bank_account_number: workshop.bank_account_number,
       bank_branch_code: workshop.bank_branch_code,
+      co_reg_number: workshop.co_reg_number,
+      bank_account_name: workshop.bank_account_name,
+      bank_account_type: workshop.bank_account_type,
       invoice_footer: workshop.invoice_footer
     };
 
     const customerSnapshot = {
       id: customer.id,
       name: customer.name,
-      billing_address: customer.billing_address
+      billing_name: customer.billing_name,
+      billing_company: customer.billing_company,
+      billing_address: customer.billing_address,
+      billing_email: customer.billing_email,
+      billing_phone: customer.billing_phone,
+      billing_tax_number: customer.billing_tax_number
     };
 
     let linkedId: string;
@@ -416,8 +443,32 @@ export async function POST(request: NextRequest) {
       linkedId = invoice.data.id;
     }
 
+    let logoBytes: Uint8Array | undefined;
+    if (branding.data?.logo_url) {
+      try {
+        const response = await fetch(branding.data.logo_url);
+        if (response.ok) {
+          logoBytes = new Uint8Array(await response.arrayBuffer());
+        }
+      } catch {
+        logoBytes = undefined;
+      }
+    }
+
+    if (!logoBytes) {
+      try {
+        const localLogoPath = path.join(process.cwd(), 'tj-logo.png');
+        const localLogo = await readFile(localLogoPath);
+        logoBytes = new Uint8Array(localLogo);
+      } catch {
+        logoBytes = undefined;
+      }
+    }
+
     const pdfBytes = await buildFinancialDocumentPdf({
       kind: payload.kind,
+      brandColor: branding.data?.primary_color ?? undefined,
+      logoBytes,
       workshop: {
         name: workshop.name,
         contactEmail: workshop.contact_email,
@@ -427,11 +478,19 @@ export async function POST(request: NextRequest) {
         bankName: workshop.bank_name,
         bankAccountNumber: workshop.bank_account_number,
         bankBranchCode: workshop.bank_branch_code,
+        coRegNumber: workshop.co_reg_number,
+        bankAccountName: workshop.bank_account_name,
+        bankAccountType: workshop.bank_account_type,
         footer: workshop.invoice_footer
       },
       customer: {
         name: customer.name,
-        billingAddress: customer.billing_address
+        billingName: customer.billing_name,
+        billingCompany: customer.billing_company,
+        billingAddress: customer.billing_address,
+        billingEmail: customer.billing_email,
+        billingPhone: customer.billing_phone,
+        billingTaxNumber: customer.billing_tax_number
       },
       vehicle: {
         registrationNumber: vehicle.registration_number,
