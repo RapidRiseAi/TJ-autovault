@@ -26,34 +26,6 @@ function formatStorage(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(0)} MB`;
 }
 
-function notificationSelectionLimitForTier(tier?: string | null) {
-  return tier === 'basic' ? 3 : 9;
-}
-
-function countEnabledNotificationTypes(prefs: {
-  notify_messages?: boolean | null;
-  notify_quotes?: boolean | null;
-  notify_invoices?: boolean | null;
-  notify_requests?: boolean | null;
-  notify_reports?: boolean | null;
-  notify_recommendations?: boolean | null;
-  notify_system?: boolean | null;
-  notify_job_updates?: boolean | null;
-  notify_payouts?: boolean | null;
-} | null | undefined) {
-  return [
-    prefs?.notify_messages,
-    prefs?.notify_quotes,
-    prefs?.notify_invoices,
-    prefs?.notify_requests,
-    prefs?.notify_reports,
-    prefs?.notify_recommendations,
-    prefs?.notify_system,
-    prefs?.notify_job_updates,
-    prefs?.notify_payouts
-  ].filter(Boolean).length;
-}
-
 const initialProfileUpdateState: ProfileUpdateState = {
   status: 'idle',
   message: ''
@@ -405,7 +377,7 @@ export default async function CustomerProfilePage() {
 
   const customerAccountId = customerUser?.customer_account_id;
 
-  const [{ data: account }, { count: vehicleCount }, { data: storageDocs }, { data: notificationPrefs }] = customerAccountId
+  const [{ data: account }, { count: vehicleCount }, { data: storageDocs }] = customerAccountId
     ? await Promise.all([
         supabase
           .from('customer_accounts')
@@ -420,14 +392,9 @@ export default async function CustomerProfilePage() {
           .from('vehicle_documents')
           .select('size_bytes')
           .eq('customer_account_id', customerAccountId)
-          .limit(5000),
-        supabase
-          .from('notification_email_preferences')
-          .select('notify_messages,notify_quotes,notify_invoices,notify_requests,notify_reports,notify_recommendations,notify_system,notify_job_updates,notify_payouts')
-          .eq('profile_id', user.id)
-          .maybeSingle()
+          .limit(5000)
       ])
-    : [{ data: null }, { count: 0 }, { data: null }, { data: null }];
+    : [{ data: null }, { count: 0 }, { data: null }];
 
   const storageUsedBytes = (storageDocs ?? []).reduce(
     (sum, item) => sum + Number(item.size_bytes ?? 0),
@@ -439,14 +406,6 @@ export default async function CustomerProfilePage() {
   const storageLimitBytes = includedBytes + extraBytes;
   const usagePercent = storageLimitBytes > 0 ? (storageUsedBytes / storageLimitBytes) * 100 : 0;
   const isStorageLow = usagePercent >= 90;
-  const notificationSelectionLimit = notificationSelectionLimitForTier(account?.tier);
-  const defaultNotificationCount = account?.tier === 'basic' ? 3 : 9;
-  const selectedNotificationTypes = notificationPrefs
-    ? Math.min(
-        countEnabledNotificationTypes(notificationPrefs),
-        notificationSelectionLimit
-      )
-    : defaultNotificationCount;
   const requiredExtraGb = Math.max(
     0,
     Math.ceil((storageUsedBytes - includedBytes) / GB_IN_BYTES)
@@ -526,17 +485,6 @@ export default async function CustomerProfilePage() {
                 {usagePercent.toFixed(1)}%
               </span>
             </p>
-            <p>
-              Notification types:{' '}
-              <span className="font-semibold text-black">
-                {selectedNotificationTypes} / {notificationSelectionLimit}
-              </span>
-            </p>
-            {account?.tier === 'basic' ? (
-              <p className="text-xs text-gray-600">
-                Recommended for Plan 1: Messages, Quotes, and Invoices.
-              </p>
-            ) : null}
             {isStorageLow ? (
               <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                 You have reached 90% of your storage limit. Please upgrade your plan or add storage.

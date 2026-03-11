@@ -9,20 +9,9 @@ type Plan = {
 };
 
 const planBenefits: Record<Plan['key'], string[]> = {
-  basic: [
-    '1 to 3 cars',
-    '250MB storage',
-    'R200/month',
-    'Up to 3 notification types',
-    'Recommended: Messages, Quotes, Invoices'
-  ],
-  pro: ['Up to 10 cars', '1GB storage', 'R500/month', 'All notification types'],
-  business: [
-    'Unlimited cars',
-    '10GB storage',
-    'R1000/month',
-    'All notification types'
-  ]
+  basic: ['1 to 3 cars', '250MB storage', 'R200/month'],
+  pro: ['Up to 10 cars', '1GB storage', 'R500/month'],
+  business: ['Unlimited cars', '10GB storage', 'R1000/month']
 };
 
 export function SignupPlanSelector({ plans }: { plans: readonly Plan[] }) {

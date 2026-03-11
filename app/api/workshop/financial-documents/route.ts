@@ -3,10 +3,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import {
-  dispatchNotificationEmailsNow,
-  dispatchRecentCustomerNotifications
-} from '@/lib/email/dispatch-now';
+import { dispatchRecentCustomerNotifications } from '@/lib/email/dispatch-now';
 import {
   buildFinancialDocumentPdf,
   computeFinancialLineItems,
@@ -20,83 +17,6 @@ function isMissingColumnError(error: unknown) {
       ? String((error as { message?: unknown }).message ?? '')
       : '';
   return /column .* does not exist/i.test(message);
-}
-
-function extractNotificationId(payload: unknown): string | null {
-  if (typeof payload === 'string') return payload;
-  if (!payload || typeof payload !== 'object') return null;
-
-  const candidate = (payload as { id?: unknown }).id;
-  return typeof candidate === 'string' ? candidate : null;
-}
-
-async function dispatchFinancialNotificationEmail(input: {
-  supabase: Awaited<ReturnType<typeof createClient>>;
-  workshopAccountId: string;
-  customerAccountId: string;
-  kind: 'quote' | 'invoice';
-  title: string;
-  body: string;
-  href: string;
-  data: Record<string, unknown>;
-}) {
-  const since = new Date(Date.now() - 2 * 60 * 1000).toISOString();
-  const { data: existingNotification } = await input.supabase
-    .from('notifications')
-    .select('id,data')
-    .eq('to_customer_account_id', input.customerAccountId)
-    .eq('kind', input.kind)
-    .gte('created_at', since)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (!existingNotification?.id) {
-    const { data: createdNotification, error: createNotificationError } = await input.supabase.rpc('push_notification', {
-      p_workshop_account_id: input.workshopAccountId,
-      p_to_customer_account_id: input.customerAccountId,
-      p_kind: input.kind,
-      p_title: input.title,
-      p_body: input.body,
-      p_href: input.href,
-      p_data: input.data
-    });
-
-    if (createNotificationError) {
-      await dispatchRecentCustomerNotifications({
-        customerAccountId: input.customerAccountId,
-        kind: input.kind
-      });
-      return;
-    }
-
-    const createdNotificationId = extractNotificationId(createdNotification);
-    if (createdNotificationId) {
-      await dispatchNotificationEmailsNow([createdNotificationId]);
-      return;
-    }
-
-    await dispatchRecentCustomerNotifications({
-      customerAccountId: input.customerAccountId,
-      kind: input.kind
-    });
-    return;
-  }
-
-  await input.supabase
-    .from('notifications')
-    .update({
-      title: input.title,
-      body: input.body,
-      href: input.href,
-      data: {
-        ...((existingNotification.data as Record<string, unknown> | null) ?? {}),
-        ...input.data
-      }
-    })
-    .eq('id', existingNotification.id);
-
-  await dispatchNotificationEmailsNow([existingNotification.id]);
 }
 
 
@@ -806,24 +726,32 @@ export async function POST(request: NextRequest) {
     });
 
     const customerHref = `/customer/vehicles/${vehicle.id}`;
-    await dispatchFinancialNotificationEmail({
-      supabase,
-      workshopAccountId: profile.workshop_account_id,
-      customerAccountId: customer.id,
-      kind: payload.kind,
-      title: payload.subject,
-      body:
+    const { error: notificationError } = await supabase.rpc('push_notification', {
+      p_workshop_account_id: profile.workshop_account_id,
+      p_to_customer_account_id: customer.id,
+      p_kind: payload.kind,
+      p_title: payload.subject,
+      p_body:
         payload.kind === 'quote'
           ? `A new quote (${referenceNumber}) is available.`
           : `A new invoice (${referenceNumber}) is available.`,
-      href: customerHref,
-      data: {
+      p_href: customerHref,
+      p_data: {
         vehicle_id: vehicle.id,
         linked_entity_id: linkedId,
         document_id: doc.id,
         document_type: payload.kind
       }
     });
+
+    if (notificationError) {
+      console.error('Could not create customer financial-document notification', notificationError);
+    } else {
+      await dispatchRecentCustomerNotifications({
+        customerAccountId: customer.id,
+        kind: payload.kind
+      });
+    }
 
     return NextResponse.json({ ok: true, id: linkedId, documentId: doc.id });
   } catch (error) {
