@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/server';
 import { SendMessageModal } from '@/components/messages/send-message-modal';
 import { CustomerVehicleManager } from '@/components/workshop/customer-vehicle-manager';
 import { RemoveCustomerAccountButton } from '@/components/workshop/remove-customer-account-button';
+import { CustomerBillingDetailsForm, type CustomerBillingActionState } from '@/components/workshop/customer-billing-details-form';
+import { dispatchRecentCustomerNotifications } from '@/lib/email/dispatch-now';
 
 type CustomerVehicleRow = {
   id: string;
@@ -23,6 +25,13 @@ type CustomerDetail = {
   id: string;
   name: string;
   linked_email?: string | null;
+  billing_name?: string | null;
+  billing_company?: string | null;
+  billing_address?: string | null;
+  billing_email?: string | null;
+  billing_phone?: string | null;
+  billing_tax_number?: string | null;
+  auth_user_id?: string | null;
   onboarding_status?: string | null;
   customer_users?: Array<{
     profile_id?: string;
@@ -128,7 +137,7 @@ export default async function WorkshopCustomerPage({
   const withProspectColumns = await supabase
     .from('customer_accounts')
     .select(
-      'id,name,linked_email,onboarding_status,customer_users(profile_id,profiles(display_name,avatar_url))'
+      'id,name,linked_email,billing_name,billing_company,billing_address,billing_email,billing_phone,billing_tax_number,auth_user_id,onboarding_status,customer_users(profile_id,profiles(display_name,avatar_url))'
     )
     .eq('id', customerAccountId)
     .eq('workshop_account_id', workshopId)
@@ -139,7 +148,7 @@ export default async function WorkshopCustomerPage({
     isMissingProspectColumnsError(withProspectColumns.error)
       ? await supabase
           .from('customer_accounts')
-          .select('id,name,customer_users(profile_id,profiles(display_name,avatar_url))')
+          .select('id,name,billing_name,billing_company,billing_address,billing_email,billing_phone,billing_tax_number,auth_user_id,customer_users(profile_id,profiles(display_name,avatar_url))')
           .eq('id', customerAccountId)
           .eq('workshop_account_id', workshopId)
           .single()
@@ -150,6 +159,100 @@ export default async function WorkshopCustomerPage({
 
   const customerDisplayName =
     customer.customer_users?.[0]?.profiles?.[0]?.display_name || customer.name;
+
+
+  async function updateCustomerBillingDetails(
+    _prevState: CustomerBillingActionState,
+    formData: FormData
+  ): Promise<CustomerBillingActionState> {
+    'use server';
+
+    const supabase = await createClient();
+    const user = (await supabase.auth.getUser()).data.user;
+    if (!user) return { status: 'error', message: 'Unauthorized' };
+
+    const { data: currentProfile } = await supabase
+      .from('profiles')
+      .select('role,workshop_account_id')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (
+      !currentProfile?.workshop_account_id ||
+      (currentProfile.role !== 'admin' && currentProfile.role !== 'technician')
+    ) {
+      return { status: 'error', message: 'Access denied' };
+    }
+
+    const billingName = (formData.get('billing_name')?.toString() ?? '').trim();
+    const billingCompany = (formData.get('billing_company')?.toString() ?? '').trim();
+    const billingAddress = (formData.get('billing_address')?.toString() ?? '').trim();
+    const billingEmail = (formData.get('billing_email')?.toString() ?? '').trim().toLowerCase();
+    const billingPhone = (formData.get('billing_phone')?.toString() ?? '').trim();
+    const billingTaxNumber = (formData.get('billing_tax_number')?.toString() ?? '').trim();
+
+    if (!billingName && !billingCompany) {
+      return { status: 'error', message: 'Billing name or company is required.' };
+    }
+
+    const displayName = billingName || billingCompany;
+
+    const { data: account, error: updateError } = await supabase
+      .from('customer_accounts')
+      .update({
+        name: displayName,
+        billing_name: billingName || null,
+        billing_company: billingCompany || null,
+        billing_address: billingAddress || null,
+        billing_email: billingEmail || null,
+        billing_phone: billingPhone || null,
+        billing_tax_number: billingTaxNumber || null
+      })
+      .eq('id', customerAccountId)
+      .eq('workshop_account_id', currentProfile.workshop_account_id)
+      .select('id,auth_user_id')
+      .maybeSingle();
+
+    if (updateError || !account) {
+      return {
+        status: 'error',
+        message: updateError?.message ?? 'Could not save billing details.'
+      };
+    }
+
+    await supabase.rpc('push_notification_to_workshop', {
+      p_workshop_account_id: currentProfile.workshop_account_id,
+      p_kind: 'system',
+      p_title: 'Customer billing details updated',
+      p_body: `${displayName} billing details were updated by workshop staff.`,
+      p_href: `/workshop/customers/${customerAccountId}`,
+      p_data: { customer_account_id: customerAccountId }
+    });
+
+    if (account.auth_user_id) {
+      const href = '/customer/profile';
+      await supabase.rpc('push_notification', {
+        p_workshop_account_id: currentProfile.workshop_account_id,
+        p_to_customer_account_id: customerAccountId,
+        p_kind: 'system',
+        p_title: 'Billing details updated',
+        p_body: 'Your workshop updated your billing details.',
+        p_href: href,
+        p_data: { customer_account_id: customerAccountId }
+      });
+
+      await dispatchRecentCustomerNotifications({
+        customerAccountId,
+        kind: 'system',
+        href
+      });
+    }
+
+    return {
+      status: 'success',
+      message: 'Billing details saved successfully.'
+    };
+  }
 
   const [
     { vehicles, error: vehiclesError },
@@ -226,6 +329,27 @@ export default async function WorkshopCustomerPage({
           </Card>
         ))}
       </div>
+
+
+      <Card className="rounded-3xl p-6">
+        <h2 className="text-base font-semibold">Billing details</h2>
+        <p className="mt-1 text-sm text-gray-600">
+          Update billing information used on quotes and invoices for this customer.
+        </p>
+        <div className="mt-4">
+          <CustomerBillingDetailsForm
+            defaults={{
+              billingName: customer.billing_name ?? customer.name,
+              billingCompany: customer.billing_company ?? '',
+              billingAddress: customer.billing_address ?? '',
+              billingEmail: customer.billing_email ?? customer.linked_email ?? '',
+              billingPhone: customer.billing_phone ?? '',
+              billingTaxNumber: customer.billing_tax_number ?? ''
+            }}
+            action={updateCustomerBillingDetails}
+          />
+        </div>
+      </Card>
 
       <Card className="rounded-3xl">
         {vehiclesError ? (
