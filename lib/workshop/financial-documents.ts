@@ -113,37 +113,6 @@ function isPastDate(value?: string | null) {
   return comparedDate.getTime() < now.getTime();
 }
 
-function formatCustomerBillingAddressLines(address?: string | null) {
-  const raw = (address ?? '').trim();
-  if (!raw) return ['-'];
-
-  const newlineParts = raw
-    .split('\n')
-    .map((part) => part.trim())
-    .filter(Boolean);
-
-  if (newlineParts.length >= 2) {
-    const lineOne = newlineParts[0];
-    const lineTwo = newlineParts.slice(1).join(', ');
-    return [clampText(lineOne, 80), clampText(lineTwo, 80)].filter(Boolean);
-  }
-
-  const commaParts = raw
-    .split(',')
-    .map((part) => part.trim())
-    .filter(Boolean);
-
-  if (commaParts.length <= 1) {
-    return [clampText(raw, 80)];
-  }
-
-  const [street, ...cityProvincePostal] = commaParts;
-  return [
-    clampText(street || '-', 80),
-    clampText(cityProvincePostal.join(', ') || '-', 80)
-  ];
-}
-
 export async function buildFinancialDocumentPdf(params: {
   kind: 'quote' | 'invoice';
   brandColor?: string;
@@ -247,7 +216,7 @@ export async function buildFinancialDocumentPdf(params: {
     });
   }
 
-  const customerLines = formatCustomerBillingAddressLines(params.customer.billingAddress);
+  const customerLines = clampText(params.customer.billingAddress || '-', 120).split(/\n|,/).slice(0, 2);
   for (const [i, line] of customerLines.entries()) {
     page.drawText(line.trim() || '-', {
       x: left,
