@@ -16,8 +16,7 @@ const DOCUMENT_TYPES = [
   },
   { value: 'quote', label: 'Quote', defaultSubject: 'Quote' },
   { value: 'invoice', label: 'Invoice', defaultSubject: 'Invoice' },
-  { value: 'warning', label: 'Warning', defaultSubject: 'Warning notice' },
-  { value: 'custom', label: 'Custom', defaultSubject: '' }
+  { value: 'warning', label: 'Warning', defaultSubject: 'Warning notice' }
 ] as const;
 
 type DocType = (typeof DOCUMENT_TYPES)[number]['value'];
@@ -60,8 +59,6 @@ export function UploadsActionsForm({
       'Inspection report'
   );
   const [body, setBody] = useState('');
-  const [description, setDescription] = useState('');
-  const [customBody, setCustomBody] = useState('');
   const [urgency, setUrgency] = useState<Urgency>('info');
   const [file, setFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -72,7 +69,6 @@ export function UploadsActionsForm({
     documentType === 'quote' || documentType === 'invoice';
   const isWarning = documentType === 'warning';
   const isInspectionReport = documentType === 'inspection_report';
-  const isCustom = documentType === 'custom';
 
   useEffect(() => {
     if (!initialDocumentType) return;
@@ -86,13 +82,8 @@ export function UploadsActionsForm({
   }, [initialDocumentType, initialSubject]);
 
   const disableSubmit = useMemo(
-    () =>
-      isSubmitting ||
-      !file ||
-      !subject.trim() ||
-      (isWarning && !body.trim()) ||
-      (isCustom && (!description.trim() || !customBody.trim())),
-    [body, customBody, description, file, isCustom, isSubmitting, isWarning, subject]
+    () => isSubmitting || !file || !subject.trim() || (isWarning && !body.trim()),
+    [body, file, isSubmitting, isWarning, subject]
   );
 
   async function closePendingJob() {
@@ -135,7 +126,6 @@ export function UploadsActionsForm({
     setError(null);
 
     try {
-      const storageDocumentType = documentType === 'custom' ? 'other' : documentType;
       const signResponse = await fetch('/api/uploads/sign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -144,7 +134,7 @@ export function UploadsActionsForm({
           fileName: uploadFile.name,
           contentType: uploadFile.type,
           kind: uploadFile.type.startsWith('image/') ? 'image' : 'document',
-          documentType: storageDocumentType
+          documentType
         })
       });
       if (!signResponse.ok)
@@ -168,10 +158,6 @@ export function UploadsActionsForm({
       );
       if (!uploadResponse.ok) throw new Error('Upload failed');
 
-      const nextBody = isCustom
-        ? `Description: ${description.trim()}\n\nBody:\n${customBody.trim()}`
-        : (body.trim() || undefined);
-
       const completeResponse = await fetch('/api/uploads/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -184,7 +170,7 @@ export function UploadsActionsForm({
           originalName: uploadFile.name,
           docType: signedPayload.docType,
           subject: subject.trim(),
-          body: nextBody,
+          body: body.trim() || undefined,
           urgency: isWarning ? 'high' : urgency
         })
       });
@@ -230,10 +216,6 @@ export function UploadsActionsForm({
               DOCUMENT_TYPES.find((entry) => entry.value === next)
                 ?.defaultSubject ?? ''
             );
-            if (next !== 'custom') {
-              setDescription('');
-              setCustomBody('');
-            }
           }}
         >
           {DOCUMENT_TYPES.map((entry) => (
@@ -294,42 +276,15 @@ export function UploadsActionsForm({
               className="mt-1 w-full rounded border p-2"
             />
           </label>
-          {isCustom ? (
-            <>
-              <label className="block text-sm font-medium">
-                Description
-                <textarea
-                  value={description}
-                  onChange={(event) => setDescription(event.target.value)}
-                  className="mt-1 w-full rounded border p-2"
-                  rows={2}
-                  required
-                />
-              </label>
-              <label className="block text-sm font-medium">
-                Body
-                <textarea
-                  value={customBody}
-                  onChange={(event) => setCustomBody(event.target.value)}
-                  className="mt-1 w-full rounded border p-2"
-                  rows={4}
-                  required
-                />
-              </label>
-            </>
-          ) : null}
-          {!isCustom ? (
-            <label className="block text-sm font-medium">
-              Body / notes
-              <textarea
-                value={body}
-                onChange={(event) => setBody(event.target.value)}
-                className="mt-1 w-full rounded border p-2"
-                rows={3}
-                required={isWarning}
-              />
-            </label>
-          ) : null}
+          <label className="block text-sm font-medium">
+            Body / notes
+            <textarea
+              value={body}
+              onChange={(event) => setBody(event.target.value)}
+              className="mt-1 w-full rounded border p-2"
+              rows={3}
+            />
+          </label>
           <label className="block text-sm font-medium">
             File
             <input
