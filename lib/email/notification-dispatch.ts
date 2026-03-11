@@ -60,19 +60,41 @@ function notificationMatchesPreferences(kind: string, prefs: PreferencesRow) {
 }
 
 function buildNotificationEmailHtml(notification: NotificationRow) {
-  const body = notification.body?.trim() || 'You have a new notification in AutoVault.';
+  const body = notification.body?.trim() || 'A new update is available in AutoVault.';
   const href = notification.href?.trim() || '/';
   const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') || '';
   const absoluteHref = href.startsWith('http') ? href : `${appUrl}${href}`;
+  const kindLabel = (notification.kind || 'system').replaceAll('_', ' ');
+  const vehicleRegistration =
+    typeof notification.data?.vehicle_registration === 'string'
+      ? notification.data.vehicle_registration
+      : null;
+  const documentType =
+    typeof notification.data?.document_type === 'string'
+      ? notification.data.document_type.replaceAll('_', ' ')
+      : null;
+  const uploadActor =
+    typeof notification.data?.uploaded_by === 'string'
+      ? notification.data.uploaded_by
+      : null;
 
   return `
     <div style="font-family: Arial, sans-serif; line-height: 1.5; color: #111827;">
       <h2 style="margin: 0 0 12px;">${notification.title}</h2>
       <p style="margin: 0 0 12px;">${body}</p>
+      <p style="margin: 0 0 4px; font-size: 13px; color: #374151;"><strong>Type:</strong> ${kindLabel}</p>
+      ${vehicleRegistration ? `<p style="margin: 0 0 4px; font-size: 13px; color: #374151;"><strong>Vehicle:</strong> ${vehicleRegistration}</p>` : ''}
+      ${documentType ? `<p style="margin: 0 0 4px; font-size: 13px; color: #374151;"><strong>Document:</strong> ${documentType}</p>` : ''}
+      ${uploadActor ? `<p style="margin: 0 0 4px; font-size: 13px; color: #374151;"><strong>Uploaded by:</strong> ${uploadActor}</p>` : ''}
       <p style="margin: 0 0 16px; font-size: 12px; color: #6b7280;">${new Date(notification.created_at).toLocaleString()}</p>
       <a href="${absoluteHref}" style="display: inline-block; background: #dc2626; color: #ffffff; padding: 10px 14px; border-radius: 8px; text-decoration: none;">Open notification</a>
     </div>
   `;
+}
+
+function requiresAttachmentOnly(notification: NotificationRow) {
+  const normalized = (notification.kind || '').toLowerCase();
+  return normalized === 'invoice' || normalized === 'quote';
 }
 
 async function resolveRecipientProfileId(notification: NotificationRow) {
@@ -274,6 +296,21 @@ export async function dispatchNotificationEmailsImmediately(notificationIds: str
     try {
       const html = buildNotificationEmailHtml(notification as NotificationRow);
       const attachment = await resolveNotificationAttachment(notification as NotificationRow);
+      if (requiresAttachmentOnly(notification as NotificationRow) && !attachment) {
+        await admin
+          .from('notification_email_queue')
+          .update({
+            status: 'sent',
+            sent_at: nowIso,
+            last_attempted_at: nowIso,
+            updated_at: nowIso,
+            attempt_count: priorAttempts + 1,
+            last_error: 'Skipped non-attachment quote/invoice email'
+          })
+          .eq('notification_id', notificationId);
+        processed += 1;
+        continue;
+      }
       const options = attachment ? { attachments: [attachment] } : undefined;
       await Promise.all(recipientEmails.map((email) => sendEmail(email, (notification as NotificationRow).title, html, options)));
 
@@ -412,6 +449,14 @@ export async function dispatchNotificationEmails(options?: { notificationIds?: s
     try {
       const html = buildNotificationEmailHtml(notification as NotificationRow);
       const attachment = await resolveNotificationAttachment(notification as NotificationRow);
+      if (requiresAttachmentOnly(notification as NotificationRow) && !attachment) {
+        await admin
+          .from('notification_email_queue')
+          .update({ status: 'sent', sent_at: nowIso, last_attempted_at: nowIso, updated_at: nowIso, attempt_count: queueRow.attempt_count + 1, last_error: 'Skipped non-attachment quote/invoice email' })
+          .eq('id', queueRow.id);
+        processed += 1;
+        continue;
+      }
       const options = attachment ? { attachments: [attachment] } : undefined;
       await Promise.all(recipientEmails.map((email) => sendEmail(email, (notification as NotificationRow).title, html, options)));
 
