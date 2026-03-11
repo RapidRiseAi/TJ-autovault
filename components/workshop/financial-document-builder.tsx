@@ -4,6 +4,30 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/components/ui/toast-provider';
 
+type LinkableQuote = {
+  id: string;
+  quote_number: string | null;
+  status: string | null;
+  created_at: string | null;
+  total_cents: number | null;
+};
+
+type QuoteTemplate = {
+  id: string;
+  quote_number: string | null;
+  subject: string | null;
+  notes: string | null;
+  lineItems: Array<{
+    description: string;
+    qty: number;
+    unit_price_cents: number;
+    discount_type: 'none' | 'percent' | 'fixed';
+    discount_value: number;
+    tax_rate: number;
+    category: string | null;
+  }>;
+};
+
 type ItemRow = {
   description: string;
   qty: string;
@@ -25,7 +49,6 @@ const EMPTY_ITEM: ItemRow = {
   taxRate: '',
   category: ''
 };
-
 
 function addDaysIso(dateIso: string, days = 7) {
   const date = new Date(`${dateIso}T00:00:00`);
@@ -62,11 +85,13 @@ export function FinancialDocumentBuilder({
   const [expiryDate, setExpiryDate] = useState(addDaysIso(new Date().toISOString().slice(0, 10)));
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<ItemRow[]>([{ ...EMPTY_ITEM }]);
+  const [availableQuotes, setAvailableQuotes] = useState<LinkableQuote[]>([]);
+  const [selectedQuoteId, setSelectedQuoteId] = useState(linkedQuoteId ?? '');
+  const [prefilledItemIndexes, setPrefilledItemIndexes] = useState<Set<number>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isReferenceManuallyEdited, setIsReferenceManuallyEdited] = useState(false);
   const [isDueDateManuallyEdited, setIsDueDateManuallyEdited] = useState(false);
   const [isExpiryDateManuallyEdited, setIsExpiryDateManuallyEdited] = useState(false);
-
 
   useEffect(() => {
     const today = new Date().toISOString().slice(0, 10);
@@ -76,21 +101,66 @@ export function FinancialDocumentBuilder({
     setExpiryDate(addDaysIso(today));
     setNotes('');
     setItems([{ ...EMPTY_ITEM }]);
+    setSelectedQuoteId(linkedQuoteId ?? '');
+    setPrefilledItemIndexes(new Set());
     setIsReferenceManuallyEdited(false);
     setIsDueDateManuallyEdited(false);
     setIsExpiryDateManuallyEdited(false);
-  }, [kind]);
+  }, [kind, linkedQuoteId]);
 
   useEffect(() => {
     let active = true;
 
     async function loadReferenceNumber() {
       try {
-        const response = await fetch(`/api/workshop/financial-documents?kind=${kind}`);
+        const params = new URLSearchParams({ kind });
+        if (kind === 'invoice' && vehicleId && customerAccountId) {
+          params.set('vehicleId', vehicleId);
+          params.set('customerAccountId', customerAccountId);
+        }
+        if (kind === 'invoice' && selectedQuoteId) {
+          params.set('quoteId', selectedQuoteId);
+        }
+
+        const response = await fetch(`/api/workshop/financial-documents?${params.toString()}`);
         if (!response.ok) return;
-        const body = (await response.json()) as { referenceNumber?: string };
+        const body = (await response.json()) as {
+          referenceNumber?: string;
+          quotes?: LinkableQuote[];
+          quoteTemplate?: QuoteTemplate | null;
+        };
+
         if (active && body.referenceNumber && !isReferenceManuallyEdited) {
           setReferenceNumber(body.referenceNumber);
+        }
+        if (active) {
+          setAvailableQuotes(body.quotes ?? []);
+        }
+
+        if (active && kind === 'invoice') {
+          const template = body.quoteTemplate;
+          if (selectedQuoteId && template?.id === selectedQuoteId) {
+            const templateRows: ItemRow[] = template.lineItems.length
+              ? template.lineItems.map((line) => ({
+                  description: line.description,
+                  qty: String(line.qty),
+                  unitPrice: (line.unit_price_cents / 100).toFixed(2),
+                  discountType: line.discount_type,
+                  discountValue: line.discount_type === 'none' ? '' : String(line.discount_value),
+                  taxType: line.tax_rate > 0 ? 'percent' : 'none',
+                  taxRate: line.tax_rate > 0 ? String(line.tax_rate) : '',
+                  category: line.category ?? ''
+                }))
+              : [{ ...EMPTY_ITEM }];
+
+            setItems(templateRows);
+            setPrefilledItemIndexes(new Set(templateRows.map((_, index) => index)));
+
+            if (template.subject?.trim()) setSubject(template.subject.trim());
+            if (template.notes?.trim()) setNotes(template.notes.trim());
+          } else if (!selectedQuoteId) {
+            setPrefilledItemIndexes(new Set());
+          }
         }
       } catch {
         // ignore auto-reference failures and let server assign at submit time.
@@ -101,7 +171,7 @@ export function FinancialDocumentBuilder({
     return () => {
       active = false;
     };
-  }, [kind, isReferenceManuallyEdited]);
+  }, [kind, isReferenceManuallyEdited, vehicleId, customerAccountId, selectedQuoteId]);
 
   useEffect(() => {
     const plus7 = addDaysIso(issueDate);
@@ -130,6 +200,20 @@ export function FinancialDocumentBuilder({
       })
     );
   }, [items, subject]);
+
+  function updateItemAt(index: number, mutate: (item: ItemRow) => ItemRow) {
+    setItems((current) =>
+      current.map((row, rowIndex) =>
+        rowIndex === index ? mutate(row) : row
+      )
+    );
+    setPrefilledItemIndexes((current) => {
+      if (!current.has(index)) return current;
+      const next = new Set(current);
+      next.delete(index);
+      return next;
+    });
+  }
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -166,7 +250,7 @@ export function FinancialDocumentBuilder({
           subject: subject.trim(),
           notes: notes.trim() || undefined,
           lineItems,
-          quoteId: linkedQuoteId
+          quoteId: kind === 'invoice' ? selectedQuoteId || undefined : undefined
         })
       });
 
@@ -220,6 +304,25 @@ export function FinancialDocumentBuilder({
         </label>
       </div>
 
+      {kind === 'invoice' ? (
+        <label className="block">
+          Link to quote (optional)
+          <p className="mt-1 text-xs text-gray-500">Associate this invoice with an existing quote for this vehicle.</p>
+          <select
+            className="mt-1 w-full rounded border p-2"
+            value={selectedQuoteId}
+            onChange={(event) => setSelectedQuoteId(event.target.value)}
+          >
+            <option value="">No linked quote</option>
+            {availableQuotes.map((quote) => (
+              <option key={quote.id} value={quote.id}>
+                {(quote.quote_number ?? quote.id.slice(0, 8)).toString()} · {(quote.status ?? 'sent').replaceAll('_', ' ')}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+
       <div className="grid gap-2 md:grid-cols-2">
         <label>
           Issue date
@@ -263,26 +366,23 @@ export function FinancialDocumentBuilder({
       </div>
 
       <div className="rounded border p-2">
+        {kind === 'invoice' && selectedQuoteId && prefilledItemIndexes.size > 0 ? (
+          <p className="mb-2 rounded border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs text-emerald-800">
+            Prefilled from linked quote. Editing a row removes its prefilled highlight.
+          </p>
+        ) : null}
         <p className="mb-2 text-xs text-gray-600">
           Fill each line item below. Numeric fields are blank by default and must be typed.
         </p>
         <div className="space-y-2">
           {items.map((item, index) => (
-            <div key={index} className="rounded border p-2">
+            <div key={index} className={`rounded border p-2 ${prefilledItemIndexes.has(index) ? 'border-emerald-300 bg-emerald-50/40' : ''}`}>
               <div className="grid gap-2 md:grid-cols-6">
                 <input
                   className="rounded border p-2 md:col-span-2"
                   placeholder="Description (e.g. Labour - gearbox service)"
                   value={item.description}
-                  onChange={(event) =>
-                    setItems((current) =>
-                      current.map((row, rowIndex) =>
-                        rowIndex === index
-                          ? { ...row, description: event.target.value }
-                          : row
-                      )
-                    )
-                  }
+                  onChange={(event) => updateItemAt(index, (row) => ({ ...row, description: event.target.value }))}
                 />
                 <input
                   className="rounded border p-2"
@@ -292,13 +392,7 @@ export function FinancialDocumentBuilder({
                   inputMode="decimal"
                   placeholder="Qty (how many?)"
                   value={item.qty}
-                  onChange={(event) =>
-                    setItems((current) =>
-                      current.map((row, rowIndex) =>
-                        rowIndex === index ? { ...row, qty: event.target.value } : row
-                      )
-                    )
-                  }
+                  onChange={(event) => updateItemAt(index, (row) => ({ ...row, qty: event.target.value }))}
                 />
                 <input
                   className="rounded border p-2"
@@ -308,32 +402,17 @@ export function FinancialDocumentBuilder({
                   inputMode="decimal"
                   placeholder="Unit price"
                   value={item.unitPrice}
-                  onChange={(event) =>
-                    setItems((current) =>
-                      current.map((row, rowIndex) =>
-                        rowIndex === index
-                          ? { ...row, unitPrice: event.target.value }
-                          : row
-                      )
-                    )
-                  }
+                  onChange={(event) => updateItemAt(index, (row) => ({ ...row, unitPrice: event.target.value }))}
                 />
                 <select
                   className="rounded border p-2"
                   value={item.discountType}
                   onChange={(event) =>
-                    setItems((current) =>
-                      current.map((row, rowIndex) =>
-                        rowIndex === index
-                          ? {
-                              ...row,
-                              discountType: event.target.value as ItemRow['discountType'],
-                              discountValue:
-                                event.target.value === 'none' ? '' : row.discountValue
-                            }
-                          : row
-                      )
-                    )
+                    updateItemAt(index, (row) => ({
+                      ...row,
+                      discountType: event.target.value as ItemRow['discountType'],
+                      discountValue: event.target.value === 'none' ? '' : row.discountValue
+                    }))
                   }
                 >
                   <option value="none">No discount</option>
@@ -355,15 +434,7 @@ export function FinancialDocumentBuilder({
                   }
                   disabled={item.discountType === 'none'}
                   value={item.discountValue}
-                  onChange={(event) =>
-                    setItems((current) =>
-                      current.map((row, rowIndex) =>
-                        rowIndex === index
-                          ? { ...row, discountValue: event.target.value }
-                          : row
-                      )
-                    )
-                  }
+                  onChange={(event) => updateItemAt(index, (row) => ({ ...row, discountValue: event.target.value }))}
                 />
               </div>
               <div className="mt-2 grid gap-2 md:grid-cols-4">
@@ -371,17 +442,11 @@ export function FinancialDocumentBuilder({
                   className="rounded border p-2"
                   value={item.taxType}
                   onChange={(event) =>
-                    setItems((current) =>
-                      current.map((row, rowIndex) =>
-                        rowIndex === index
-                          ? {
-                              ...row,
-                              taxType: event.target.value as ItemRow['taxType'],
-                              taxRate: event.target.value === 'none' ? '' : row.taxRate
-                            }
-                          : row
-                      )
-                    )
+                    updateItemAt(index, (row) => ({
+                      ...row,
+                      taxType: event.target.value as ItemRow['taxType'],
+                      taxRate: event.target.value === 'none' ? '' : row.taxRate
+                    }))
                   }
                 >
                   <option value="none">No tax</option>
@@ -397,34 +462,21 @@ export function FinancialDocumentBuilder({
                   placeholder="Tax % (e.g. 15)"
                   disabled={item.taxType === 'none'}
                   value={item.taxRate}
-                  onChange={(event) =>
-                    setItems((current) =>
-                      current.map((row, rowIndex) =>
-                        rowIndex === index ? { ...row, taxRate: event.target.value } : row
-                      )
-                    )
-                  }
+                  onChange={(event) => updateItemAt(index, (row) => ({ ...row, taxRate: event.target.value }))}
                 />
                 <input
                   className="rounded border p-2"
                   placeholder="Category (optional)"
                   value={item.category}
-                  onChange={(event) =>
-                    setItems((current) =>
-                      current.map((row, rowIndex) =>
-                        rowIndex === index ? { ...row, category: event.target.value } : row
-                      )
-                    )
-                  }
+                  onChange={(event) => updateItemAt(index, (row) => ({ ...row, category: event.target.value }))}
                 />
                 <button
                   type="button"
                   className="rounded border px-2 py-1 text-red-700"
-                  onClick={() =>
-                    setItems((current) =>
-                      current.filter((_, rowIndex) => rowIndex !== index)
-                    )
-                  }
+                  onClick={() => {
+                    setItems((current) => current.filter((_, rowIndex) => rowIndex !== index));
+                    setPrefilledItemIndexes(new Set());
+                  }}
                   disabled={items.length === 1}
                 >
                   Delete line
@@ -438,7 +490,10 @@ export function FinancialDocumentBuilder({
       <button
         type="button"
         className="rounded border px-3 py-2"
-        onClick={() => setItems((current) => [...current, { ...EMPTY_ITEM }])}
+        onClick={() => {
+          setItems((current) => [...current, { ...EMPTY_ITEM }]);
+          setPrefilledItemIndexes(new Set());
+        }}
       >
         Add line item
       </button>

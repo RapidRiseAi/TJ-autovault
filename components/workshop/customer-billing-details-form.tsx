@@ -13,7 +13,10 @@ type Props = {
   defaults: {
     billingName: string;
     billingCompany: string;
-    billingAddress: string;
+    billingAddressStreet: string;
+    billingAddressCity: string;
+    billingAddressProvince: string;
+    billingAddressPostalCode: string;
     billingEmail: string;
     billingPhone: string;
     billingTaxNumber: string;
@@ -64,9 +67,21 @@ export function CustomerBillingDetailsForm({ defaults, action }: Props) {
         <label htmlFor="billing_tax_number" className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500">Billing tax / VAT number</label>
         <input id="billing_tax_number" name="billing_tax_number" defaultValue={defaults.billingTaxNumber} className="w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm" />
       </div>
-      <div className="md:col-span-2">
-        <label htmlFor="billing_address" className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500">Billing address</label>
-        <textarea id="billing_address" name="billing_address" defaultValue={defaults.billingAddress} rows={4} className="min-h-24 w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm" placeholder="Street, suburb, city, postal code" />
+      <div>
+        <label htmlFor="billing_address_street" className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500">Street address</label>
+        <input id="billing_address_street" name="billing_address_street" defaultValue={defaults.billingAddressStreet} className="w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm" placeholder="Street + suburb" />
+      </div>
+      <div>
+        <label htmlFor="billing_address_city" className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500">City</label>
+        <input id="billing_address_city" name="billing_address_city" defaultValue={defaults.billingAddressCity} className="w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm" placeholder="City" />
+      </div>
+      <div>
+        <label htmlFor="billing_address_province" className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500">Province / state</label>
+        <input id="billing_address_province" name="billing_address_province" defaultValue={defaults.billingAddressProvince} className="w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm" placeholder="Province" />
+      </div>
+      <div>
+        <label htmlFor="billing_address_postal_code" className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-gray-500">Postal code</label>
+        <input id="billing_address_postal_code" name="billing_address_postal_code" defaultValue={defaults.billingAddressPostalCode} className="w-full rounded-2xl border border-black/15 bg-white px-4 py-2.5 text-sm" placeholder="Postal code" />
       </div>
 
       <div className="md:col-span-2 space-y-2">

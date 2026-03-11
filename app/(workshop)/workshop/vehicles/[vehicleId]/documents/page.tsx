@@ -40,7 +40,7 @@ export default async function WorkshopVehicleDocumentsPage({ params }: { params:
       .maybeSingle(),
     supabase
       .from('vehicle_documents')
-      .select('id,created_at,document_type,original_name,subject,storage_bucket,storage_path,importance')
+      .select('id,created_at,document_type,original_name,subject,storage_bucket,storage_path,importance,quote_id')
       .eq('vehicle_id', vehicleId)
       .eq('workshop_account_id', workshopId)
       .order('created_at', { ascending: false })
@@ -78,7 +78,7 @@ export default async function WorkshopVehicleDocumentsPage({ params }: { params:
         actions={<Button asChild variant="secondary" size="sm"><Link href={`/workshop/vehicles/${vehicleId}`}>Back to vehicle</Link></Button>}
       />
       {!docs.length ? <EmptyState title="No documents yet" description="Upload documents to keep this vehicle history complete." /> : null}
-      <VehicleDocumentsGroups groups={groups} />
+      <VehicleDocumentsGroups groups={groups} workshopMode vehicleId={vehicleId} />
     </main>
   );
 }

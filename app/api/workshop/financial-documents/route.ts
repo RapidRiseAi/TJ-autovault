@@ -49,7 +49,98 @@ export async function GET(request: NextRequest) {
     kind
   });
 
-  return NextResponse.json({ referenceNumber });
+  const vehicleId = request.nextUrl.searchParams.get('vehicleId');
+  const customerAccountId = request.nextUrl.searchParams.get('customerAccountId');
+  const quoteId = request.nextUrl.searchParams.get('quoteId');
+
+  if (kind !== 'invoice' || !vehicleId || !customerAccountId) {
+    return NextResponse.json({ referenceNumber });
+  }
+
+  let quoteTemplate: {
+    id: string;
+    quote_number: string | null;
+    subject: string | null;
+    notes: string | null;
+    lineItems: Array<{
+      description: string;
+      qty: number;
+      unit_price_cents: number;
+      discount_type: 'none' | 'percent' | 'fixed';
+      discount_value: number;
+      tax_rate: number;
+      category: string | null;
+    }>;
+  } | null = null;
+
+  if (quoteId) {
+    const { data: quote, error: quoteError } = await supabase
+      .from('quotes')
+      .select('id,quote_number,subject,notes')
+      .eq('id', quoteId)
+      .eq('workshop_account_id', profile.workshop_account_id)
+      .eq('vehicle_id', vehicleId)
+      .eq('customer_account_id', customerAccountId)
+      .maybeSingle();
+
+    if (!quoteError && quote) {
+      const enhancedQuoteItems = await supabase
+        .from('quote_items')
+        .select('description,qty,unit_price_cents,discount_type,discount_value,tax_rate,category,sort_order')
+        .eq('quote_id', quote.id)
+        .order('sort_order', { ascending: true });
+
+      const quoteItems =
+        enhancedQuoteItems.error && isMissingColumnError(enhancedQuoteItems.error)
+          ? (
+              await supabase
+                .from('quote_items')
+                .select('description,qty,unit_price_cents')
+                .eq('quote_id', quote.id)
+            ).data?.map((item) => ({
+              ...item,
+              discount_type: 'none' as const,
+              discount_value: 0,
+              tax_rate: 0,
+              category: null
+            }))
+          : enhancedQuoteItems.data;
+
+      quoteTemplate = {
+        id: quote.id,
+        quote_number: quote.quote_number,
+        subject: quote.subject,
+        notes: quote.notes,
+        lineItems: (quoteItems ?? []).map((item) => ({
+          description: item.description,
+          qty: item.qty,
+          unit_price_cents: item.unit_price_cents,
+          discount_type: item.discount_type ?? 'none',
+          discount_value: item.discount_value ?? 0,
+          tax_rate: item.tax_rate ?? 0,
+          category: item.category ?? null
+        }))
+      };
+    }
+  }
+
+  const { data: quotes, error: quotesError } = await supabase
+    .from('quotes')
+    .select('id,quote_number,status,created_at,total_cents')
+    .eq('workshop_account_id', profile.workshop_account_id)
+    .eq('vehicle_id', vehicleId)
+    .eq('customer_account_id', customerAccountId)
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  if (quotesError) {
+    return NextResponse.json(
+      { error: quotesError.message },
+      { status: 400 }
+    );
+  }
+
+  return NextResponse.json({ referenceNumber, quotes: quotes ?? [], quoteTemplate });
 }
 
 export async function POST(request: NextRequest) {
@@ -213,6 +304,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    let linkedQuoteId: string | null = null;
+    let linkedQuoteNumber: string | null = null;
+    if (payload.kind === 'invoice' && payload.quoteId) {
+      const { data: linkedQuote, error: linkedQuoteError } = await supabase
+        .from('quotes')
+        .select('id,quote_number')
+        .eq('id', payload.quoteId)
+        .eq('vehicle_id', vehicle.id)
+        .eq('customer_account_id', customer.id)
+        .eq('workshop_account_id', profile.workshop_account_id)
+        .maybeSingle();
+
+      if (linkedQuoteError || !linkedQuote) {
+        return NextResponse.json(
+          { error: linkedQuoteError?.message ?? 'Invalid quote selected for invoice.' },
+          { status: 400 }
+        );
+      }
+
+      linkedQuoteId = linkedQuote.id;
+      linkedQuoteNumber = linkedQuote.quote_number ?? null;
+    }
+
     const { computed, totals } = computeFinancialLineItems(payload.lineItems);
 
     const issueDate = payload.issueDate || new Date().toISOString().slice(0, 10);
@@ -370,7 +484,8 @@ export async function POST(request: NextRequest) {
           amount_paid_cents: 0,
           balance_due_cents: totals.totalCents,
           workshop_snapshot: workshopSnapshot,
-          customer_snapshot: customerSnapshot
+          customer_snapshot: customerSnapshot,
+          quote_id: linkedQuoteId
         })
         .select('id')
         .single();
@@ -388,7 +503,8 @@ export async function POST(request: NextRequest) {
                 invoice_number: referenceNumber,
                 due_date: dueDate,
                 notes: payload.notes || null,
-                total_cents: totals.totalCents
+                total_cents: totals.totalCents,
+                quote_id: linkedQuoteId
               })
               .select('id')
               .single()
@@ -500,6 +616,7 @@ export async function POST(request: NextRequest) {
       },
       subject: payload.subject,
       referenceNumber,
+      quoteNumber: linkedQuoteNumber,
       issueDate,
       dueOrExpiryDate: payload.kind === 'quote' ? expiryDate : dueDate,
       notes: payload.notes,
@@ -594,14 +711,16 @@ export async function POST(request: NextRequest) {
       actor_role: profile.role,
       event_type: payload.kind === 'quote' ? 'quote_created' : 'invoice_created',
       title: `${payload.kind === 'quote' ? 'Quote' : 'Invoice'} ${referenceNumber}`,
-      description: payload.subject,
+      description: payload.kind === 'invoice' && linkedQuoteNumber
+        ? `${payload.subject} · Linked to quote ${linkedQuoteNumber}`
+        : payload.subject,
       importance: 'info',
       metadata: {
         linked_id: linkedId,
         document_id: doc.id,
         reference_number: referenceNumber,
         ...(payload.kind === 'invoice'
-          ? { invoice_id: linkedId }
+          ? { invoice_id: linkedId, quote_id: linkedQuoteId }
           : { quote_id: linkedId })
       }
     });

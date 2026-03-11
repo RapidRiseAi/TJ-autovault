@@ -17,7 +17,7 @@ function toDownloadHref(doc: VehicleDocument, customerMode: boolean) {
   return `/api/uploads/download?bucket=${encodeURIComponent(doc.storage_bucket ?? '')}&path=${encodeURIComponent(doc.storage_path)}`;
 }
 
-function DocumentList({ documents, customerMode }: { documents: VehicleDocument[]; customerMode: boolean }) {
+function DocumentList({ documents, customerMode, workshopMode = false, vehicleId }: { documents: VehicleDocument[]; customerMode: boolean; workshopMode?: boolean; vehicleId?: string }) {
   if (documents.length === 0) return <p className="rounded border border-dashed p-3 text-sm text-gray-600">No documents yet.</p>;
 
   return (
@@ -39,6 +39,9 @@ function DocumentList({ documents, customerMode }: { documents: VehicleDocument[
                 <p className="mt-1 text-xs text-gray-500">{doc.created_at ? new Date(doc.created_at).toLocaleString() : 'Unknown date'}</p>
               </div>
               <div className="flex gap-2">
+                {workshopMode && vehicleId && doc.document_type === 'quote' && doc.quote_id ? (
+                  <Button asChild size="sm"><Link href={`/workshop/vehicles/${vehicleId}?upload=invoice&quoteId=${doc.quote_id}`}>Create invoice</Link></Button>
+                ) : null}
                 {downloadHref ? (
                   <>
                     <Button asChild size="sm" variant="outline"><Link href={downloadHref}>Preview</Link></Button>
@@ -54,7 +57,7 @@ function DocumentList({ documents, customerMode }: { documents: VehicleDocument[
   );
 }
 
-export function VehicleDocumentsGroups({ groups, customerMode = false }: { groups: VehicleDocumentsGroups; customerMode?: boolean }) {
+export function VehicleDocumentsGroups({ groups, customerMode = false, workshopMode = false, vehicleId }: { groups: VehicleDocumentsGroups; customerMode?: boolean; workshopMode?: boolean; vehicleId?: string }) {
   const sections = useMemo(() => [
     { key: 'quotes', title: 'Quotes', items: groups.quotes },
     { key: 'invoices', title: 'Invoices', items: groups.invoices },
@@ -80,7 +83,7 @@ export function VehicleDocumentsGroups({ groups, customerMode = false }: { group
           </button>
         ))}
       </div>
-      <DocumentList documents={activeSection?.items ?? []} customerMode={customerMode} />
+      <DocumentList documents={activeSection?.items ?? []} customerMode={customerMode} workshopMode={workshopMode} vehicleId={vehicleId} />
     </Card>
   );
 }

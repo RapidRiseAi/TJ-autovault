@@ -69,10 +69,11 @@ export default async function WorkshopVehiclePage({
     quoteRecommendationId?: string;
     upload?: string;
     closeJobId?: string;
+    quoteId?: string;
   }>;
 }) {
   const { vehicleId } = await params;
-  const { quoteRecommendationId, upload, closeJobId } = await searchParams;
+  const { quoteRecommendationId, upload, closeJobId, quoteId } = await searchParams;
   const supabase = await createClient();
   const user = (await supabase.auth.getUser()).data.user;
   if (!user) redirect('/login');
@@ -374,6 +375,7 @@ export default async function WorkshopVehiclePage({
     pendingCloseJobId && activeJob?.id === pendingCloseJobId
       ? allApprovedQuotes.find((quote) => quote.id === activeJob.quoteId)
       : undefined;
+  const selectedInvoiceQuoteId = quoteId || pendingCloseQuote?.id;
 
   return (
     <main className="space-y-4">
@@ -557,7 +559,7 @@ export default async function WorkshopVehiclePage({
               selectedApprovedRecommendation?.title ?? undefined
             }
             pendingCloseJobId={pendingCloseJobId}
-            pendingInvoiceQuoteId={pendingCloseQuote?.id}
+            pendingInvoiceQuoteId={selectedInvoiceQuoteId}
             pendingInvoiceAmountCents={pendingCloseQuote?.totalCents}
             technicians={technicians}
             currentProfileId={profile.id}
