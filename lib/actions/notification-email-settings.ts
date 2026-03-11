@@ -20,6 +20,8 @@ export type NotificationEmailSettings = {
   recipientTwoEmail: string;
   recipientTwoLabel: string;
   recipientTwoActive: boolean;
+  planCode: string;
+  notificationSelectionLimit: number | null;
 };
 
 export type NotificationEmailSettingsState = {
@@ -43,8 +45,48 @@ const defaultSettings: NotificationEmailSettings = {
   recipientOneActive: true,
   recipientTwoEmail: '',
   recipientTwoLabel: '',
-  recipientTwoActive: true
+  recipientTwoActive: true,
+  planCode: '2',
+  notificationSelectionLimit: null
 };
+
+function normalizePlanCode(input: string | null | undefined) {
+  const value = (input ?? '').toString().trim().toLowerCase();
+  if (!value) return '2';
+  if (['1', 'plan1', 'plan_1', 'basic', 'free'].includes(value)) return '1';
+  if (['6', 'plan6', 'plan_6', 'enterprise', 'premium'].includes(value)) return '6';
+  if (['2', 'plan2', 'plan_2', 'pro', 'business', 'growth', 'standard'].includes(value)) return '2';
+  return value;
+}
+
+function notificationLimitForPlan(planCode: string) {
+  return planCode === '1' ? 3 : null;
+}
+
+async function resolvePlanCode(supabase: Awaited<ReturnType<typeof createClient>>, userId: string, selectedPlan?: string | null) {
+  const selected = normalizePlanCode(selectedPlan);
+  if (selected === '1' || selected === '2' || selected === '6') return selected;
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role,workshop_account_id')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (profile?.role === 'admin' || profile?.role === 'technician') {
+    const { data: workshop } = await supabase
+      .from('workshop_accounts')
+      .select('plan')
+      .eq('id', profile.workshop_account_id)
+      .maybeSingle();
+
+    if (workshop?.plan === 'free') return '1';
+    if (workshop?.plan === 'enterprise') return '6';
+    return '2';
+  }
+
+  return '2';
+}
 
 function checkboxValue(formData: FormData, key: string) {
   return formData.get(key) === 'on';
@@ -54,6 +96,12 @@ export async function getNotificationEmailSettings(): Promise<NotificationEmailS
   const supabase = await createClient();
   const user = (await supabase.auth.getUser()).data.user;
   if (!user) return defaultSettings;
+
+  const planCode = await resolvePlanCode(
+    supabase,
+    user.id,
+    (user.user_metadata?.selected_plan as string | undefined) ?? null
+  );
 
   const [{ data: prefs }, { data: recipients }] = await Promise.all([
     supabase
@@ -90,7 +138,9 @@ export async function getNotificationEmailSettings(): Promise<NotificationEmailS
     recipientOneActive: one?.is_active ?? true,
     recipientTwoEmail: two?.email ?? '',
     recipientTwoLabel: two?.label ?? '',
-    recipientTwoActive: two?.is_active ?? true
+    recipientTwoActive: two?.is_active ?? true,
+    planCode,
+    notificationSelectionLimit: notificationLimitForPlan(planCode)
   };
 }
 
@@ -102,6 +152,13 @@ export async function saveNotificationEmailSettings(
   const user = (await supabase.auth.getUser()).data.user;
   if (!user) return { ok: false, message: 'Please sign in.' };
 
+  const planCode = await resolvePlanCode(
+    supabase,
+    user.id,
+    (user.user_metadata?.selected_plan as string | undefined) ?? null
+  );
+  const notificationSelectionLimit = notificationLimitForPlan(planCode);
+
   const recipientOneEmail = (formData.get('recipientOneEmail')?.toString().trim() ?? '').toLowerCase();
   const recipientTwoEmail = (formData.get('recipientTwoEmail')?.toString().trim() ?? '').toLowerCase();
 
@@ -110,6 +167,25 @@ export async function saveNotificationEmailSettings(
   }
 
   const nowIso = new Date().toISOString();
+
+  const selectedEventCount = [
+    checkboxValue(formData, 'notifyMessages'),
+    checkboxValue(formData, 'notifyQuotes'),
+    checkboxValue(formData, 'notifyInvoices'),
+    checkboxValue(formData, 'notifyRequests'),
+    checkboxValue(formData, 'notifyReports'),
+    checkboxValue(formData, 'notifyRecommendations'),
+    checkboxValue(formData, 'notifySystem'),
+    checkboxValue(formData, 'notifyJobUpdates'),
+    checkboxValue(formData, 'notifyPayouts')
+  ].filter(Boolean).length;
+
+  if (notificationSelectionLimit !== null && selectedEventCount > notificationSelectionLimit) {
+    return {
+      ok: false,
+      message: `Plan ${planCode} allows up to ${notificationSelectionLimit} notification types. Suggested defaults: Messages, Quotes, and Invoices.`
+    };
+  }
 
   const { error: prefError } = await supabase
     .from('notification_email_preferences')
