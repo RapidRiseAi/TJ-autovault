@@ -5,7 +5,6 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { dispatchRecentWorkshopNotifications } from '@/lib/email/dispatch-now';
 import { HeroHeader } from '@/components/layout/hero-header';
 import { ProfileSettingsForm } from '@/components/customer/profile-settings-form';
 import { RemoveCustomerAccountButton } from '@/components/customer/remove-customer-account-button';
@@ -83,17 +82,6 @@ async function updateProfile(
       }
     }
 
-    const { data: existingProfile } = await supabase
-      .from('profiles')
-      .select('billing_name,billing_address,company_name')
-      .eq('id', user.id)
-      .maybeSingle();
-
-    const billingChanged =
-      (existingProfile?.billing_name ?? '') !== billingName ||
-      (existingProfile?.billing_address ?? '') !== billingAddress ||
-      (existingProfile?.company_name ?? '') !== companyName;
-
     const profilePatch = buildProfileUpdatePatch({
       fullName,
       phone,
@@ -111,48 +99,6 @@ async function updateProfile(
 
     if (error) {
       return { status: 'error', message: error.message };
-    }
-
-    const { data: customerAccount } = await supabase
-      .from('customer_accounts')
-      .select('id,workshop_account_id')
-      .eq('auth_user_id', user.id)
-      .maybeSingle();
-
-    if (customerAccount) {
-      const accountDisplayName = billingName || companyName || fullName;
-      await supabase
-        .from('customer_accounts')
-        .update({
-          name: accountDisplayName,
-          billing_name: billingName || null,
-          billing_company: companyName || null,
-          billing_email: loginEmail || null,
-          billing_phone: phone || null,
-          billing_address: billingAddress || null
-        })
-        .eq('id', customerAccount.id);
-
-      if (billingChanged) {
-        const href = `/workshop/customers/${customerAccount.id}`;
-        await supabase.rpc('push_notification_to_workshop', {
-          p_workshop_account_id: customerAccount.workshop_account_id,
-          p_kind: 'system',
-          p_title: 'Customer billing details updated',
-          p_body: `${accountDisplayName} updated billing details from customer portal.`,
-          p_href: href,
-          p_data: {
-            customer_account_id: customerAccount.id,
-            changed_by: 'customer'
-          }
-        });
-
-        await dispatchRecentWorkshopNotifications({
-          workshopAccountId: customerAccount.workshop_account_id,
-          kind: 'system',
-          href
-        });
-      }
     }
 
     const currentEmail = (user.email ?? '').trim().toLowerCase();
