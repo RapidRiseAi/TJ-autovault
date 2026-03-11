@@ -59,6 +59,8 @@ function isMissingProspectColumnsError(
     combined.includes('billing_email') ||
     combined.includes('billing_phone') ||
     combined.includes('billing_tax_number')
+    combined.includes('billing_tax_number') ||
+    combined.includes('auth_user_id')
   );
 }
 
@@ -204,6 +206,55 @@ export default async function WorkshopCustomerPage({
       }
     : null;
 
+  const withProspectColumns = await supabase
+    .from('customer_accounts')
+    .select(
+      'id,name,linked_email,billing_name,billing_company,billing_address,billing_email,billing_phone,billing_tax_number,auth_user_id,onboarding_status,customer_users(profile_id,profiles(display_name,avatar_url))'
+    )
+    .eq('id', customerAccountId)
+    .eq('workshop_account_id', workshopId)
+    .single();
+
+  let customerQuery = withProspectColumns;
+
+  if (customerQuery.error && isMissingProspectColumnsError(customerQuery.error)) {
+    customerQuery = await supabase
+      .from('customer_accounts')
+      .select(
+        'id,name,linked_email,onboarding_status,customer_users(profile_id,profiles(display_name,avatar_url))'
+      )
+      .eq('id', customerAccountId)
+      .eq('workshop_account_id', workshopId)
+      .single();
+  }
+
+  if (customerQuery.error && isMissingProspectColumnsError(customerQuery.error)) {
+    customerQuery = await supabase
+      .from('customer_accounts')
+      .select('id,name,customer_users(profile_id,profiles(display_name,avatar_url))')
+      .eq('id', customerAccountId)
+      .eq('workshop_account_id', workshopId)
+      .single();
+  }
+
+  const customerRaw = customerQuery.data as Partial<CustomerDetail> | null;
+  const customer = customerRaw
+    ? {
+        id: customerRaw.id ?? customerAccountId,
+        name: customerRaw.name ?? 'Customer',
+        linked_email: customerRaw.linked_email ?? null,
+        billing_name: customerRaw.billing_name ?? null,
+        billing_company: customerRaw.billing_company ?? null,
+        billing_address: customerRaw.billing_address ?? null,
+        billing_email: customerRaw.billing_email ?? null,
+        billing_phone: customerRaw.billing_phone ?? null,
+        billing_tax_number: customerRaw.billing_tax_number ?? null,
+        auth_user_id: customerRaw.auth_user_id ?? null,
+        onboarding_status: customerRaw.onboarding_status ?? null,
+        customer_users: customerRaw.customer_users ?? []
+      }
+    : null;
+
   if (!customer) notFound();
 
   const customerDisplayName =
@@ -267,6 +318,8 @@ export default async function WorkshopCustomerPage({
 
     const accountQuery =
       fullUpdateMissingColumns
+    const accountQuery =
+      fullUpdate.error && isMissingCustomerBillingColumnError(fullUpdate.error)
         ? await supabase
             .from('customer_accounts')
             .update({
