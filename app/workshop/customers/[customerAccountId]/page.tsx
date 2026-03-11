@@ -58,6 +58,7 @@ function isMissingProspectColumnsError(
     combined.includes('billing_address') ||
     combined.includes('billing_email') ||
     combined.includes('billing_phone') ||
+    combined.includes('billing_tax_number')
     combined.includes('billing_tax_number') ||
     combined.includes('auth_user_id')
   );
@@ -160,6 +161,50 @@ export default async function WorkshopCustomerPage({
     redirect('/customer/dashboard');
 
   const workshopId = profile.workshop_account_id;
+
+  const customerSelectVariants = [
+    'id,name,linked_email,billing_name,billing_company,billing_address,billing_email,billing_phone,billing_tax_number,auth_user_id,onboarding_status,customer_users(profile_id,profiles(display_name,avatar_url))',
+    'id,name,linked_email,billing_name,billing_company,billing_address,billing_email,billing_phone,billing_tax_number,onboarding_status,customer_users(profile_id,profiles(display_name,avatar_url))',
+    'id,name,linked_email,billing_name,billing_company,billing_address,billing_email,billing_phone,billing_tax_number,auth_user_id,customer_users(profile_id,profiles(display_name,avatar_url))',
+    'id,name,linked_email,billing_name,billing_company,billing_address,billing_email,billing_phone,billing_tax_number,customer_users(profile_id,profiles(display_name,avatar_url))',
+    'id,name,customer_users(profile_id,profiles(display_name,avatar_url))'
+  ];
+
+  let customerQuery: {
+    data: unknown;
+    error: { code?: string; message?: string } | null;
+  } = { data: null, error: null };
+
+  for (const selectClause of customerSelectVariants) {
+    const query = await supabase
+      .from('customer_accounts')
+      .select(selectClause)
+      .eq('id', customerAccountId)
+      .eq('workshop_account_id', workshopId)
+      .single();
+
+    customerQuery = { data: query.data, error: query.error };
+    if (!query.error) break;
+    if (!isMissingProspectColumnsError(query.error)) break;
+  }
+
+  const customerRaw = customerQuery.data as Partial<CustomerDetail> | null;
+  const customer = customerRaw
+    ? {
+        id: customerRaw.id ?? customerAccountId,
+        name: customerRaw.name ?? 'Customer',
+        linked_email: customerRaw.linked_email ?? null,
+        billing_name: customerRaw.billing_name ?? null,
+        billing_company: customerRaw.billing_company ?? null,
+        billing_address: customerRaw.billing_address ?? null,
+        billing_email: customerRaw.billing_email ?? null,
+        billing_phone: customerRaw.billing_phone ?? null,
+        billing_tax_number: customerRaw.billing_tax_number ?? null,
+        auth_user_id: customerRaw.auth_user_id ?? null,
+        onboarding_status: customerRaw.onboarding_status ?? null,
+        customer_users: customerRaw.customer_users ?? []
+      }
+    : null;
 
   const withProspectColumns = await supabase
     .from('customer_accounts')
@@ -268,6 +313,11 @@ export default async function WorkshopCustomerPage({
       .select('id')
       .maybeSingle();
 
+    const fullUpdateMissingColumns =
+      fullUpdate.error && isMissingCustomerBillingColumnError(fullUpdate.error);
+
+    const accountQuery =
+      fullUpdateMissingColumns
     const accountQuery =
       fullUpdate.error && isMissingCustomerBillingColumnError(fullUpdate.error)
         ? await supabase
@@ -300,6 +350,14 @@ export default async function WorkshopCustomerPage({
         message:
           accountFallbackQuery.error?.message ??
           'Could not save billing details.'
+      };
+    }
+
+    if (fullUpdateMissingColumns) {
+      return {
+        status: 'error',
+        message:
+          'Could not save all billing fields because your database is missing the latest billing columns. Please run the latest migrations, then try again.'
       };
     }
 
