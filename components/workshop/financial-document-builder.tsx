@@ -4,15 +4,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/components/ui/toast-provider';
 
-
-type LinkableQuote = {
-  id: string;
-  quote_number: string | null;
-  status: string | null;
-  created_at: string | null;
-  total_cents: number | null;
-};
-
 type ItemRow = {
   description: string;
   qty: string;
@@ -75,8 +66,6 @@ export function FinancialDocumentBuilder({
   const [isReferenceManuallyEdited, setIsReferenceManuallyEdited] = useState(false);
   const [isDueDateManuallyEdited, setIsDueDateManuallyEdited] = useState(false);
   const [isExpiryDateManuallyEdited, setIsExpiryDateManuallyEdited] = useState(false);
-  const [availableQuotes, setAvailableQuotes] = useState<LinkableQuote[]>([]);
-  const [selectedQuoteId, setSelectedQuoteId] = useState(linkedQuoteId ?? '');
 
 
   useEffect(() => {
@@ -90,31 +79,18 @@ export function FinancialDocumentBuilder({
     setIsReferenceManuallyEdited(false);
     setIsDueDateManuallyEdited(false);
     setIsExpiryDateManuallyEdited(false);
-    setSelectedQuoteId(linkedQuoteId ?? '');
-  }, [kind, linkedQuoteId]);
+  }, [kind]);
 
   useEffect(() => {
     let active = true;
 
     async function loadReferenceNumber() {
       try {
-        const params = new URLSearchParams({ kind });
-        if (kind === 'invoice' && vehicleId && customerAccountId) {
-          params.set('vehicleId', vehicleId);
-          params.set('customerAccountId', customerAccountId);
-        }
-
-        const response = await fetch(`/api/workshop/financial-documents?${params.toString()}`);
+        const response = await fetch(`/api/workshop/financial-documents?kind=${kind}`);
         if (!response.ok) return;
-        const body = (await response.json()) as {
-          referenceNumber?: string;
-          quotes?: LinkableQuote[];
-        };
+        const body = (await response.json()) as { referenceNumber?: string };
         if (active && body.referenceNumber && !isReferenceManuallyEdited) {
           setReferenceNumber(body.referenceNumber);
-        }
-        if (active) {
-          setAvailableQuotes(body.quotes ?? []);
         }
       } catch {
         // ignore auto-reference failures and let server assign at submit time.
@@ -125,7 +101,7 @@ export function FinancialDocumentBuilder({
     return () => {
       active = false;
     };
-  }, [kind, isReferenceManuallyEdited, vehicleId, customerAccountId]);
+  }, [kind, isReferenceManuallyEdited]);
 
   useEffect(() => {
     const plus7 = addDaysIso(issueDate);
@@ -190,7 +166,7 @@ export function FinancialDocumentBuilder({
           subject: subject.trim(),
           notes: notes.trim() || undefined,
           lineItems,
-          quoteId: kind === 'invoice' ? selectedQuoteId || undefined : undefined
+          quoteId: linkedQuoteId
         })
       });
 
@@ -243,25 +219,6 @@ export function FinancialDocumentBuilder({
           />
         </label>
       </div>
-
-      {kind === 'invoice' ? (
-        <label className="block">
-          Link to quote (optional)
-          <p className="mt-1 text-xs text-gray-500">Associate this invoice with an existing quote for this vehicle.</p>
-          <select
-            className="mt-1 w-full rounded border p-2"
-            value={selectedQuoteId}
-            onChange={(event) => setSelectedQuoteId(event.target.value)}
-          >
-            <option value="">No linked quote</option>
-            {availableQuotes.map((quote) => (
-              <option key={quote.id} value={quote.id}>
-                {(quote.quote_number ?? quote.id.slice(0, 8)).toString()} · {(quote.status ?? 'sent').replaceAll('_', ' ')}
-              </option>
-            ))}
-          </select>
-        </label>
-      ) : null}
 
       <div className="grid gap-2 md:grid-cols-2">
         <label>
