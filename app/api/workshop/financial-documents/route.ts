@@ -3,7 +3,10 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { dispatchRecentCustomerNotifications } from '@/lib/email/dispatch-now';
+import {
+  dispatchNotificationEmailsNow,
+  dispatchRecentCustomerNotifications
+} from '@/lib/email/dispatch-now';
 import {
   buildFinancialDocumentPdf,
   computeFinancialLineItems,
@@ -17,6 +20,50 @@ function isMissingColumnError(error: unknown) {
       ? String((error as { message?: unknown }).message ?? '')
       : '';
   return /column .* does not exist/i.test(message);
+}
+
+async function dispatchFinancialNotificationEmail(input: {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  customerAccountId: string;
+  kind: 'quote' | 'invoice';
+  title: string;
+  body: string;
+  href: string;
+  data: Record<string, unknown>;
+}) {
+  const since = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+  const { data: existingNotification } = await input.supabase
+    .from('notifications')
+    .select('id,data')
+    .eq('to_customer_account_id', input.customerAccountId)
+    .eq('kind', input.kind)
+    .gte('created_at', since)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!existingNotification?.id) {
+    await dispatchRecentCustomerNotifications({
+      customerAccountId: input.customerAccountId,
+      kind: input.kind
+    });
+    return;
+  }
+
+  await input.supabase
+    .from('notifications')
+    .update({
+      title: input.title,
+      body: input.body,
+      href: input.href,
+      data: {
+        ...((existingNotification.data as Record<string, unknown> | null) ?? {}),
+        ...input.data
+      }
+    })
+    .eq('id', existingNotification.id);
+
+  await dispatchNotificationEmailsNow([existingNotification.id]);
 }
 
 
@@ -726,32 +773,23 @@ export async function POST(request: NextRequest) {
     });
 
     const customerHref = `/customer/vehicles/${vehicle.id}`;
-    const { error: notificationError } = await supabase.rpc('push_notification', {
-      p_workshop_account_id: profile.workshop_account_id,
-      p_to_customer_account_id: customer.id,
-      p_kind: payload.kind,
-      p_title: payload.subject,
-      p_body:
+    await dispatchFinancialNotificationEmail({
+      supabase,
+      customerAccountId: customer.id,
+      kind: payload.kind,
+      title: payload.subject,
+      body:
         payload.kind === 'quote'
           ? `A new quote (${referenceNumber}) is available.`
           : `A new invoice (${referenceNumber}) is available.`,
-      p_href: customerHref,
-      p_data: {
+      href: customerHref,
+      data: {
         vehicle_id: vehicle.id,
         linked_entity_id: linkedId,
         document_id: doc.id,
         document_type: payload.kind
       }
     });
-
-    if (notificationError) {
-      console.error('Could not create customer financial-document notification', notificationError);
-    } else {
-      await dispatchRecentCustomerNotifications({
-        customerAccountId: customer.id,
-        kind: payload.kind
-      });
-    }
 
     return NextResponse.json({ ok: true, id: linkedId, documentId: doc.id });
   } catch (error) {
