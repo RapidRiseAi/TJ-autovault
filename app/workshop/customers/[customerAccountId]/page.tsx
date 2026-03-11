@@ -58,8 +58,7 @@ function isMissingProspectColumnsError(
     combined.includes('billing_address') ||
     combined.includes('billing_email') ||
     combined.includes('billing_phone') ||
-    combined.includes('billing_tax_number') ||
-    combined.includes('auth_user_id')
+    combined.includes('billing_tax_number')
   );
 }
 
@@ -161,35 +160,30 @@ export default async function WorkshopCustomerPage({
 
   const workshopId = profile.workshop_account_id;
 
-  const withProspectColumns = await supabase
-    .from('customer_accounts')
-    .select(
-      'id,name,linked_email,billing_name,billing_company,billing_address,billing_email,billing_phone,billing_tax_number,auth_user_id,onboarding_status,customer_users(profile_id,profiles(display_name,avatar_url))'
-    )
-    .eq('id', customerAccountId)
-    .eq('workshop_account_id', workshopId)
-    .single();
+  const customerSelectVariants = [
+    'id,name,linked_email,billing_name,billing_company,billing_address,billing_email,billing_phone,billing_tax_number,auth_user_id,onboarding_status,customer_users(profile_id,profiles(display_name,avatar_url))',
+    'id,name,linked_email,billing_name,billing_company,billing_address,billing_email,billing_phone,billing_tax_number,onboarding_status,customer_users(profile_id,profiles(display_name,avatar_url))',
+    'id,name,linked_email,billing_name,billing_company,billing_address,billing_email,billing_phone,billing_tax_number,auth_user_id,customer_users(profile_id,profiles(display_name,avatar_url))',
+    'id,name,linked_email,billing_name,billing_company,billing_address,billing_email,billing_phone,billing_tax_number,customer_users(profile_id,profiles(display_name,avatar_url))',
+    'id,name,customer_users(profile_id,profiles(display_name,avatar_url))'
+  ];
 
-  let customerQuery = withProspectColumns;
+  let customerQuery: {
+    data: unknown;
+    error: { code?: string; message?: string } | null;
+  } = { data: null, error: null };
 
-  if (customerQuery.error && isMissingProspectColumnsError(customerQuery.error)) {
-    customerQuery = await supabase
+  for (const selectClause of customerSelectVariants) {
+    const query = await supabase
       .from('customer_accounts')
-      .select(
-        'id,name,linked_email,billing_name,billing_company,billing_address,billing_email,billing_phone,billing_tax_number,onboarding_status,customer_users(profile_id,profiles(display_name,avatar_url))'
-      )
+      .select(selectClause)
       .eq('id', customerAccountId)
       .eq('workshop_account_id', workshopId)
       .single();
-  }
 
-  if (customerQuery.error && isMissingProspectColumnsError(customerQuery.error)) {
-    customerQuery = await supabase
-      .from('customer_accounts')
-      .select('id,name,customer_users(profile_id,profiles(display_name,avatar_url))')
-      .eq('id', customerAccountId)
-      .eq('workshop_account_id', workshopId)
-      .single();
+    customerQuery = { data: query.data, error: query.error };
+    if (!query.error) break;
+    if (!isMissingProspectColumnsError(query.error)) break;
   }
 
   const customerRaw = customerQuery.data as Partial<CustomerDetail> | null;
