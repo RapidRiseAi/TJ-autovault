@@ -22,7 +22,8 @@ export const financialDocumentPayloadSchema = z.object({
   subject: z.string().trim().min(1).max(120),
   notes: z.string().trim().max(3000).optional(),
   currencyCode: z.string().trim().default('ZAR'),
-  lineItems: z.array(financialLineItemSchema).min(1)
+  lineItems: z.array(financialLineItemSchema).min(1),
+  quoteId: z.string().uuid().optional()
 });
 
 export type FinancialLineItemInput = z.infer<typeof financialLineItemSchema>;
@@ -196,13 +197,29 @@ export async function buildFinancialDocumentPdf(params: {
   const middleX = 270;
   const rightStart = 392;
 
-  const customerHeading = params.customer.billingName || params.customer.billingCompany || params.customer.name || '-';
+  const customerHeading = params.customer.billingName || params.customer.name || '-';
+  const customerCompany = params.customer.billingCompany?.trim();
+  const shouldShowCompanyLine = Boolean(
+    customerCompany && customerCompany.toLowerCase() !== customerHeading.toLowerCase()
+  );
+
   page.drawText(clampText(customerHeading, 40), { x: left, y: blockTop, size: 10.5, font: regular });
-  const customerLines = clampText(params.customer.billingAddress || '-', 120).split(/\n|,/).slice(0, 3);
+
+  const companyYOffset = shouldShowCompanyLine ? 14 : 0;
+  if (shouldShowCompanyLine) {
+    page.drawText(clampText(customerCompany || '-', 40), {
+      x: left,
+      y: blockTop - 14,
+      size: 9.5,
+      font: regular
+    });
+  }
+
+  const customerLines = clampText(params.customer.billingAddress || '-', 120).split(/\n|,/).slice(0, 2);
   for (const [i, line] of customerLines.entries()) {
     page.drawText(line.trim() || '-', {
       x: left,
-      y: blockTop - 14 - i * 12,
+      y: blockTop - 14 - companyYOffset - i * 12,
       size: 9.5,
       font: regular
     });
