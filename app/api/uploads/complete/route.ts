@@ -2,11 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import {
-  dispatchNotificationEmailsNow,
-  dispatchRecentCustomerNotifications,
-  dispatchRecentWorkshopNotifications
-} from '@/lib/email/dispatch-now';
+import { dispatchRecentCustomerNotifications, dispatchRecentWorkshopNotifications } from '@/lib/email/dispatch-now';
 import { addDaysToIsoDate, getNextDocumentReference } from '@/lib/workshop/document-references';
 
 const requestSchema = z.object({
@@ -64,14 +60,6 @@ function urgencyToImportance(
   if (urgency === 'high' || urgency === 'critical') return 'urgent';
   if (urgency === 'low' || urgency === 'medium') return 'warning';
   return 'info';
-}
-
-function extractNotificationId(payload: unknown): string | null {
-  if (typeof payload === 'string') return payload;
-  if (!payload || typeof payload !== 'object') return null;
-
-  const candidate = (payload as { id?: unknown }).id;
-  return typeof candidate === 'string' ? candidate : null;
 }
 
 export async function POST(request: NextRequest) {
@@ -382,7 +370,7 @@ export async function POST(request: NextRequest) {
           : 'report';
     const customerHref = `/customer/vehicles/${payload.vehicleId}`;
 
-    const { data: notificationResult, error: notificationError } = await supabase.rpc('push_notification', {
+    const { error: notificationError } = await supabase.rpc('push_notification', {
       p_workshop_account_id: vehicle.workshop_account_id,
       p_to_customer_account_id: vehicle.current_customer_account_id,
       p_kind: notificationKind,
@@ -395,16 +383,11 @@ export async function POST(request: NextRequest) {
     if (notificationError) {
       console.error('Could not create customer notification for upload', notificationError);
     } else {
-      const notificationId = extractNotificationId(notificationResult);
-      if (notificationId) {
-        await dispatchNotificationEmailsNow([notificationId]);
-      } else {
-        await dispatchRecentCustomerNotifications({
-          customerAccountId: vehicle.current_customer_account_id,
-          kind: notificationKind,
-          href: notificationKind === 'report' ? customerHref : undefined
-        });
-      }
+      await dispatchRecentCustomerNotifications({
+        customerAccountId: vehicle.current_customer_account_id,
+        kind: notificationKind,
+        href: notificationKind === 'report' ? customerHref : undefined
+      });
     }
   }
 
