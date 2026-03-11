@@ -49,30 +49,7 @@ export async function GET(request: NextRequest) {
     kind
   });
 
-  const vehicleId = request.nextUrl.searchParams.get('vehicleId');
-  const customerAccountId = request.nextUrl.searchParams.get('customerAccountId');
-
-  if (kind !== 'invoice' || !vehicleId || !customerAccountId) {
-    return NextResponse.json({ referenceNumber });
-  }
-
-  const { data: quotes, error: quotesError } = await supabase
-    .from('quotes')
-    .select('id,quote_number,status,created_at,total_cents')
-    .eq('workshop_account_id', profile.workshop_account_id)
-    .eq('vehicle_id', vehicleId)
-    .eq('customer_account_id', customerAccountId)
-    .order('created_at', { ascending: false })
-    .limit(100);
-
-  if (quotesError) {
-    return NextResponse.json(
-      { error: quotesError.message },
-      { status: 400 }
-    );
-  }
-
-  return NextResponse.json({ referenceNumber, quotes: quotes ?? [] });
+  return NextResponse.json({ referenceNumber });
 }
 
 export async function POST(request: NextRequest) {
@@ -236,27 +213,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let linkedQuoteId: string | null = null;
-    if (payload.kind === 'invoice' && payload.quoteId) {
-      const { data: linkedQuote, error: linkedQuoteError } = await supabase
-        .from('quotes')
-        .select('id')
-        .eq('id', payload.quoteId)
-        .eq('vehicle_id', vehicle.id)
-        .eq('customer_account_id', customer.id)
-        .eq('workshop_account_id', profile.workshop_account_id)
-        .maybeSingle();
-
-      if (linkedQuoteError || !linkedQuote) {
-        return NextResponse.json(
-          { error: linkedQuoteError?.message ?? 'Invalid quote selected for invoice.' },
-          { status: 400 }
-        );
-      }
-
-      linkedQuoteId = linkedQuote.id;
-    }
-
     const { computed, totals } = computeFinancialLineItems(payload.lineItems);
 
     const issueDate = payload.issueDate || new Date().toISOString().slice(0, 10);
@@ -414,8 +370,7 @@ export async function POST(request: NextRequest) {
           amount_paid_cents: 0,
           balance_due_cents: totals.totalCents,
           workshop_snapshot: workshopSnapshot,
-          customer_snapshot: customerSnapshot,
-          quote_id: linkedQuoteId
+          customer_snapshot: customerSnapshot
         })
         .select('id')
         .single();
@@ -433,8 +388,7 @@ export async function POST(request: NextRequest) {
                 invoice_number: referenceNumber,
                 due_date: dueDate,
                 notes: payload.notes || null,
-                total_cents: totals.totalCents,
-                quote_id: linkedQuoteId
+                total_cents: totals.totalCents
               })
               .select('id')
               .single()
@@ -647,7 +601,7 @@ export async function POST(request: NextRequest) {
         document_id: doc.id,
         reference_number: referenceNumber,
         ...(payload.kind === 'invoice'
-          ? { invoice_id: linkedId, quote_id: linkedQuoteId }
+          ? { invoice_id: linkedId }
           : { quote_id: linkedId })
       }
     });

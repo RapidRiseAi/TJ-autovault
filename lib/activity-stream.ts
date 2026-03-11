@@ -49,15 +49,12 @@ function mapActorType(label: string): ActivityItem['actorType'] {
   return 'system';
 }
 
-function mapCategory(eventType?: string | null, metadata?: Record<string, unknown> | null): ActivityItem['category'] {
+function mapCategory(eventType?: string | null): ActivityItem['category'] {
   const value = (eventType ?? '').toLowerCase();
-  const metadataDocType = typeof metadata?.document_type === 'string' ? metadata.document_type.toLowerCase() : '';
-  const metadataDocTypeAlt = typeof metadata?.doc_type === 'string' ? metadata.doc_type.toLowerCase() : '';
-  const docType = metadataDocType || metadataDocTypeAlt;
   if (value.includes('job')) return 'system';
   if (value.includes('request')) return 'requests';
-  if (value.includes('quote') || docType === 'quote') return 'quotes';
-  if (value.includes('invoice') || docType === 'invoice') return 'invoices';
+  if (value.includes('quote')) return 'quotes';
+  if (value.includes('invoice')) return 'invoices';
   if (value.includes('doc') || value.includes('upload')) return 'uploads';
   if (value.includes('recommend')) return 'recommendations';
   return 'system';
@@ -90,7 +87,7 @@ export function buildActivityStream(timelineRows: TimelineEventItem[], docs: Doc
   });
 
   const timelineItems: ActivityItem[] = timelineRows.map((event) => {
-    const category = mapCategory(event.event_type, event.metadata);
+    const category = mapCategory(event.event_type);
     const invoiceId = typeof event.metadata?.invoice_id === 'string' ? event.metadata.invoice_id : undefined;
     const jobCardId = typeof event.metadata?.job_card_id === 'string' ? event.metadata.job_card_id : undefined;
     const jobStatus = typeof event.metadata?.job_status === 'string'
@@ -126,7 +123,7 @@ export function buildActivityStream(timelineRows: TimelineEventItem[], docs: Doc
     id: `doc-${doc.id}`,
     kind: 'document',
     targetId: doc.id,
-    category: doc.document_type === 'invoice' ? 'invoices' : doc.document_type === 'quote' ? 'quotes' : 'uploads',
+    category: doc.document_type === 'invoice' ? 'invoices' : 'uploads',
     createdAt: doc.created_at,
     title: doc.subject ?? doc.original_name ?? 'Document uploaded',
     subtitle: `Uploaded ${labelDocumentType(doc.document_type)}`,
