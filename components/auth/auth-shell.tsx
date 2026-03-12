@@ -149,13 +149,13 @@ export function AuthShell({ children }: { children: ReactNode }) {
         </span>
       </div>
 
-      <header className="relative z-10 h-16 border-b border-black/10 bg-white/92 shadow-[0_10px_24px_rgba(15,23,42,0.06)] backdrop-blur">
-        <div className="mx-auto flex h-full w-full max-w-[1340px] items-center justify-between px-4 sm:px-6 lg:px-8">
-          <div>
+      <header className="relative z-10 border-b border-black/10 bg-white/92 shadow-[0_10px_24px_rgba(15,23,42,0.06)] backdrop-blur">
+        <div className="mx-auto flex w-full max-w-[1340px] flex-col gap-2 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+          <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">
               Customer Portal
             </p>
-            <p className="inline-flex items-center text-lg font-semibold text-gray-900">
+            <p className="inline-flex items-center text-2xl font-semibold leading-tight text-gray-900 sm:text-lg">
               TJ Service &amp; Repairs
               <span
                 className="ml-2 mt-px inline-block h-1.5 w-1.5 rounded-full bg-brand-red"
@@ -163,19 +163,19 @@ export function AuthShell({ children }: { children: ReactNode }) {
               />
             </p>
           </div>
-          <nav className="flex items-center gap-5 text-sm text-gray-600">
-            <Link href="/help" className="underline-offset-4 hover:underline">
+          <nav className="flex items-center gap-2 text-xs font-medium text-gray-600 sm:gap-3 sm:text-sm">
+            <Link href="/help" className="rounded-full px-3 py-1.5 transition hover:bg-black/5 hover:text-black">
               Help
             </Link>
             <Link
               href="/contact"
-              className="underline-offset-4 hover:underline"
+              className="rounded-full px-3 py-1.5 transition hover:bg-black/5 hover:text-black"
             >
               Contact
             </Link>
             <Link
               href="/privacy"
-              className="underline-offset-4 hover:underline"
+              className="rounded-full px-3 py-1.5 transition hover:bg-black/5 hover:text-black"
             >
               Privacy
             </Link>
@@ -183,7 +183,7 @@ export function AuthShell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <div className="relative z-10 mx-auto w-full max-w-[1340px] px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
+      <div className="relative z-10 mx-auto w-full max-w-[1340px] px-4 py-4 sm:px-6 lg:px-8 lg:py-8">
         <div className="grid items-start gap-4 lg:grid-cols-[minmax(220px,0.92fr)_minmax(0,600px)_minmax(220px,0.92fr)] lg:items-center">
           <aside className="hidden opacity-95 lg:block">
             <PortalOverviewPanel />

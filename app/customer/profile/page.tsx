@@ -7,6 +7,8 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { dispatchRecentWorkshopNotifications } from '@/lib/email/dispatch-now';
 import { HeroHeader } from '@/components/layout/hero-header';
+import { SignOutButton } from '@/components/layout/sign-out-button';
+import { WorkshopSupportTicketButton } from '@/components/layout/workshop-support-ticket-button';
 import { ProfileSettingsForm } from '@/components/customer/profile-settings-form';
 import { RemoveCustomerAccountButton } from '@/components/customer/remove-customer-account-button';
 import type { ProfileUpdateState } from '@/lib/customer/profile-types';
@@ -490,6 +492,17 @@ export default async function CustomerProfilePage() {
             billing_address: profile?.billing_address || ''
           }}
         />
+      </Card>
+
+      <Card className="rounded-3xl md:hidden">
+        <h2 className="mb-3 text-base font-semibold">Quick actions</h2>
+        <p className="mb-4 text-sm text-gray-600">
+          Access support and sign out from mobile without losing any actions.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <WorkshopSupportTicketButton />
+          <SignOutButton />
+        </div>
       </Card>
 
       <section className="grid gap-4 lg:grid-cols-3">
