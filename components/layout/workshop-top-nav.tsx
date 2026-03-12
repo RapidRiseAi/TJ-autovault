@@ -47,7 +47,7 @@ export async function WorkshopTopNav() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-black/10 bg-white/95 backdrop-blur">
-      <div className="mx-auto flex h-[72px] w-full max-w-[1320px] items-center justify-between px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto flex h-[72px] w-full max-w-[1320px] items-center justify-between pl-4 pr-28 sm:px-6 lg:px-8">
         <Link
           href="/workshop/dashboard"
           className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-black sm:text-sm"

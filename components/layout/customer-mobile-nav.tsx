@@ -16,7 +16,7 @@ export function CustomerMobileNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-black/10 bg-white/95 px-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 backdrop-blur md:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-black/10 bg-white/95 px-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 backdrop-blur md:hidden">
       <div className="mx-auto grid w-full max-w-md grid-cols-4 gap-1">
         {customerMobileLinks.map((item) => {
           const isActive = pathname.startsWith(item.href);
