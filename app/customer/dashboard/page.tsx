@@ -193,7 +193,7 @@ export default async function CustomerDashboardPage() {
         title="Customer dashboard"
         subtitle="Track active work, invoices, and your vehicles at a glance."
         actions={
-          <div className="flex flex-wrap gap-2">
+          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
             <SendMessageModal
               vehicles={(vehicles ?? []).map((vehicle) => ({ id: vehicle.id, registration_number: vehicle.registration_number }))}
             />
@@ -204,14 +204,14 @@ export default async function CustomerDashboardPage() {
         }
       />
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid grid-cols-2 gap-2 md:grid-cols-2 xl:grid-cols-4">
         <OverviewTile
           title="Vehicle slots"
           value={`${usedVehicles}/${allowedVehicles} used`}
           detail={`${Math.max(allowedVehicles - usedVehicles, 0)} available`}
           ring={
             <SegmentRing
-              size={82}
+              size={66}
               centerLabel={`${usedVehicles}/${allowedVehicles}`}
               subLabel="Slots"
               total={allowedVehicles}
@@ -261,15 +261,16 @@ export default async function CustomerDashboardPage() {
             </Card>
           ) : null}
           {(vehicles ?? []).map((vehicle) => (
-            <Card key={vehicle.id} className="space-y-3 rounded-2xl border border-black/10 p-3 shadow-[0_8px_26px_rgba(17,17,17,0.06)]">
+            <Card key={vehicle.id} className="rounded-2xl border border-black/10 p-3 shadow-[0_8px_26px_rgba(17,17,17,0.06)]">
+              <div className="flex gap-3 sm:block">
               {vehicle.primary_image_path ? (
                 <img
                   src={`/api/uploads/download?bucket=vehicle-images&path=${encodeURIComponent(vehicle.primary_image_path)}`}
                   alt={`${vehicle.registration_number} vehicle`}
-                  className="h-32 w-full rounded-xl object-cover"
+                  className="h-24 w-24 rounded-xl object-cover sm:h-28 sm:w-full"
                 />
               ) : (
-                <div className="h-32 rounded-xl bg-gray-100" />
+                <div className="h-24 w-24 rounded-xl bg-gray-100 sm:h-28 sm:w-full" />
               )}
               <div>
                 <h2 className="text-lg font-semibold">{vehicle.registration_number}</h2>
@@ -294,9 +295,12 @@ export default async function CustomerDashboardPage() {
                   Total spent {formatMoney(spentByVehicle.get(vehicle.id) ?? 0)}
                 </span>
               </div>
+              <div className="mt-2 sm:mt-3">
               <Button asChild variant="secondary" size="sm" className="w-full">
                 <Link href={customerVehicle(vehicle.id)}>Open vehicle</Link>
               </Button>
+              </div>
+              </div>
             </Card>
           ))}
         </section>

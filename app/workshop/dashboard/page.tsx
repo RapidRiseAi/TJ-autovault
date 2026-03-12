@@ -232,18 +232,18 @@ export default async function WorkshopDashboardPage({ searchParams }: { searchPa
         <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">Clock-in response saved for today.</p>
       ) : null}
 
-      <section className="grid gap-4 xl:grid-cols-3">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <article className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-[0_14px_30px_rgba(17,17,17,0.08)]">
           <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">Customers & vehicles</p>
           <div className="grid grid-cols-2 divide-x divide-neutral-200">
             <div className="pr-4">
               <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 text-neutral-900"><UserRound className="h-5 w-5" /></div>
-              <p className="text-3xl font-bold text-neutral-900">{customerRows.length}</p>
+              <p className="text-2xl font-bold text-neutral-900">{customerRows.length}</p>
               <p className="text-[11px] text-gray-500">Customers</p>
             </div>
             <div className="pl-4">
               <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 text-neutral-900"><Car className="h-5 w-5" /></div>
-              <p className="text-3xl font-bold text-neutral-900">{totalVehicles}</p>
+              <p className="text-2xl font-bold text-neutral-900">{totalVehicles}</p>
               <p className="text-xs text-gray-500">Vehicles</p>
             </div>
           </div>
@@ -260,7 +260,7 @@ export default async function WorkshopDashboardPage({ searchParams }: { searchPa
             </div>
             {openRequestCount > 0 ? <span className="rounded-full bg-amber-50 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700">Needs action</span> : null}
           </div>
-          <p className="mt-3 text-3xl font-bold text-neutral-900">{openRequestCount}</p>
+          <p className="mt-3 text-2xl font-bold text-neutral-900">{openRequestCount}</p>
           <p className="text-sm text-gray-500">{openRequestCount > 0 ? 'Needs attention' : 'No open requests'}</p>
           <Button asChild size="sm" variant={openRequestCount > 0 ? 'primary' : 'outline'} className="mt-4">
             <Link href="/workshop/work-requests">View requests</Link>
@@ -270,7 +270,7 @@ export default async function WorkshopDashboardPage({ searchParams }: { searchPa
         <article className="flex items-center justify-between gap-4 rounded-2xl border border-neutral-200 bg-white p-5 shadow-[0_14px_30px_rgba(17,17,17,0.08)]">
           <div className="space-y-2">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">Outstanding invoices</p>
-            <p className="text-3xl font-bold text-neutral-900">
+            <p className="text-2xl font-bold text-neutral-900">
               {new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(totalOutstandingCents / 100)}
             </p>
             <p className="text-sm text-gray-500">{unpaidInvoiceCount > 0 ? `${unpaidInvoiceCount} unpaid invoices` : 'No outstanding invoices'}</p>
@@ -287,14 +287,14 @@ export default async function WorkshopDashboardPage({ searchParams }: { searchPa
           </div>
           {unpaidInvoiceCount > 0 && totalOutstandingCents > 0 ? (
             <SegmentRing
-              size={102}
+              size={86}
               centerLabel={new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 }).format(totalOutstandingCents / 100)}
               subLabel={`${unpaidInvoiceCount} unpaid`}
               segments={outstandingSegments}
               total={totalOutstandingCents}
             />
           ) : (
-            <div className="flex h-[102px] w-[102px] flex-col items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700">
+            <div className="flex h-[86px] w-[86px] flex-col items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700">
               <CheckCircle2 className="h-7 w-7" />
               <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.16em]">Paid</p>
             </div>
