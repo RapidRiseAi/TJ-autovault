@@ -265,7 +265,7 @@ export default async function CustomerDashboardPage() {
       ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <section className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+        <section className="hidden gap-3 sm:grid md:grid-cols-2 2xl:grid-cols-3">
           {(vehicles ?? []).length === 0 ? (
             <Card className="rounded-3xl border-dashed">
               <p className="text-sm text-gray-600">

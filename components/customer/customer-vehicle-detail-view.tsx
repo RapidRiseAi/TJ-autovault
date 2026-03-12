@@ -533,13 +533,15 @@ export function CustomerVehicleDetailView({
               </p>
             </div>
             <div className="sm:hidden">
-              <RingChart
-                size={86}
-                strokeWidth={4}
-                segments={pendingQuoteSegments}
-                centerLabel={`${pendingQuotes.length}`}
-                subLabel="PENDING"
-              />
+              <div className="flex flex-col items-center gap-1">
+                <RingChart
+                  size={86}
+                  strokeWidth={4}
+                  segments={pendingQuoteSegments}
+                  centerLabel={`${pendingQuotes.length}`}
+                />
+                <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-gray-500">Pending</p>
+              </div>
             </div>
             <div className="hidden sm:block">
               <RingChart
@@ -590,13 +592,15 @@ export function CustomerVehicleDetailView({
               </p>
             </div>
             <div className="sm:hidden">
-              <SegmentRing
-                size={84}
-                total={safeInvoices.length || 1}
-                segments={invoiceSegments}
-                centerLabel={`${Math.round(outstandingPercent * 100)}%`}
-                subLabel="Outstanding"
-              />
+              <div className="flex flex-col items-center gap-1">
+                <SegmentRing
+                  size={84}
+                  total={safeInvoices.length || 1}
+                  segments={invoiceSegments}
+                  centerLabel={`${Math.round(outstandingPercent * 100)}%`}
+                />
+                <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-gray-500">Outstanding</p>
+              </div>
             </div>
             <div className="hidden sm:block">
               <SegmentRing
@@ -633,13 +637,15 @@ export function CustomerVehicleDetailView({
               </p>
             </div>
             <div className="sm:hidden">
-              <SegmentRing
-                size={84}
-                total={openRequests.length || 1}
-                segments={requestSegments}
-                centerLabel={`${openRequests.length}`}
-                subLabel="Open"
-              />
+              <div className="flex flex-col items-center gap-1">
+                <SegmentRing
+                  size={84}
+                  total={openRequests.length || 1}
+                  segments={requestSegments}
+                  centerLabel={`${openRequests.length}`}
+                />
+                <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-gray-500">Open</p>
+              </div>
             </div>
             <div className="hidden sm:block">
               <SegmentRing
@@ -681,13 +687,15 @@ export function CustomerVehicleDetailView({
               </p>
             </div>
             <div className="sm:hidden">
-              <SegmentRing
-                size={84}
-                total={openRecommendations.length || 1}
-                segments={recommendationSegments}
-                centerLabel={`${openRecommendations.length}`}
-                subLabel="Open"
-              />
+              <div className="flex flex-col items-center gap-1">
+                <SegmentRing
+                  size={84}
+                  total={openRecommendations.length || 1}
+                  segments={recommendationSegments}
+                  centerLabel={`${openRecommendations.length}`}
+                />
+                <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-gray-500">Open</p>
+              </div>
             </div>
             <div className="hidden sm:block">
               <SegmentRing
@@ -711,7 +719,7 @@ export function CustomerVehicleDetailView({
 
       <section className="rounded-3xl border border-black/10 bg-white p-5">
         <h3 className="text-lg font-semibold">Quick actions</h3>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <Button
             className="justify-start"
             onClick={() => setOpenModal('request')}
@@ -741,7 +749,7 @@ export function CustomerVehicleDetailView({
           </Button>
           <Button
             variant="secondary"
-            className="justify-start"
+            className="hidden justify-start sm:inline-flex"
             onClick={() => setOpenModal('mileage')}
           >
             Update mileage
