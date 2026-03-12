@@ -281,6 +281,7 @@ export function CustomerVehicleDetailView({
 
   return (
     <div className="space-y-4 pb-3">
+      <div className="hidden sm:block">
       <HeroHeader
         title={vehicle.registration_number}
         subtitle={`${vehicle.make ?? 'Unknown make'} ${vehicle.model ?? 'Unknown model'} ${vehicle.year ? `(${vehicle.year})` : ''}`}
@@ -400,6 +401,114 @@ export function CustomerVehicleDetailView({
           </>
         }
       />
+      </div>
+
+      <section className="rounded-3xl border border-black/10 bg-gradient-to-br from-black via-[#151515] to-[#262626] p-3 text-white shadow-[0_16px_50px_rgba(0,0,0,0.28)] sm:hidden">
+        <div className="space-y-2.5">
+          <div className="flex items-start gap-3">
+            {vehicle.primary_image_path ? (
+              <img
+                src={`/api/uploads/download?bucket=vehicle-images&path=${encodeURIComponent(vehicle.primary_image_path)}`}
+                alt={`${vehicle.registration_number} photo`}
+                className="h-20 w-20 rounded-2xl border border-white/20 object-cover"
+              />
+            ) : (
+              <div className="h-20 w-20 rounded-2xl border border-white/20 bg-white/10" />
+            )}
+            <div className="flex min-h-20 flex-1 flex-col justify-between">
+              <h1 className="truncate text-[2.35rem] font-bold leading-[0.95] tracking-tight">
+                {vehicle.registration_number}
+              </h1>
+              <p className="truncate text-xl font-medium leading-none text-white/85">
+                {vehicle.make ?? 'Unknown make'} {vehicle.model ?? 'Unknown model'} {vehicle.year ? `(${vehicle.year})` : ''}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid w-full grid-cols-3 gap-2">
+            <span
+              className={`flex h-14 flex-col items-center justify-center rounded-full border px-2 text-center text-[11px] ${statusBadgeClass(vehicle.status)}`}
+            >
+              <span className="text-[10px] uppercase tracking-[0.11em] text-white/70">Status</span>
+              <span className="font-semibold uppercase leading-none">{vehicle.status ?? 'Pending'}</span>
+            </span>
+            <span className="flex h-14 flex-col items-center justify-center rounded-full border border-white/20 bg-white/10 px-2 text-center text-[11px]">
+              <span className="text-[10px] uppercase tracking-[0.11em] text-white/70">Mileage</span>
+              <span className="font-semibold leading-none">{vehicle.odometer_km ? `${vehicle.odometer_km.toLocaleString()} km` : 'N/A'}</span>
+            </span>
+            <span className="flex h-14 flex-col items-center justify-center rounded-full border border-white/20 bg-white/10 px-2 text-center text-[11px]">
+              <span className="text-[10px] uppercase tracking-[0.11em] text-white/70">Uploads</span>
+              <span className="font-semibold leading-none">{safeAttachments.length}</span>
+            </span>
+          </div>
+
+          <div className="grid w-full grid-cols-2 gap-2">
+            <span className="inline-flex min-h-10 items-center justify-center rounded-full border border-emerald-300/50 bg-emerald-500/15 px-3 py-1 text-center text-xs font-semibold text-emerald-100">
+              Total spent {money(paidInvoiceTotalCents)}
+            </span>
+            <SendMessageModal
+              vehicles={customerVehiclesForMessage}
+              defaultVehicleId={vehicle.id}
+              triggerClassName="w-full border-white/30 bg-white/10 text-white hover:bg-white/20"
+            />
+            <Button
+              asChild
+              size="sm"
+              className="w-full min-h-10 bg-white text-black hover:bg-gray-100"
+            >
+              <Link href={timelineHref}>View timeline</Link>
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="w-full min-h-10 border-white/30 bg-white/10 text-white hover:bg-white/20"
+              onClick={() => setOpenModal('log')}
+            >
+              Log something
+            </Button>
+            <Button
+              asChild
+              size="sm"
+              variant="secondary"
+              className="w-full min-h-10 border-white/30 bg-white/10 text-white hover:bg-white/20"
+            >
+              <Link href={documentsHref}>Documents</Link>
+            </Button>
+            <div className="relative">
+              <Button
+                size="sm"
+                variant="secondary"
+                className="w-full min-h-10 border-white/30 bg-white/10 px-4 text-base text-white hover:bg-white/20"
+                onClick={() => setMoreOpen((prev) => !prev)}
+              >
+                <Ellipsis className="mr-1 h-4 w-4" /> More
+              </Button>
+              {moreOpen ? (
+                <div className="absolute right-0 z-30 mt-2 w-44 rounded-xl border border-black/15 bg-white p-1 text-sm text-black shadow-xl">
+                  <Button asChild variant="ghost" size="sm" className="w-full justify-start">
+                    <Link href={editHref}>Edit vehicle</Link>
+                  </Button>
+                  <Button variant="ghost" size="sm" className="w-full justify-start" onClick={() => setOpenModal('mileage')}>
+                    Update mileage
+                  </Button>
+                  <Button variant="ghost" size="sm" className="w-full justify-start" onClick={() => setOpenModal('upload')}>
+                    Upload actions
+                  </Button>
+                  <div className="my-1 border-t" />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start text-red-700 hover:bg-red-50"
+                    onClick={() => document.getElementById('danger-zone')?.scrollIntoView({ behavior: 'smooth' })}
+                  >
+                    Remove vehicle
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </section>
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Card className="space-y-4 rounded-3xl">

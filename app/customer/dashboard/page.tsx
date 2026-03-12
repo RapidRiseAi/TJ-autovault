@@ -261,42 +261,87 @@ export default async function CustomerDashboardPage() {
             </Card>
           ) : null}
           {(vehicles ?? []).map((vehicle) => (
-            <Card key={vehicle.id} className="space-y-3 rounded-2xl border border-black/10 p-3 shadow-[0_8px_26px_rgba(17,17,17,0.06)]">
-              {vehicle.primary_image_path ? (
-                <img
-                  src={`/api/uploads/download?bucket=vehicle-images&path=${encodeURIComponent(vehicle.primary_image_path)}`}
-                  alt={`${vehicle.registration_number} vehicle`}
-                  className="h-32 w-full rounded-xl object-cover"
-                />
-              ) : (
-                <div className="h-32 rounded-xl bg-gray-100" />
-              )}
-              <div>
-                <h2 className="text-lg font-semibold">{vehicle.registration_number}</h2>
-                <p className="text-sm text-gray-600">
-                  {vehicle.make ?? 'Unknown'} {vehicle.model ?? ''}{' '}
-                  {vehicle.year ? `(${vehicle.year})` : ''}
-                </p>
+            <Card key={vehicle.id} className="rounded-2xl border border-black/10 p-3 shadow-[0_8px_26px_rgba(17,17,17,0.06)]">
+              <div className="sm:hidden">
+                <div className="grid grid-cols-[112px_minmax(0,1fr)] gap-3">
+                  {vehicle.primary_image_path ? (
+                    <img
+                      src={`/api/uploads/download?bucket=vehicle-images&path=${encodeURIComponent(vehicle.primary_image_path)}`}
+                      alt={`${vehicle.registration_number} vehicle`}
+                      className="h-28 w-full rounded-xl object-cover"
+                    />
+                  ) : (
+                    <div className="h-28 rounded-xl bg-gray-100" />
+                  )}
+                  <div className="min-w-0 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <h2 className="truncate text-[2rem] font-bold leading-[0.95] tracking-tight">{vehicle.registration_number}</h2>
+                        <p className="truncate text-sm text-gray-600">
+                          {vehicle.make ?? 'Unknown'} {vehicle.model ?? ''}{' '}
+                          {vehicle.year ? `(${vehicle.year})` : ''}
+                        </p>
+                      </div>
+                      <Button asChild variant="secondary" size="sm" className="shrink-0 px-3">
+                        <Link href={customerVehicle(vehicle.id)}>Open</Link>
+                      </Button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+                      <span className={`rounded-full border px-2 py-1 font-semibold uppercase ${vehicleStatusTone(vehicle.status)}`}>
+                        {vehicle.status ?? 'pending'}
+                      </span>
+                      <span className="rounded-full border border-black/10 bg-gray-50 px-2 py-1 text-gray-700">
+                        Outstanding {formatMoney(outstandingByVehicle.get(vehicle.id) ?? 0)}
+                      </span>
+                      <span className="rounded-full border border-black/10 bg-gray-50 px-2 py-1 text-gray-700">
+                        Open requests {requestByVehicle.get(vehicle.id) ?? 0}
+                      </span>
+                      <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-emerald-700">
+                        Total spent {formatMoney(spentByVehicle.get(vehicle.id) ?? 0)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <span
-                  className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase ${vehicleStatusTone(vehicle.status)}`}
-                >
-                  {vehicle.status ?? 'pending'}
-                </span>
-                <span className="rounded-full border border-black/10 bg-gray-50 px-2.5 py-1 text-[11px] text-gray-700">
-                  Outstanding {formatMoney(outstandingByVehicle.get(vehicle.id) ?? 0)}
-                </span>
-                <span className="rounded-full border border-black/10 bg-gray-50 px-2.5 py-1 text-[11px] text-gray-700">
-                  Open requests {requestByVehicle.get(vehicle.id) ?? 0}
-                </span>
-                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] text-emerald-700">
-                  Total spent {formatMoney(spentByVehicle.get(vehicle.id) ?? 0)}
-                </span>
+
+              <div className="hidden space-y-3 sm:block">
+                {vehicle.primary_image_path ? (
+                  <img
+                    src={`/api/uploads/download?bucket=vehicle-images&path=${encodeURIComponent(vehicle.primary_image_path)}`}
+                    alt={`${vehicle.registration_number} vehicle`}
+                    className="h-32 w-full rounded-xl object-cover"
+                  />
+                ) : (
+                  <div className="h-32 rounded-xl bg-gray-100" />
+                )}
+                <div>
+                  <h2 className="text-lg font-semibold">{vehicle.registration_number}</h2>
+                  <p className="text-sm text-gray-600">
+                    {vehicle.make ?? 'Unknown'} {vehicle.model ?? ''}{' '}
+                    {vehicle.year ? `(${vehicle.year})` : ''}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <span
+                    className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase ${vehicleStatusTone(vehicle.status)}`}
+                  >
+                    {vehicle.status ?? 'pending'}
+                  </span>
+                  <span className="rounded-full border border-black/10 bg-gray-50 px-2.5 py-1 text-[11px] text-gray-700">
+                    Outstanding {formatMoney(outstandingByVehicle.get(vehicle.id) ?? 0)}
+                  </span>
+                  <span className="rounded-full border border-black/10 bg-gray-50 px-2.5 py-1 text-[11px] text-gray-700">
+                    Open requests {requestByVehicle.get(vehicle.id) ?? 0}
+                  </span>
+                  <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] text-emerald-700">
+                    Total spent {formatMoney(spentByVehicle.get(vehicle.id) ?? 0)}
+                  </span>
+                </div>
+                <Button asChild variant="secondary" size="sm" className="w-full">
+                  <Link href={customerVehicle(vehicle.id)}>Open vehicle</Link>
+                </Button>
               </div>
-              <Button asChild variant="secondary" size="sm" className="w-full">
-                <Link href={customerVehicle(vehicle.id)}>Open vehicle</Link>
-              </Button>
             </Card>
           ))}
         </section>

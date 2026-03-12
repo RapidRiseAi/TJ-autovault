@@ -118,7 +118,7 @@ export function WorldTimeline({ activities, vehicleId, viewerRole, deletionReque
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-2 sm:hidden">
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">
           Category
           <select
@@ -166,26 +166,6 @@ export function WorldTimeline({ activities, vehicleId, viewerRole, deletionReque
             <option value="oldest">Oldest to newest</option>
           </select>
         </label>
-      </div>
-
-      <div className="hidden space-y-2 sm:block">
-        <div className="flex flex-wrap gap-2">
-          {categoryOptions.map((chip) => (
-            <Button key={chip.key} size="sm" variant={filter === chip.key ? 'primary' : 'secondary'} onClick={() => { setFilter(chip.key); setVisibleCount(12); }}>
-              {chip.label}
-            </Button>
-          ))}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {actorOptions.map((chip) => (
-            <Button key={chip.key} size="sm" variant={actorFilter === chip.key ? 'primary' : 'secondary'} onClick={() => { setActorFilter(chip.key); setVisibleCount(12); }}>
-              {chip.label}
-            </Button>
-          ))}
-          <Button size="sm" variant="secondary" onClick={() => setSortOrder((prev) => (prev === 'newest' ? 'oldest' : 'newest'))}>
-            Sort: {sortOrder === 'newest' ? 'Newest first' : 'Oldest first'}
-          </Button>
-        </div>
       </div>
 
       {highlightedRequest ? (
