@@ -47,10 +47,10 @@ export async function WorkshopTopNav() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-black/10 bg-white/95 backdrop-blur">
-      <div className="mx-auto flex min-h-[78px] w-full max-w-[1320px] items-end justify-between px-4 pb-2 pt-4 sm:min-h-[74px] sm:px-6 sm:pt-3 lg:px-8">
+      <div className="mx-auto flex h-[74px] w-full max-w-[1320px] items-center justify-between px-4 sm:px-6 lg:px-8">
         <Link
           href="/workshop/dashboard"
-          className="text-sm font-semibold uppercase tracking-[0.18em] text-brand-black sm:text-base"
+          className="text-sm font-semibold uppercase tracking-[0.2em] text-brand-black sm:text-base"
         >
           TJ service & repairs
         </Link>
@@ -58,7 +58,7 @@ export async function WorkshopTopNav() {
         <div className="flex items-center gap-2 sm:gap-3">
           <Link
             href="/workshop/notifications"
-            className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-black/15 bg-white px-3.5 py-2 text-xs font-semibold text-brand-black shadow-sm transition hover:-translate-y-px hover:bg-gray-50 hover:shadow-md sm:text-sm"
+            className="inline-flex items-center gap-1.5 rounded-full border border-black/15 bg-white px-3.5 py-2 text-xs font-semibold text-brand-black shadow-sm transition hover:-translate-y-px hover:bg-gray-50 hover:shadow-md sm:text-sm"
           >
             <Bell className="h-4 w-4" />
             {count && count > 0 ? <span>{count}</span> : null}
@@ -81,7 +81,7 @@ export async function WorkshopTopNav() {
                 {initialsFromName(displayName)}
               </div>
             )}
-            <div className="hidden pr-2 text-left sm:block">
+            <div className="pr-2 text-left">
               <p className="text-xs font-semibold leading-tight text-black">{displayName}</p>
               <p className="text-[11px] leading-tight text-gray-500">{businessName}</p>
             </div>

@@ -12,7 +12,6 @@ body {
   background: rgb(var(--background));
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  overflow-x: hidden;
 }
 
 .no-scrollbar {
@@ -48,6 +47,26 @@ body {
   left: auto;
   right: 8px;
   top: calc(env(safe-area-inset-top) + 8px);
+}
+
+@media (min-width: 640px) {
+  .watermark,
+  .watermark-auth {
+    left: auto;
+    right: 12px;
+    top: auto;
+    bottom: 8px;
+    z-index: 50;
+    font-size: 12px;
+    padding: 6px 10px;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 639px) {
+  body {
+    overflow-x: hidden;
+  }
 }
 
 .watermark:hover {
