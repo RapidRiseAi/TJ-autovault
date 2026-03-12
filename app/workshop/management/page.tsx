@@ -507,9 +507,23 @@ export default async function WorkshopManagementPage() {
         <Card className="rounded-3xl border-black/10 p-5 xl:col-span-2">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-semibold text-black">Current month credit/debit statement</h2>
-            <p className="text-xs text-gray-500">{currentMonthStart} → {currentMonthEnd}</p>
+            <p className="hidden text-xs text-gray-500 sm:block">{currentMonthStart} → {currentMonthEnd}</p>
           </div>
-          <div className="mt-4 overflow-x-auto">
+
+          <div className="mt-4 grid gap-2 text-sm sm:grid-cols-3">
+            <p className="rounded-xl bg-emerald-50 px-3 py-2 text-emerald-700">Total credits: <strong>{formatMoney(incomeMonth)}</strong></p>
+            <p className="rounded-xl bg-rose-50 px-3 py-2 text-rose-700">Total debits: <strong>{formatMoney(expenseMonth)}</strong></p>
+            <p className="rounded-xl bg-neutral-100 px-3 py-2 text-neutral-800">Net: <strong>{formatMoney(profitMonth)}</strong></p>
+          </div>
+
+          <div className="mt-3 sm:hidden">
+            <p className="text-xs text-gray-500">{currentMonthStart} → {currentMonthEnd}</p>
+            <Button asChild size="sm" variant="secondary" className="mt-3 w-full">
+              <Link href="/workshop/management/statement">View entire statement</Link>
+            </Button>
+          </div>
+
+          <div className="mt-4 hidden overflow-x-auto sm:block">
             <table className="w-full min-w-[680px] text-sm">
               <thead>
                 <tr className="border-b border-black/10 text-left text-xs uppercase tracking-[0.13em] text-gray-500">
@@ -546,27 +560,22 @@ export default async function WorkshopManagementPage() {
               </tbody>
             </table>
           </div>
-          <div className="mt-4 grid gap-2 text-sm sm:grid-cols-3">
-            <p className="rounded-xl bg-emerald-50 px-3 py-2 text-emerald-700">Total credits: <strong>{formatMoney(incomeMonth)}</strong></p>
-            <p className="rounded-xl bg-rose-50 px-3 py-2 text-rose-700">Total debits: <strong>{formatMoney(expenseMonth)}</strong></p>
-            <p className="rounded-xl bg-neutral-100 px-3 py-2 text-neutral-800">Net: <strong>{formatMoney(profitMonth)}</strong></p>
-          </div>
         </Card>
 
-        <Card className="rounded-3xl border-black/10 p-5">
-          <h2 className="text-base font-semibold text-black">Expense breakdown</h2>
-          <div className="mt-4 space-y-3 text-sm">
-            <div className="rounded-2xl border border-black/10 p-3">
-              <p className="text-xs uppercase tracking-[0.12em] text-gray-500">Technician payouts</p>
-              <p className="mt-1 text-2xl font-semibold text-black">{formatMoney(technicianExpenseMonth)}</p>
+        <Card className="rounded-3xl border-black/10 p-4 sm:p-5">
+          <h2 className="text-sm font-semibold text-black sm:text-base">Expense breakdown</h2>
+          <div className="mt-3 space-y-2 text-xs sm:mt-4 sm:space-y-3 sm:text-sm">
+            <div className="rounded-2xl border border-black/10 p-2.5 sm:p-3">
+              <p className="text-[10px] uppercase tracking-[0.12em] text-gray-500 sm:text-xs">Technician payouts</p>
+              <p className="mt-1 text-lg font-semibold text-black sm:text-2xl">{formatMoney(technicianExpenseMonth)}</p>
             </div>
-            <div className="rounded-2xl border border-black/10 p-3">
-              <p className="text-xs uppercase tracking-[0.12em] text-gray-500">Recurring expenses</p>
-              <p className="mt-1 text-2xl font-semibold text-black">{formatMoney(recurringExpenseMonth)}</p>
+            <div className="rounded-2xl border border-black/10 p-2.5 sm:p-3">
+              <p className="text-[10px] uppercase tracking-[0.12em] text-gray-500 sm:text-xs">Recurring expenses</p>
+              <p className="mt-1 text-lg font-semibold text-black sm:text-2xl">{formatMoney(recurringExpenseMonth)}</p>
             </div>
-            <div className="rounded-2xl border border-black/10 p-3">
-              <p className="text-xs uppercase tracking-[0.12em] text-gray-500">Top vendors (this month)</p>
-              <ul className="mt-2 space-y-1 text-xs text-gray-600">
+            <div className="rounded-2xl border border-black/10 p-2.5 sm:p-3">
+              <p className="text-[10px] uppercase tracking-[0.12em] text-gray-500 sm:text-xs">Top vendors (this month)</p>
+              <ul className="mt-2 space-y-1 text-[11px] text-gray-600 sm:text-xs">
                 {topVendors.length ? topVendors.map((vendor) => (
                   <li key={vendor.vendorId} className="flex justify-between gap-2"><span className="truncate">{vendor.name}</span><strong>{formatMoney(vendor.spend)}</strong></li>
                 )) : <li>No vendor spend yet this month.</li>}

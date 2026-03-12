@@ -35,8 +35,6 @@ const INITIAL_FORM = {
   notes: ''
 };
 
-
-
 function getVehicleDisplayName(vehicle: Pick<Vehicle, 'make' | 'model' | 'registration_number'>) {
   const name = [vehicle.make, vehicle.model].filter(Boolean).join(' ').trim();
   return name || vehicle.registration_number;
@@ -66,10 +64,15 @@ export function CustomerVehicleManager({ customerAccountId, vehicles }: { custom
   const { pushToast } = useToast();
   const [addOpen, setAddOpen] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
+  const [deletePickerOpen, setDeletePickerOpen] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [selectedDeleteVehicleId, setSelectedDeleteVehicleId] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [formValues, setFormValues] = useState(INITIAL_FORM);
   const [vehiclePhoto, setVehiclePhoto] = useState<File | null>(null);
   const photoRef = useRef<HTMLInputElement>(null);
+
+  const selectedDeleteVehicle = vehicles.find((vehicle) => vehicle.id === selectedDeleteVehicleId) ?? null;
 
   function setFromVehicle(vehicle: Vehicle) {
     setFormValues({
@@ -162,12 +165,19 @@ export function CustomerVehicleManager({ customerAccountId, vehicles }: { custom
     router.refresh();
   }
 
-  async function handleDelete(vehicle: Vehicle) {
-    const confirmed = window.confirm(`Delete ${vehicle.registration_number}? This cannot be undone.`);
-    if (!confirmed) return;
+  function openDeleteConfirmation() {
+    if (!selectedDeleteVehicleId) {
+      pushToast({ title: 'Select a vehicle', description: 'Choose the vehicle you want to delete first.', tone: 'error' });
+      return;
+    }
+    setConfirmDeleteOpen(true);
+  }
+
+  async function confirmDeleteSelectedVehicle() {
+    if (!selectedDeleteVehicle) return;
 
     setIsLoading(true);
-    const result = await deleteWorkshopVehicle({ vehicleId: vehicle.id, customerAccountId });
+    const result = await deleteWorkshopVehicle({ vehicleId: selectedDeleteVehicle.id, customerAccountId });
     setIsLoading(false);
 
     if (!result.ok) {
@@ -176,15 +186,20 @@ export function CustomerVehicleManager({ customerAccountId, vehicles }: { custom
     }
 
     pushToast({ title: 'Vehicle deleted', tone: 'success' });
+    setConfirmDeleteOpen(false);
+    setDeletePickerOpen(false);
+    setSelectedDeleteVehicleId('');
     router.refresh();
   }
-
 
   return (
     <>
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-base font-semibold">Vehicles</h2>
-        <Button size="sm" onClick={() => { setFormValues(INITIAL_FORM); setAddOpen(true); }}>Add vehicle</Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" onClick={() => { setFormValues(INITIAL_FORM); setAddOpen(true); }}>Add vehicle</Button>
+          <Button size="sm" variant="destructive" onClick={() => setDeletePickerOpen(true)} disabled={!vehicles.length}>Delete vehicle</Button>
+        </div>
       </div>
 
       {!vehicles.length ? <p className="text-sm text-gray-500">No vehicles linked to this customer.</p> : (
@@ -192,20 +207,21 @@ export function CustomerVehicleManager({ customerAccountId, vehicles }: { custom
           {vehicles.map((vehicle) => {
             const pending = (vehicle.status ?? '').toLowerCase().includes('pending');
             return (
-              <div key={vehicle.id} className="flex items-center justify-between rounded-2xl border border-black/10 p-3">
-                <div className="flex items-center gap-3">
-                  {vehicle.primary_image_path ? <img src={`/api/uploads/download?bucket=vehicle-images&path=${encodeURIComponent(vehicle.primary_image_path)}`} alt={vehicle.registration_number} className="h-12 w-12 rounded-xl object-cover" /> : <div className="h-12 w-12 rounded-xl bg-stone-100" />}
-                  <div>
-                    <p className="text-sm font-semibold">{getVehicleDisplayName(vehicle)}</p>
-                    <p className="text-xs text-gray-500">{vehicle.registration_number}</p>
-                    <span className="rounded-full border px-2 py-0.5 text-[10px] uppercase">{pending ? 'pending' : vehicle.status ?? 'active'}</span>
+              <div key={vehicle.id} className="rounded-2xl border border-black/10 p-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex min-w-0 items-center gap-3">
+                    {vehicle.primary_image_path ? <img src={`/api/uploads/download?bucket=vehicle-images&path=${encodeURIComponent(vehicle.primary_image_path)}`} alt={vehicle.registration_number} className="h-12 w-12 rounded-xl object-cover" /> : <div className="h-12 w-12 rounded-xl bg-stone-100" />}
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold">{getVehicleDisplayName(vehicle)}</p>
+                      <p className="truncate text-xs text-gray-500">{vehicle.registration_number}</p>
+                      <span className="rounded-full border px-2 py-0.5 text-[10px] uppercase">{pending ? 'pending' : vehicle.status ?? 'active'}</span>
+                    </div>
                   </div>
-                </div>
-                <div className="flex gap-2">
-                  {pending ? <VerifyVehicleButton vehicleId={vehicle.id} /> : null}
-                  <Button size="sm" variant="outline" onClick={() => { setEditingVehicle(vehicle); setFromVehicle(vehicle); }}>Edit</Button>
-                  <Button size="sm" variant="destructive" onClick={() => void handleDelete(vehicle)} disabled={isLoading}>Delete</Button>
-                  <Button asChild size="sm" variant="outline"><Link href={`/workshop/vehicles/${vehicle.id}`}>Open vehicle</Link></Button>
+                  <div className="flex flex-wrap gap-2 sm:justify-end">
+                    {pending ? <VerifyVehicleButton vehicleId={vehicle.id} /> : null}
+                    <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => { setEditingVehicle(vehicle); setFromVehicle(vehicle); }}>Edit</Button>
+                    <Button asChild size="sm" variant="outline" className="w-full sm:w-auto"><Link href={`/workshop/vehicles/${vehicle.id}`}>Open vehicle</Link></Button>
+                  </div>
                 </div>
               </div>
             );
@@ -219,6 +235,43 @@ export function CustomerVehicleManager({ customerAccountId, vehicles }: { custom
 
       <Modal open={Boolean(editingVehicle)} onClose={() => setEditingVehicle(null)} title="Edit vehicle details">
         <VehicleForm values={formValues} setValues={setFormValues} onSubmit={submitUpdate} isLoading={isLoading} cta="Save changes" />
+      </Modal>
+
+      <Modal open={deletePickerOpen} onClose={() => { setDeletePickerOpen(false); setSelectedDeleteVehicleId(''); }} title="Delete a vehicle">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">Select the vehicle you want to delete.</p>
+          <select
+            value={selectedDeleteVehicleId}
+            onChange={(event) => setSelectedDeleteVehicleId(event.target.value)}
+            className="w-full rounded-xl border border-black/15 px-3 py-2 text-sm"
+          >
+            <option value="">Select vehicle</option>
+            {vehicles.map((vehicle) => (
+              <option key={vehicle.id} value={vehicle.id}>{vehicle.registration_number} — {getVehicleDisplayName(vehicle)}</option>
+            ))}
+          </select>
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <Button type="button" variant="outline" onClick={() => { setDeletePickerOpen(false); setSelectedDeleteVehicleId(''); }} className="w-full sm:w-auto">Cancel</Button>
+            <Button type="button" variant="destructive" onClick={openDeleteConfirmation} className="w-full sm:w-auto">Delete selected vehicle</Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={confirmDeleteOpen} onClose={() => setConfirmDeleteOpen(false)} title="Confirm vehicle deletion">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-700">Are you sure you want to delete this vehicle? This action can&apos;t be undone.</p>
+          {selectedDeleteVehicle ? (
+            <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">
+              <strong>{selectedDeleteVehicle.registration_number}</strong> — {getVehicleDisplayName(selectedDeleteVehicle)}
+            </p>
+          ) : null}
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <Button type="button" variant="outline" onClick={() => setConfirmDeleteOpen(false)} className="w-full sm:w-auto">Cancel</Button>
+            <Button type="button" variant="destructive" onClick={() => void confirmDeleteSelectedVehicle()} disabled={isLoading || !selectedDeleteVehicle} className="w-full sm:w-auto">
+              {isLoading ? 'Deleting…' : 'Confirm delete'}
+            </Button>
+          </div>
+        </div>
       </Modal>
     </>
   );

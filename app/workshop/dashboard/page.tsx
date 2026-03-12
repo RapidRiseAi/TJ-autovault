@@ -365,17 +365,19 @@ export default async function WorkshopDashboardPage({ searchParams }: { searchPa
         ) : (
           <div className="grid gap-2 md:grid-cols-2">
             {customerVehicles.map((vehicle) => (
-              <div key={vehicle.id} className="flex items-center justify-between rounded-xl border border-neutral-200 p-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-brand-black">{getVehicleDisplayName(vehicle)}</p>
-                  <p className="truncate text-xs text-gray-500">{vehicle.registration_number}</p>
-                  <p className="truncate text-xs text-gray-400">{vehicle.current_customer_account_id ? customerNameById.get(vehicle.current_customer_account_id) ?? 'Customer unavailable' : 'Customer unavailable'}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="rounded-full border border-black/10 bg-white px-2 py-1 text-[10px] uppercase text-gray-600">{vehicle.status ?? 'active'}</span>
-                  <Button asChild size="sm" variant="secondary">
-                    <Link href={`/workshop/vehicles/${vehicle.id}`}>Open</Link>
-                  </Button>
+              <div key={vehicle.id} className="rounded-xl border border-neutral-200 p-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-brand-black">{getVehicleDisplayName(vehicle)}</p>
+                    <p className="truncate text-xs text-gray-500">{vehicle.registration_number}</p>
+                    <p className="truncate text-xs text-gray-400">{vehicle.current_customer_account_id ? customerNameById.get(vehicle.current_customer_account_id) ?? 'Customer unavailable' : 'Customer unavailable'}</p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                    <span className="rounded-full border border-black/10 bg-white px-2 py-1 text-[10px] uppercase text-gray-600">{vehicle.status ?? 'active'}</span>
+                    <Button asChild size="sm" variant="secondary" className="w-full sm:w-auto">
+                      <Link href={`/workshop/vehicles/${vehicle.id}`}>Open</Link>
+                    </Button>
+                  </div>
                 </div>
               </div>
             ))}
