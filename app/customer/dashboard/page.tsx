@@ -34,13 +34,13 @@ function OverviewTile({
   ring?: ReactNode;
 }) {
   const tile = (
-    <div className="h-full rounded-2xl border border-black/10 bg-white/95 p-3 shadow-[0_6px_24px_rgba(17,17,17,0.06)]">
+    <div className="h-full rounded-2xl border border-black/10 bg-white/95 p-2.5 shadow-[0_6px_20px_rgba(17,17,17,0.06)] sm:p-3 sm:shadow-[0_6px_24px_rgba(17,17,17,0.06)]">
       <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500">
         {title}
       </p>
       <div className="mt-2 flex items-center justify-between gap-3">
         <div className="min-w-0 space-y-1">
-          <p className="text-base font-semibold text-black sm:text-lg">{value}</p>
+          <p className="text-sm font-semibold text-black sm:text-lg">{value}</p>
           {detail ? <p className="text-xs text-gray-600">{detail}</p> : null}
           {secondary ? <p className="text-[11px] text-gray-500">{secondary}</p> : null}
         </div>
@@ -204,19 +204,32 @@ export default async function CustomerDashboardPage() {
         }
       />
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-2 xl:grid-cols-4">
         <OverviewTile
           title="Vehicle slots"
           value={`${usedVehicles}/${allowedVehicles} used`}
           detail={`${Math.max(allowedVehicles - usedVehicles, 0)} available`}
           ring={
-            <SegmentRing
-              size={82}
-              centerLabel={`${usedVehicles}/${allowedVehicles}`}
-              subLabel="Slots"
-              total={allowedVehicles}
-              segments={[{ value: usedVehicles, tone: 'neutral' }]}
-            />
+            <>
+              <div className="sm:hidden">
+                <SegmentRing
+                  size={62}
+                  centerLabel={`${usedVehicles}/${allowedVehicles}`}
+                  subLabel="Slots"
+                  total={allowedVehicles}
+                  segments={[{ value: usedVehicles, tone: 'neutral' }]}
+                />
+              </div>
+              <div className="hidden sm:block">
+                <SegmentRing
+                  size={82}
+                  centerLabel={`${usedVehicles}/${allowedVehicles}`}
+                  subLabel="Slots"
+                  total={allowedVehicles}
+                  segments={[{ value: usedVehicles, tone: 'neutral' }]}
+                />
+              </div>
+            </>
           }
         />
         <OverviewTile

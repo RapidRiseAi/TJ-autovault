@@ -510,8 +510,10 @@ export function CustomerVehicleDetailView({
         </div>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Card className="space-y-4 rounded-3xl">
+      <div className="px-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500 sm:hidden">Swipe metrics →</div>
+
+      <section className="no-scrollbar -mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-1 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 xl:grid-cols-4">
+        <Card className="w-[78vw] shrink-0 snap-start space-y-3 rounded-3xl p-4 sm:w-auto sm:space-y-4">
           <p className="text-xs uppercase tracking-wide text-gray-500">
             Quotes
           </p>
@@ -530,13 +532,24 @@ export function CustomerVehicleDetailView({
                 pending value
               </p>
             </div>
-            <RingChart
-              size={112}
-              strokeWidth={4}
-              segments={pendingQuoteSegments}
-              centerLabel={`${pendingQuotes.length}`}
-              subLabel="PENDING"
-            />
+            <div className="sm:hidden">
+              <RingChart
+                size={86}
+                strokeWidth={4}
+                segments={pendingQuoteSegments}
+                centerLabel={`${pendingQuotes.length}`}
+                subLabel="PENDING"
+              />
+            </div>
+            <div className="hidden sm:block">
+              <RingChart
+                size={112}
+                strokeWidth={4}
+                segments={pendingQuoteSegments}
+                centerLabel={`${pendingQuotes.length}`}
+                subLabel="PENDING"
+              />
+            </div>
           </div>
           <Button
             size="sm"
@@ -548,7 +561,7 @@ export function CustomerVehicleDetailView({
         </Card>
 
         <Card
-          className={`space-y-4 rounded-3xl ${invoicesAllPaid ? 'border-emerald-200 bg-emerald-50/60' : 'border-red-200 bg-red-50/70'}`}
+          className={`w-[78vw] shrink-0 snap-start space-y-3 rounded-3xl p-4 sm:w-auto sm:space-y-4 ${invoicesAllPaid ? 'border-emerald-200 bg-emerald-50/60' : 'border-red-200 bg-red-50/70'}`}
         >
           <p className="text-xs uppercase tracking-wide text-gray-500">
             Invoices
@@ -576,13 +589,24 @@ export function CustomerVehicleDetailView({
                 total spent
               </p>
             </div>
-            <SegmentRing
-              size={110}
-              total={safeInvoices.length || 1}
-              segments={invoiceSegments}
-              centerLabel={`${Math.round(outstandingPercent * 100)}%`}
-              subLabel="Outstanding"
-            />
+            <div className="sm:hidden">
+              <SegmentRing
+                size={84}
+                total={safeInvoices.length || 1}
+                segments={invoiceSegments}
+                centerLabel={`${Math.round(outstandingPercent * 100)}%`}
+                subLabel="Outstanding"
+              />
+            </div>
+            <div className="hidden sm:block">
+              <SegmentRing
+                size={110}
+                total={safeInvoices.length || 1}
+                segments={invoiceSegments}
+                centerLabel={`${Math.round(outstandingPercent * 100)}%`}
+                subLabel="Outstanding"
+              />
+            </div>
           </div>
           <Button asChild size="sm" variant="secondary">
             <Link href={`/customer/invoices?vehicleId=${vehicle.id}`}>
@@ -591,7 +615,7 @@ export function CustomerVehicleDetailView({
           </Button>
         </Card>
 
-        <Card className="space-y-4 rounded-3xl">
+        <Card className="w-[78vw] shrink-0 snap-start space-y-3 rounded-3xl p-4 sm:w-auto sm:space-y-4">
           <p className="text-xs uppercase tracking-wide text-gray-500">
             Requests
           </p>
@@ -608,13 +632,24 @@ export function CustomerVehicleDetailView({
                 · Low {requestBuckets.low}
               </p>
             </div>
-            <SegmentRing
-              size={110}
-              total={openRequests.length || 1}
-              segments={requestSegments}
-              centerLabel={`${openRequests.length}`}
-              subLabel="Open"
-            />
+            <div className="sm:hidden">
+              <SegmentRing
+                size={84}
+                total={openRequests.length || 1}
+                segments={requestSegments}
+                centerLabel={`${openRequests.length}`}
+                subLabel="Open"
+              />
+            </div>
+            <div className="hidden sm:block">
+              <SegmentRing
+                size={110}
+                total={openRequests.length || 1}
+                segments={requestSegments}
+                centerLabel={`${openRequests.length}`}
+                subLabel="Open"
+              />
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button size="sm" onClick={() => setOpenModal('request')}>
@@ -628,7 +663,7 @@ export function CustomerVehicleDetailView({
           </div>
         </Card>
 
-        <Card className="space-y-4 rounded-3xl">
+        <Card className="w-[78vw] shrink-0 snap-start space-y-3 rounded-3xl p-4 sm:w-auto sm:space-y-4">
           <p className="text-xs uppercase tracking-wide text-gray-500">
             Recommendations
           </p>
@@ -645,13 +680,24 @@ export function CustomerVehicleDetailView({
                 {recommendationBuckets.normal} · Low {recommendationBuckets.low}
               </p>
             </div>
-            <SegmentRing
-              size={110}
-              total={openRecommendations.length || 1}
-              segments={recommendationSegments}
-              centerLabel={`${openRecommendations.length}`}
-              subLabel="Open"
-            />
+            <div className="sm:hidden">
+              <SegmentRing
+                size={84}
+                total={openRecommendations.length || 1}
+                segments={recommendationSegments}
+                centerLabel={`${openRecommendations.length}`}
+                subLabel="Open"
+              />
+            </div>
+            <div className="hidden sm:block">
+              <SegmentRing
+                size={110}
+                total={openRecommendations.length || 1}
+                segments={recommendationSegments}
+                centerLabel={`${openRecommendations.length}`}
+                subLabel="Open"
+              />
+            </div>
           </div>
           <Button
             size="sm"
