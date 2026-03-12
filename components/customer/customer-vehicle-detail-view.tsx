@@ -322,14 +322,14 @@ export function CustomerVehicleDetailView({
             <Button
               asChild
               size="sm"
-              className="w-full sm:w-auto bg-white text-black hover:bg-gray-100"
+              className="w-[calc(50%-0.25rem)] bg-white text-black hover:bg-gray-100 sm:w-auto"
             >
               <Link href={timelineHref}>View timeline</Link>
             </Button>
             <Button
               size="sm"
               variant="secondary"
-              className="w-full sm:w-auto border-white/30 bg-white/10 text-white hover:bg-white/20"
+              className="w-[calc(50%-0.25rem)] border-white/30 bg-white/10 text-white hover:bg-white/20 sm:w-auto"
               onClick={() => setOpenModal('log')}
             >
               Log something
@@ -338,20 +338,20 @@ export function CustomerVehicleDetailView({
               asChild
               size="sm"
               variant="secondary"
-              className="w-full sm:w-auto border-white/30 bg-white/10 text-white hover:bg-white/20"
+              className="w-[calc(50%-0.25rem)] border-white/30 bg-white/10 text-white hover:bg-white/20 sm:w-auto"
             >
               <Link href={documentsHref}>Documents</Link>
             </Button>
             <SendMessageModal
               vehicles={customerVehiclesForMessage}
               defaultVehicleId={vehicle.id}
-              triggerClassName="w-full sm:w-auto border-white/30 bg-white/10 text-white hover:bg-white/20"
+              triggerClassName="w-[calc(50%-0.25rem)] border-white/30 bg-white/10 text-white hover:bg-white/20 sm:w-auto"
             />
             <div className="relative">
               <Button
                 size="sm"
                 variant="secondary"
-                className="w-full sm:w-auto border-white/30 bg-white/10 text-white hover:bg-white/20"
+                className="w-[calc(50%-0.25rem)] border-white/30 bg-white/10 text-white hover:bg-white/20 sm:w-auto"
                 onClick={() => setMoreOpen((prev) => !prev)}
               >
                 <Ellipsis className="mr-1 h-4 w-4" /> More
@@ -402,8 +402,8 @@ export function CustomerVehicleDetailView({
         }
       />
 
-      <section className="grid gap-4 xl:grid-cols-4">
-        <Card className="space-y-4 rounded-3xl border-black/10 bg-gradient-to-br from-white to-neutral-50">
+      <section className="no-scrollbar -mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-1 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 xl:grid-cols-4">
+        <Card className="w-[84vw] shrink-0 snap-start space-y-4 rounded-3xl border-black/10 bg-gradient-to-br from-white to-neutral-50 sm:w-auto">
           <p className="text-xs uppercase tracking-wide text-gray-500">
             Quotes
           </p>
@@ -440,7 +440,7 @@ export function CustomerVehicleDetailView({
         </Card>
 
         <Card
-          className={`space-y-4 rounded-3xl ${invoicesAllPaid ? 'border-emerald-200 bg-gradient-to-br from-emerald-50/80 to-white' : 'border-red-200 bg-gradient-to-br from-red-50/70 to-white'}`}
+          className={`w-[84vw] shrink-0 snap-start space-y-4 rounded-3xl sm:w-auto ${invoicesAllPaid ? 'border-emerald-200 bg-gradient-to-br from-emerald-50/80 to-white' : 'border-red-200 bg-gradient-to-br from-red-50/70 to-white'}`}
         >
           <p className="text-xs uppercase tracking-wide text-gray-500">
             Invoices
@@ -483,7 +483,7 @@ export function CustomerVehicleDetailView({
           </Button>
         </Card>
 
-        <Card className="space-y-4 rounded-3xl border-black/10 bg-gradient-to-br from-white to-neutral-50">
+        <Card className="w-[84vw] shrink-0 snap-start space-y-4 rounded-3xl border-black/10 bg-gradient-to-br from-white to-neutral-50 sm:w-auto">
           <p className="text-xs uppercase tracking-wide text-gray-500">
             Requests
           </p>
@@ -520,7 +520,7 @@ export function CustomerVehicleDetailView({
           </div>
         </Card>
 
-        <Card className="space-y-4 rounded-3xl border-black/10 bg-gradient-to-br from-white to-neutral-50">
+        <Card className="w-[84vw] shrink-0 snap-start space-y-4 rounded-3xl border-black/10 bg-gradient-to-br from-white to-neutral-50 sm:w-auto">
           <p className="text-xs uppercase tracking-wide text-gray-500">
             Recommendations
           </p>
@@ -557,7 +557,7 @@ export function CustomerVehicleDetailView({
 
       <section className="rounded-3xl border border-black/10 bg-white p-5">
         <h3 className="text-lg font-semibold">Quick actions</h3>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <Button
             className="justify-start"
             onClick={() => setOpenModal('request')}

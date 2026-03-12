@@ -26,8 +26,8 @@ body {
 
 .watermark {
   position: fixed;
-  left: 10px;
-  top: calc(env(safe-area-inset-top) + 6px);
+  left: 8px;
+  top: calc(env(safe-area-inset-top) + 1px);
   z-index: 45;
   opacity: 0.94;
   font-size: 11px;
@@ -35,13 +35,19 @@ body {
   background: #111;
   color: #fff;
   border-radius: 9999px;
-  padding: 5px 9px;
+  padding: 4px 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
   border: none;
   display: inline-flex;
   align-items: center;
   gap: 8px;
   cursor: pointer;
+}
+
+.watermark-auth {
+  left: auto;
+  right: 8px;
+  top: calc(env(safe-area-inset-top) + 6px);
 }
 
 .watermark:hover {
@@ -61,14 +67,5 @@ body {
   }
   100% {
     transform: translateX(28%);
-  }
-}
-
-@media (max-width: 768px) {
-  .watermark {
-    left: 8px;
-    top: calc(env(safe-area-inset-top) + 4px);
-    font-size: 10px;
-    padding: 4px 7px;
   }
 }

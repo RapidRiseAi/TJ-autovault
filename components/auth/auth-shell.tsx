@@ -136,7 +136,7 @@ function MobilePanel({
 
 export function AuthShell({ children }: { children: ReactNode }) {
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#f6f6f7] text-brand-black">
+    <main className="relative min-h-screen overflow-x-hidden bg-[#f6f6f7] text-brand-black">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(229,231,235,0.2)_0%,rgba(246,246,247,0.85)_44%,rgba(226,232,240,0.56)_100%)]" />
       <div className="pointer-events-none absolute inset-0 opacity-[0.08] [background-image:linear-gradient(to_right,rgba(17,24,39,0.1)_1px,transparent_1px),linear-gradient(to_bottom,rgba(17,24,39,0.1)_1px,transparent_1px)] [background-size:34px_34px]" />
       <div className="pointer-events-none absolute inset-0 opacity-[0.05] mix-blend-multiply [background-image:radial-gradient(circle_at_1px_1px,rgba(15,23,42,0.75)_0.8px,transparent_0.8px)] [background-size:4px_4px]" />
@@ -150,7 +150,7 @@ export function AuthShell({ children }: { children: ReactNode }) {
       </div>
 
       <header className="sticky top-0 z-30 border-b border-black/10 bg-white/92 shadow-[0_10px_24px_rgba(15,23,42,0.06)] backdrop-blur">
-        <div className="mx-auto flex w-full max-w-[1340px] flex-col gap-2 px-4 pb-3 pt-8 sm:px-6 sm:pt-6 lg:flex-row lg:items-end lg:justify-between lg:px-8">
+        <div className="mx-auto flex w-full max-w-[1340px] flex-col gap-2 px-4 pb-2 pt-4 sm:px-6 sm:pt-3 lg:flex-row lg:items-end lg:justify-between lg:px-8">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">
               Customer Portal

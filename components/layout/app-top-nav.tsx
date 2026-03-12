@@ -35,7 +35,7 @@ export async function AppTopNav() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-black/10 bg-white/95 backdrop-blur">
-      <div className="mx-auto flex min-h-[92px] w-full max-w-[1320px] items-end justify-between px-4 pb-3 pt-8 sm:min-h-[84px] sm:px-6 sm:pt-6 lg:px-8">
+      <div className="mx-auto flex min-h-[78px] w-full max-w-[1320px] items-end justify-between px-4 pb-2 pt-4 sm:min-h-[74px] sm:px-6 sm:pt-3 lg:px-8">
         <Link
           href="/customer/dashboard"
           className="text-sm font-semibold uppercase tracking-[0.18em] text-brand-black sm:text-base"
