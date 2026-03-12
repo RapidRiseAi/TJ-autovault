@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -96,6 +97,36 @@ function formatDate(value: string) {
     month: 'short',
     year: 'numeric'
   });
+}
+
+function CollapsibleDashboardPanel({
+  title,
+  action,
+  defaultOpen = true,
+  children,
+  id
+}: {
+  title: string;
+  action?: ReactNode;
+  defaultOpen?: boolean;
+  children: ReactNode;
+  id?: string;
+}) {
+  return (
+    <SectionCard id={id}>
+      <details open={defaultOpen} className="group">
+        <summary className="mb-4 flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
+          <h2 className="text-lg font-semibold text-brand-black">{title}</h2>
+          <div className="flex items-center gap-3">
+            {action}
+            <span className="text-xs font-medium text-gray-500 group-open:hidden">Expand</span>
+            <span className="hidden text-xs font-medium text-gray-500 group-open:inline">Collapse</span>
+          </div>
+        </summary>
+        <div>{children}</div>
+      </details>
+    </SectionCard>
+  );
 }
 
 export default async function WorkshopDashboardPage({ searchParams }: { searchParams?: Promise<{ clocked?: string }> }) {
@@ -198,24 +229,26 @@ export default async function WorkshopDashboardPage({ searchParams }: { searchPa
 
   return (
     <main className="space-y-7 pb-2">
-      <HeroHeader
-        title="Workshop dashboard"
-        subtitle="Track customers, active jobs, and billing from one polished workspace."
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <SendMessageModal
-              vehicles={(customerVehicles ?? []).map((vehicle) => ({ id: vehicle.id, registration_number: vehicle.registration_number }))}
-              customers={customerRows.map((customer) => ({ id: customer.id, name: customer.name }))}
-            />
-            <Button asChild variant="secondary" className="shadow-sm hover:-translate-y-px hover:shadow-md">
-              <Link href="/workshop/management">Open management center</Link>
-            </Button>
-            <Button asChild className="shadow-sm hover:-translate-y-px hover:shadow-md">
-              <Link href="/workshop/work-requests">Open work request board</Link>
-            </Button>
-          </div>
-        }
-      />
+      <div className="hidden md:block">
+        <HeroHeader
+          title="Workshop dashboard"
+          subtitle="Track customers, active jobs, and billing from one polished workspace."
+          actions={
+            <div className="flex flex-wrap gap-2">
+              <SendMessageModal
+                vehicles={(customerVehicles ?? []).map((vehicle) => ({ id: vehicle.id, registration_number: vehicle.registration_number }))}
+                customers={customerRows.map((customer) => ({ id: customer.id, name: customer.name }))}
+              />
+              <Button asChild variant="secondary" className="shadow-sm hover:-translate-y-px hover:shadow-md">
+                <Link href="/workshop/management">Open management center</Link>
+              </Button>
+              <Button asChild className="shadow-sm hover:-translate-y-px hover:shadow-md">
+                <Link href="/workshop/work-requests">Open work request board</Link>
+              </Button>
+            </div>
+          }
+        />
+      </div>
 
       {profile.role === 'technician' && !todaysAttendance ? (
         <SectionCard className="rounded-3xl border border-amber-200 bg-amber-50 p-5">
@@ -302,13 +335,14 @@ export default async function WorkshopDashboardPage({ searchParams }: { searchPa
         </article>
       </section>
 
-      <SectionCard>
-        <div className="mb-5 flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-brand-black">Customers</h2>
+      <CollapsibleDashboardPanel
+        title="Customers"
+        action={
           <Button asChild size="sm" variant="secondary">
             <Link href="/workshop/customers">View all</Link>
           </Button>
-        </div>
+        }
+      >
         {customersError ? (
           <EmptyState
             title="Unable to load customers"
@@ -350,31 +384,33 @@ export default async function WorkshopDashboardPage({ searchParams }: { searchPa
             ) : null}
           </div>
         ) : null}
-      </SectionCard>
+      </CollapsibleDashboardPanel>
 
 
-      <SectionCard>
-        <div className="mb-5 flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-brand-black">Vehicle list</h2>
+      <CollapsibleDashboardPanel
+        title="Vehicle list"
+        action={
           <Button asChild size="sm" variant="secondary">
             <Link href="/workshop/customers">Manage customers</Link>
           </Button>
-        </div>
+        }
+      >
         {!customerVehicles?.length ? (
           <EmptyState title="No vehicles yet" description="Vehicles linked to your customers will appear here." />
         ) : (
           <div className="grid gap-2 md:grid-cols-2">
             {customerVehicles.map((vehicle) => (
               <div key={vehicle.id} className="rounded-xl border border-neutral-200 p-3">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start justify-between gap-2 sm:flex-row sm:items-center">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-brand-black">{getVehicleDisplayName(vehicle)}</p>
                     <p className="truncate text-xs text-gray-500">{vehicle.registration_number}</p>
                     <p className="truncate text-xs text-gray-400">{vehicle.current_customer_account_id ? customerNameById.get(vehicle.current_customer_account_id) ?? 'Customer unavailable' : 'Customer unavailable'}</p>
+                    <span className="mt-2 inline-flex rounded-full border border-black/10 bg-white px-2 py-1 text-[10px] uppercase text-gray-600 sm:hidden">{vehicle.status ?? 'active'}</span>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                    <span className="rounded-full border border-black/10 bg-white px-2 py-1 text-[10px] uppercase text-gray-600">{vehicle.status ?? 'active'}</span>
-                    <Button asChild size="sm" variant="secondary" className="w-full sm:w-auto">
+                  <div className="flex shrink-0 items-center gap-2 sm:justify-end">
+                    <span className="hidden rounded-full border border-black/10 bg-white px-2 py-1 text-[10px] uppercase text-gray-600 sm:inline-flex">{vehicle.status ?? 'active'}</span>
+                    <Button asChild size="sm" variant="secondary" className="h-7 px-2.5 py-1 text-[11px] sm:h-9 sm:px-3 sm:py-2 sm:text-xs">
                       <Link href={`/workshop/vehicles/${vehicle.id}`}>Open</Link>
                     </Button>
                   </div>
@@ -383,10 +419,9 @@ export default async function WorkshopDashboardPage({ searchParams }: { searchPa
             ))}
           </div>
         )}
-      </SectionCard>
+      </CollapsibleDashboardPanel>
 
-      <SectionCard id="pending-verification">
-        <h2 className="mb-3 text-lg font-semibold text-brand-black">Pending verification</h2>
+      <CollapsibleDashboardPanel title="Pending verification" id="pending-verification">
         {!pendingVehicles?.length ? (
           <p className="text-sm text-gray-500">No vehicles pending verification.</p>
         ) : (
@@ -407,7 +442,7 @@ export default async function WorkshopDashboardPage({ searchParams }: { searchPa
             ))}
           </div>
         )}
-      </SectionCard>
+      </CollapsibleDashboardPanel>
     </main>
   );
 }

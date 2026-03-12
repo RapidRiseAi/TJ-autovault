@@ -516,7 +516,7 @@ export default async function WorkshopCustomerPage({
           </div>
         }
       />
-      <div className="grid gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
         {[
           ['Vehicles', vehicles.length],
           ['Pending quotes', pendingQuotes ?? 0],
@@ -531,9 +531,9 @@ export default async function WorkshopCustomerPage({
                 : 'Prospect unpaid'
           ]
         ].map(([label, value]) => (
-          <Card key={label as string} className="rounded-3xl p-4">
-            <p className="text-xs text-gray-500">{label}</p>
-            <p className="mt-1 text-2xl font-semibold">{value as number | string}</p>
+          <Card key={label as string} className="rounded-2xl p-3 sm:rounded-3xl sm:p-4">
+            <p className="text-[11px] text-gray-500 sm:text-xs">{label}</p>
+            <p className="mt-1 text-xl font-semibold sm:text-2xl">{value as number | string}</p>
           </Card>
         ))}
       </div>

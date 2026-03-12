@@ -380,6 +380,7 @@ export default async function WorkshopVehiclePage({
   return (
     <main className="space-y-4">
       <HeroHeader
+        className="p-4 sm:p-6"
         title={vehicle.registration_number}
         subtitle={`${vehicle.make ?? ''} ${vehicle.model ?? ''} ${vehicle.year ? `(${vehicle.year})` : ''}`}
         media={
@@ -395,51 +396,51 @@ export default async function WorkshopVehiclePage({
         }
         meta={
           <>
-            <span className="rounded-full border border-white/25 bg-white/10 px-3 py-1">
+            <span className="rounded-full border border-white/25 bg-white/10 px-2.5 py-1 text-[11px] sm:px-3 sm:text-xs">
               Mileage {vehicle.odometer_km ?? 'N/A'} km
             </span>
-            <span className="rounded-full border border-white/25 bg-white/10 px-3 py-1">
+            <span className="rounded-full border border-white/25 bg-white/10 px-2.5 py-1 text-[11px] sm:px-3 sm:text-xs">
               Status {vehicle.status ?? 'pending'}
             </span>
           </>
         }
         actions={
-          <>
-            <SendMessageModal
-              vehicles={[
-                {
-                  id: vehicle.id,
-                  registration_number: vehicle.registration_number
-                }
-              ]}
-              defaultVehicleId={vehicle.id}
-              customers={(customersResult.data ?? []).map((customer) => ({
-                id: customer.id,
-                name: customer.name
-              }))}
-              defaultCustomerId={vehicle.current_customer_account_id}
-            />
-            <Button asChild size="sm" variant="secondary">
+          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
+            <div className="col-span-2 sm:col-span-1">
+              <SendMessageModal
+                vehicles={[
+                  {
+                    id: vehicle.id,
+                    registration_number: vehicle.registration_number
+                  }
+                ]}
+                defaultVehicleId={vehicle.id}
+                customers={(customersResult.data ?? []).map((customer) => ({
+                  id: customer.id,
+                  name: customer.name
+                }))}
+                defaultCustomerId={vehicle.current_customer_account_id}
+              />
+            </div>
+            <Button asChild size="sm" variant="secondary" className="h-8 px-2.5 text-[11px] sm:h-9 sm:px-3 sm:text-xs">
               <Link href={`/workshop/vehicles/${vehicle.id}/timeline`}>
                 View full timeline
               </Link>
             </Button>
-            <Button asChild size="sm" variant="secondary">
+            <Button asChild size="sm" variant="secondary" className="h-8 px-2.5 text-[11px] sm:h-9 sm:px-3 sm:text-xs">
               <Link href={`/workshop/vehicles/${vehicle.id}/documents`}>
                 View documents
               </Link>
             </Button>
             {activeJob ? (
-              <Button asChild size="sm" variant="secondary">
+              <Button asChild size="sm" variant="secondary" className="h-8 px-2.5 text-[11px] sm:h-9 sm:px-3 sm:text-xs">
                 <Link href={`/workshop/jobs/${activeJob.id}`}>
                   Open active job card
                 </Link>
               </Button>
             ) : null}
-            {pendingVerification ? (
-              <VerifyVehicleButton vehicleId={vehicle.id} />
-            ) : null}
-          </>
+            {pendingVerification ? <VerifyVehicleButton vehicleId={vehicle.id} /> : null}
+          </div>
         }
       />
 
@@ -483,7 +484,7 @@ export default async function WorkshopVehiclePage({
         </Card>
       ) : null}
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <StatTile
           label="Revenue collected"
           value={money(paidTotal)}
@@ -513,7 +514,7 @@ export default async function WorkshopVehiclePage({
         />
       </section>
 
-      <SectionCard className="rounded-3xl border border-neutral-200/90 bg-neutral-50/70 p-7 shadow-[0_20px_42px_rgba(17,17,17,0.08)]">
+      <SectionCard className="rounded-3xl border border-neutral-200/90 bg-neutral-50/70 p-4 shadow-[0_20px_42px_rgba(17,17,17,0.08)] sm:p-7">
         <div className="mb-4">
           <h2 className="text-base font-semibold">Quick actions</h2>
           <p className="text-sm text-gray-500">
