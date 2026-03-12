@@ -280,46 +280,46 @@ export function CustomerVehicleDetailView({
 
   return (
     <div className="space-y-4 pb-3">
-      <section className="rounded-3xl border border-black/10 bg-gradient-to-br from-black via-[#151515] to-[#262626] p-3 text-white shadow-[0_16px_50px_rgba(0,0,0,0.28)] sm:p-5">
-        <div className="space-y-2.5">
+      <section className="rounded-3xl border border-black/10 bg-gradient-to-br from-black via-[#151515] to-[#262626] p-3 text-white shadow-[0_16px_50px_rgba(0,0,0,0.28)] sm:p-6">
+        <div className="space-y-2.5 sm:space-y-4">
           <div className="flex items-start gap-3">
             {vehicle.primary_image_path ? (
               <img
                 src={`/api/uploads/download?bucket=vehicle-images&path=${encodeURIComponent(vehicle.primary_image_path)}`}
                 alt={`${vehicle.registration_number} photo`}
-                className="h-20 w-20 rounded-2xl border border-white/20 object-cover sm:h-24 sm:w-24"
+                className="h-20 w-20 rounded-2xl border border-white/20 object-cover sm:h-28 sm:w-28"
               />
             ) : (
-              <div className="h-20 w-20 rounded-2xl border border-white/20 bg-white/10 sm:h-24 sm:w-24" />
+              <div className="h-20 w-20 rounded-2xl border border-white/20 bg-white/10 sm:h-28 sm:w-28" />
             )}
-            <div className="flex min-h-20 flex-1 flex-col justify-between sm:min-h-24">
-              <h1 className="truncate text-[2.35rem] font-bold leading-[0.95] tracking-tight sm:text-[2.6rem]">
+            <div className="flex min-h-20 flex-1 flex-col justify-between sm:min-h-28">
+              <h1 className="truncate text-[2.35rem] font-bold leading-[0.95] tracking-tight sm:text-[2.15rem] lg:text-[2.35rem]">
                 {vehicle.registration_number}
               </h1>
-              <p className="truncate text-xl font-medium leading-none text-white/85 sm:text-2xl">
+              <p className="truncate text-xl font-medium leading-none text-white/85 sm:text-xl lg:text-2xl">
                 {vehicle.make ?? 'Unknown make'} {vehicle.model ?? 'Unknown model'} {vehicle.year ? `(${vehicle.year})` : ''}
               </p>
             </div>
           </div>
 
-          <div className="grid w-full grid-cols-3 gap-2">
+          <div className="grid w-full grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:gap-2">
             <span
-              className={`flex h-14 flex-col items-center justify-center rounded-full border px-2 text-center text-[11px] ${statusBadgeClass(vehicle.status)}`}
+              className={`flex h-14 flex-col items-center justify-center rounded-full border px-2 text-center text-[11px] sm:h-10 sm:min-w-[120px] sm:flex-row sm:gap-1.5 sm:text-xs ${statusBadgeClass(vehicle.status)}`}
             >
-              <span className="text-[10px] uppercase tracking-[0.11em] text-white/70">Status</span>
+              <span className="text-[10px] uppercase tracking-[0.11em] text-white/70 sm:hidden">Status</span>
               <span className="font-semibold uppercase leading-none">{vehicle.status ?? 'Pending'}</span>
             </span>
-            <span className="flex h-14 flex-col items-center justify-center rounded-full border border-white/20 bg-white/10 px-2 text-center text-[11px]">
-              <span className="text-[10px] uppercase tracking-[0.11em] text-white/70">Mileage</span>
+            <span className="flex h-14 flex-col items-center justify-center rounded-full border border-white/20 bg-white/10 px-2 text-center text-[11px] sm:h-10 sm:min-w-[140px] sm:flex-row sm:gap-1.5 sm:text-xs">
+              <span className="text-[10px] uppercase tracking-[0.11em] text-white/70 sm:hidden">Mileage</span>
               <span className="font-semibold leading-none">{vehicle.odometer_km ? `${vehicle.odometer_km.toLocaleString()} km` : 'N/A'}</span>
             </span>
-            <span className="flex h-14 flex-col items-center justify-center rounded-full border border-white/20 bg-white/10 px-2 text-center text-[11px]">
-              <span className="text-[10px] uppercase tracking-[0.11em] text-white/70">Uploads</span>
+            <span className="flex h-14 flex-col items-center justify-center rounded-full border border-white/20 bg-white/10 px-2 text-center text-[11px] sm:h-10 sm:min-w-[140px] sm:flex-row sm:gap-1.5 sm:text-xs">
+              <span className="text-[10px] uppercase tracking-[0.11em] text-white/70 sm:hidden">Uploads</span>
               <span className="font-semibold leading-none">{safeAttachments.length}</span>
             </span>
           </div>
 
-          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
+          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:gap-2.5">
             <span className="inline-flex min-h-10 items-center justify-center rounded-full border border-emerald-300/50 bg-emerald-500/15 px-3 py-1 text-center text-xs font-semibold text-emerald-100 sm:min-h-9">
               Total spent {money(paidInvoiceTotalCents)}
             </span>

@@ -34,13 +34,13 @@ function OverviewTile({
   ring?: ReactNode;
 }) {
   const tile = (
-    <div className="h-full rounded-2xl border border-black/10 bg-white/95 p-2.5 shadow-[0_6px_20px_rgba(17,17,17,0.06)]">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500">
+    <div className="h-full rounded-2xl border border-black/10 bg-white/95 p-2.5 shadow-[0_6px_20px_rgba(17,17,17,0.06)] sm:rounded-3xl sm:p-4 sm:shadow-[0_10px_28px_rgba(17,17,17,0.08)]">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500 sm:text-xs">
         {title}
       </p>
       <div className="mt-2 flex items-center justify-between gap-3">
         <div className="min-w-0 space-y-1">
-          <p className="text-sm font-semibold text-black sm:text-base">{value}</p>
+          <p className="text-sm font-semibold text-black sm:text-lg">{value}</p>
           {detail ? <p className="text-xs text-gray-600">{detail}</p> : null}
           {secondary ? <p className="text-[11px] text-gray-500">{secondary}</p> : null}
         </div>
@@ -204,7 +204,7 @@ export default async function CustomerDashboardPage() {
         }
       />
 
-      <section className="grid grid-cols-2 gap-2 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-4">
         <OverviewTile
           title="Vehicle slots"
           value={`${usedVehicles}/${allowedVehicles} used`}
@@ -252,7 +252,7 @@ export default async function CustomerDashboardPage() {
       ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <section className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+        <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3">
           {(vehicles ?? []).length === 0 ? (
             <Card className="rounded-3xl border-dashed">
               <p className="text-sm text-gray-600">
@@ -261,22 +261,22 @@ export default async function CustomerDashboardPage() {
             </Card>
           ) : null}
           {(vehicles ?? []).map((vehicle) => (
-            <Card key={vehicle.id} className="rounded-2xl border border-black/10 p-3 shadow-[0_8px_26px_rgba(17,17,17,0.06)]">
-              <div className="grid grid-cols-[84px_minmax(0,1fr)] gap-3">
+            <Card key={vehicle.id} className="rounded-2xl border border-black/10 p-3 shadow-[0_8px_26px_rgba(17,17,17,0.06)] sm:p-4">
+              <div className="grid grid-cols-[84px_minmax(0,1fr)] gap-3 sm:grid-cols-[112px_minmax(0,1fr)]">
                 {vehicle.primary_image_path ? (
                   <img
                     src={`/api/uploads/download?bucket=vehicle-images&path=${encodeURIComponent(vehicle.primary_image_path)}`}
                     alt={`${vehicle.registration_number} vehicle`}
-                    className="h-24 w-full rounded-xl object-cover"
+                    className="h-24 w-full rounded-xl object-cover sm:h-28"
                   />
                 ) : (
-                  <div className="h-24 w-full rounded-xl bg-gray-100" />
+                  <div className="h-24 w-full rounded-xl bg-gray-100 sm:h-28" />
                 )}
                 <div className="min-w-0 space-y-2">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <h2 className="truncate text-base font-semibold">{vehicle.registration_number}</h2>
-                      <p className="truncate text-xs text-gray-600">
+                      <h2 className="truncate text-base font-semibold sm:text-lg">{vehicle.registration_number}</h2>
+                      <p className="truncate text-xs text-gray-600 sm:text-sm">
                         {vehicle.make ?? 'Unknown'} {vehicle.model ?? ''}{' '}
                         {vehicle.year ? `(${vehicle.year})` : ''}
                       </p>
@@ -286,7 +286,7 @@ export default async function CustomerDashboardPage() {
                     </Button>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+                  <div className="grid grid-cols-2 gap-1.5 text-[11px] sm:text-xs">
                     <span
                       className={`rounded-full border px-2 py-1 font-semibold uppercase ${vehicleStatusTone(vehicle.status)}`}
                     >
