@@ -284,7 +284,6 @@ export function CustomerVehicleDetailView({
       <HeroHeader
         className="p-3 sm:p-5"
         title={vehicle.registration_number}
-        subtitle={`${vehicle.make ?? 'Unknown make'} ${vehicle.model ?? 'Unknown model'} ${vehicle.year ? `(${vehicle.year})` : ''}`}
         media={
           vehicle.primary_image_path ? (
             <img
@@ -297,33 +296,34 @@ export function CustomerVehicleDetailView({
           )
         }
         meta={
-          <div className="grid w-full grid-cols-2 gap-2">
-            <span
-              className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase ${statusBadgeClass(vehicle.status)}`}
-            >
-              {vehicle.status ?? 'Pending'}
-            </span>
-            <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-right">
-              Mileage{' '}
-              {vehicle.odometer_km
-                ? `${vehicle.odometer_km.toLocaleString()} km`
-                : 'N/A'}
-            </span>
-            <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
-              Uploads {safeAttachments.length}
-            </span>
-            <span className="rounded-full border border-emerald-300/50 bg-emerald-500/15 px-3 py-1 text-right text-emerald-100">
-              Total spent {money(paidInvoiceTotalCents)}
-            </span>
+          <div className="w-full space-y-2">
+            <p className="text-base font-medium leading-[1.1] text-white/80 sm:text-lg">
+              {vehicle.make ?? 'Unknown make'} {vehicle.model ?? 'Unknown model'} {vehicle.year ? `(${vehicle.year})` : ''}
+            </p>
+            <div className="grid w-full grid-cols-3 gap-2">
+              <span
+                className={`inline-flex min-h-9 items-center justify-center rounded-full border px-2.5 py-1 text-center text-xs font-semibold uppercase ${statusBadgeClass(vehicle.status)}`}
+              >
+                {vehicle.status ?? 'Pending'}
+              </span>
+              <span className="inline-flex min-h-9 items-center justify-center rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-center text-xs">
+                Mileage {vehicle.odometer_km ? `${vehicle.odometer_km.toLocaleString()} km` : 'N/A'}
+              </span>
+              <span className="inline-flex min-h-9 items-center justify-center rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-center text-xs">
+                Uploads {safeAttachments.length}
+              </span>
+            </div>
           </div>
         }
         actions={
           <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
-            <div className="hidden sm:block" aria-hidden />
+            <span className="inline-flex min-h-10 items-center justify-center rounded-full border border-emerald-300/50 bg-emerald-500/15 px-3 py-1 text-center text-xs font-semibold text-emerald-100 sm:min-h-9">
+              Total spent {money(paidInvoiceTotalCents)}
+            </span>
             <SendMessageModal
               vehicles={customerVehiclesForMessage}
               defaultVehicleId={vehicle.id}
-              triggerClassName="col-start-2 w-full border-white/30 bg-white/10 text-white hover:bg-white/20 sm:w-auto"
+              triggerClassName="w-full border-white/30 bg-white/10 text-white hover:bg-white/20 sm:w-auto"
             />
             <Button
               asChild
@@ -425,13 +425,15 @@ export function CustomerVehicleDetailView({
                 pending value
               </p>
             </div>
-            <RingChart
-              size={64}
-              strokeWidth={4}
-              segments={pendingQuoteSegments}
-              centerLabel={`${pendingQuotes.length}`}
-              subLabel="PENDING"
-            />
+            <div className="flex flex-col items-center gap-1">
+              <RingChart
+                size={64}
+                strokeWidth={4}
+                segments={pendingQuoteSegments}
+                centerLabel={`${pendingQuotes.length}`}
+              />
+              <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-gray-500">Pending</p>
+            </div>
           </div>
           <Button
             size="sm"
@@ -471,13 +473,15 @@ export function CustomerVehicleDetailView({
                 total spent
               </p>
             </div>
-            <SegmentRing
-              size={64}
-              total={safeInvoices.length || 1}
-              segments={invoiceSegments}
-              centerLabel={`${Math.round(outstandingPercent * 100)}%`}
-              subLabel="Outstanding"
-            />
+            <div className="flex flex-col items-center gap-1">
+              <SegmentRing
+                size={64}
+                total={safeInvoices.length || 1}
+                segments={invoiceSegments}
+                centerLabel={`${Math.round(outstandingPercent * 100)}%`}
+              />
+              <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-gray-500">Outstanding</p>
+            </div>
           </div>
           <Button asChild size="sm" variant="secondary">
             <Link href={`/customer/invoices?vehicleId=${vehicle.id}`}>
@@ -503,13 +507,15 @@ export function CustomerVehicleDetailView({
                 · Low {requestBuckets.low}
               </p>
             </div>
-            <SegmentRing
-              size={64}
-              total={openRequests.length || 1}
-              segments={requestSegments}
-              centerLabel={`${openRequests.length}`}
-              subLabel="Open"
-            />
+            <div className="flex flex-col items-center gap-1">
+              <SegmentRing
+                size={64}
+                total={openRequests.length || 1}
+                segments={requestSegments}
+                centerLabel={`${openRequests.length}`}
+              />
+              <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-gray-500">Open</p>
+            </div>
           </div>
           <div className="grid gap-2 sm:flex sm:flex-wrap">
             <Button size="sm" onClick={() => setOpenModal('request')}>
@@ -540,13 +546,15 @@ export function CustomerVehicleDetailView({
                 {recommendationBuckets.normal} · Low {recommendationBuckets.low}
               </p>
             </div>
-            <SegmentRing
-              size={64}
-              total={openRecommendations.length || 1}
-              segments={recommendationSegments}
-              centerLabel={`${openRecommendations.length}`}
-              subLabel="Open"
-            />
+            <div className="flex flex-col items-center gap-1">
+              <SegmentRing
+                size={64}
+                total={openRecommendations.length || 1}
+                segments={recommendationSegments}
+                centerLabel={`${openRecommendations.length}`}
+              />
+              <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-gray-500">Open</p>
+            </div>
           </div>
           <Button
             size="sm"
