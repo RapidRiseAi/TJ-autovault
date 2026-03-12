@@ -2,12 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Bell, CircleUserRound, House, PlusCircle } from 'lucide-react';
+import { Bell, CarFront, CircleUserRound, House } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const customerMobileLinks = [
   { href: '/customer/dashboard', label: 'Home', icon: House },
-  { href: '/customer/vehicles/new', label: 'Add', icon: PlusCircle },
+  { href: '/customer/vehicles', label: 'Vehicles', icon: CarFront },
   { href: '/customer/notifications', label: 'Alerts', icon: Bell },
   { href: '/customer/profile', label: 'Profile', icon: CircleUserRound }
 ];

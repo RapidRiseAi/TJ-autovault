@@ -25,16 +25,16 @@ body {
 
 .watermark {
   position: fixed;
-  right: 10px;
-  top: 10px;
+  left: 10px;
+  top: calc(env(safe-area-inset-top) + 8px);
   z-index: 45;
-  opacity: 0.9;
-  font-size: 12px;
+  opacity: 0.94;
+  font-size: 11px;
   font-weight: 700;
   background: #111;
   color: #fff;
   border-radius: 9999px;
-  padding: 6px 10px;
+  padding: 5px 9px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
   border: none;
   display: inline-flex;
@@ -63,27 +63,11 @@ body {
   }
 }
 
-.watermark-version {
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  padding: 2px 6px;
-  border-radius: 9999px;
-  background: rgba(255, 255, 255, 0.18);
-  border: 1px solid rgba(255, 255, 255, 0.28);
-}
-
 @media (max-width: 768px) {
   .watermark {
-    right: 8px;
-    top: 8px;
+    left: 8px;
+    top: calc(env(safe-area-inset-top) + 6px);
     font-size: 10px;
     padding: 4px 7px;
-  }
-
-  .watermark-version {
-    font-size: 9px;
-    padding: 2px 5px;
   }
 }

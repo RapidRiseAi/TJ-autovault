@@ -334,7 +334,7 @@ export function UploadsActionsForm({
             File
             <input
               type="file"
-              accept="application/pdf,image/*"
+              accept="application/pdf,image/*" capture="environment"
               required
               className="mt-1 block w-full text-sm"
               onChange={(event) => setFile(event.target.files?.[0] ?? null)}

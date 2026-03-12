@@ -561,7 +561,7 @@ export default async function WorkshopTechniciansPage({
                           <input type="hidden" name="technicianId" value={tech.id} />
                           <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">Pay technician (requires proof)</label>
                           <input name="amount" type="number" min="0.01" step="0.01" required placeholder="Amount" className="mb-2 w-full rounded-xl border border-black/15 px-3 py-2 text-sm" />
-                          <input name="proof" type="file" required className="mb-2 w-full rounded-xl border border-black/15 px-3 py-2 text-xs" />
+                          <input name="proof" type="file" accept="application/pdf,image/*" capture="environment" required className="mb-2 w-full rounded-xl border border-black/15 px-3 py-2 text-xs" />
                           <textarea spellCheck autoCorrect="on" autoCapitalize="sentences" name="notes" rows={2} placeholder="Optional internal note" className="mb-2 w-full rounded-xl border border-black/15 px-3 py-2 text-xs" />
                           <Button type="submit" size="sm">Submit payment</Button>
                         </form>
@@ -636,7 +636,7 @@ export default async function WorkshopTechniciansPage({
                       <form action={removeTechnician} className="mt-2 space-y-2 rounded-xl border border-red-200 bg-red-50 p-3">
                         <input type="hidden" name="technicianId" value={tech.id} />
                         <textarea spellCheck autoCorrect="on" autoCapitalize="sentences" name="reason" required rows={3} className="w-full rounded-xl border border-black/15 px-3 py-2 text-xs" placeholder="Reason for removing this technician" />
-                        <input name="document" type="file" className="w-full rounded-xl border border-black/15 bg-white px-3 py-2 text-xs" />
+                        <input name="document" type="file" accept="application/pdf,image/*" capture="environment" className="w-full rounded-xl border border-black/15 bg-white px-3 py-2 text-xs" />
                         <Button type="submit" variant="destructive" size="sm">Confirm remove</Button>
                       </form>
                     </details>

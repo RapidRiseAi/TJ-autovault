@@ -202,7 +202,7 @@ export function CustomerUploadActions({ vehicleId }: { vehicleId: string }) {
         ref={reportRef}
         type="file"
         className="hidden"
-        accept="application/pdf,image/*"
+        accept="application/pdf,image/*" capture="environment"
         onChange={(e) => {
           onChoose(e.target.files?.[0] ?? null, 'report');
           e.currentTarget.value = '';
@@ -212,7 +212,7 @@ export function CustomerUploadActions({ vehicleId }: { vehicleId: string }) {
         ref={photoRef}
         type="file"
         className="hidden"
-        accept="image/*"
+        accept="application/pdf,image/*" capture="environment"
         onChange={(e) => {
           onChoose(e.target.files?.[0] ?? null, 'vehicle_photo');
           e.currentTarget.value = '';

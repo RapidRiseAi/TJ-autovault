@@ -236,7 +236,7 @@ export function WorkflowUploadPanel({
       <input
         ref={fileRef}
         type="file"
-        accept="application/pdf,image/*"
+        accept="application/pdf,image/*" capture="environment"
         multiple={allowMultiUpload}
         className="hidden"
         onChange={(event) => {

@@ -458,7 +458,7 @@ export function InspectionReportFormRenderer({
           <input
             type="file"
             className="mt-1 block w-full"
-            accept="application/pdf,image/*"
+            accept="application/pdf,image/*" capture="environment"
             onChange={(event) => setFile(event.target.files?.[0] ?? null)}
           />
         </label>

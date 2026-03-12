@@ -282,6 +282,7 @@ export function CustomerVehicleDetailView({
   return (
     <div className="space-y-4 pb-3">
       <HeroHeader
+        className="p-4 sm:p-6"
         title={vehicle.registration_number}
         subtitle={`${vehicle.make ?? 'Unknown make'} ${vehicle.model ?? 'Unknown model'} ${vehicle.year ? `(${vehicle.year})` : ''}`}
         media={
@@ -321,14 +322,14 @@ export function CustomerVehicleDetailView({
             <Button
               asChild
               size="sm"
-              className="bg-white text-black hover:bg-gray-100"
+              className="w-full sm:w-auto bg-white text-black hover:bg-gray-100"
             >
               <Link href={timelineHref}>View timeline</Link>
             </Button>
             <Button
               size="sm"
               variant="secondary"
-              className="border-white/30 bg-white/10 text-white hover:bg-white/20"
+              className="w-full sm:w-auto border-white/30 bg-white/10 text-white hover:bg-white/20"
               onClick={() => setOpenModal('log')}
             >
               Log something
@@ -337,20 +338,20 @@ export function CustomerVehicleDetailView({
               asChild
               size="sm"
               variant="secondary"
-              className="border-white/30 bg-white/10 text-white hover:bg-white/20"
+              className="w-full sm:w-auto border-white/30 bg-white/10 text-white hover:bg-white/20"
             >
               <Link href={documentsHref}>Documents</Link>
             </Button>
             <SendMessageModal
               vehicles={customerVehiclesForMessage}
               defaultVehicleId={vehicle.id}
-              triggerClassName="border-white/30 bg-white/10 text-white hover:bg-white/20"
+              triggerClassName="w-full sm:w-auto border-white/30 bg-white/10 text-white hover:bg-white/20"
             />
             <div className="relative">
               <Button
                 size="sm"
                 variant="secondary"
-                className="border-white/30 bg-white/10 text-white hover:bg-white/20"
+                className="w-full sm:w-auto border-white/30 bg-white/10 text-white hover:bg-white/20"
                 onClick={() => setMoreOpen((prev) => !prev)}
               >
                 <Ellipsis className="mr-1 h-4 w-4" /> More
@@ -406,7 +407,7 @@ export function CustomerVehicleDetailView({
           <p className="text-xs uppercase tracking-wide text-gray-500">
             Quotes
           </p>
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-1 text-sm text-gray-600">
               <p>
                 <span className="font-semibold text-black">
@@ -422,7 +423,7 @@ export function CustomerVehicleDetailView({
               </p>
             </div>
             <RingChart
-              size={112}
+              size={96}
               strokeWidth={4}
               segments={pendingQuoteSegments}
               centerLabel={`${pendingQuotes.length}`}
@@ -444,7 +445,7 @@ export function CustomerVehicleDetailView({
           <p className="text-xs uppercase tracking-wide text-gray-500">
             Invoices
           </p>
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-1 text-sm text-gray-600">
               <p>
                 <span
@@ -468,7 +469,7 @@ export function CustomerVehicleDetailView({
               </p>
             </div>
             <SegmentRing
-              size={110}
+              size={96}
               total={safeInvoices.length || 1}
               segments={invoiceSegments}
               centerLabel={`${Math.round(outstandingPercent * 100)}%`}
@@ -486,7 +487,7 @@ export function CustomerVehicleDetailView({
           <p className="text-xs uppercase tracking-wide text-gray-500">
             Requests
           </p>
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-1 text-sm text-gray-600">
               <p>
                 <span className="font-semibold text-black">
@@ -500,7 +501,7 @@ export function CustomerVehicleDetailView({
               </p>
             </div>
             <SegmentRing
-              size={110}
+              size={96}
               total={openRequests.length || 1}
               segments={requestSegments}
               centerLabel={`${openRequests.length}`}
@@ -523,7 +524,7 @@ export function CustomerVehicleDetailView({
           <p className="text-xs uppercase tracking-wide text-gray-500">
             Recommendations
           </p>
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-1 text-sm text-gray-600">
               <p>
                 <span className="font-semibold text-black">
@@ -537,7 +538,7 @@ export function CustomerVehicleDetailView({
               </p>
             </div>
             <SegmentRing
-              size={110}
+              size={96}
               total={openRecommendations.length || 1}
               segments={recommendationSegments}
               centerLabel={`${openRecommendations.length}`}

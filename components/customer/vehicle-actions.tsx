@@ -111,7 +111,7 @@ export function RequestForm({ vehicleId }: { vehicleId: string }) {
       />
       <textarea spellCheck autoCorrect="on" autoCapitalize="sentences" name="body" className="w-full rounded border p-2" placeholder="Body" rows={3} required />
       <textarea spellCheck autoCorrect="on" autoCapitalize="sentences" name="notes" className="w-full rounded border p-2" />
-      <input name="attachment" type="file" className="w-full rounded border p-2" />
+      <input name="attachment" type="file" accept="application/pdf,image/*" capture="environment" className="w-full rounded border p-2" />
       <Button disabled={isSubmitting}>
         {isSubmitting ? (
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />

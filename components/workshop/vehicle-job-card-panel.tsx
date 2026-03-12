@@ -218,7 +218,7 @@ export function VehicleJobCardPanel({
             <input
               name="beforePhotos"
               type="file"
-              accept="image/*"
+              accept="application/pdf,image/*" capture="environment"
               multiple
               aria-label="Before images (optional)"
               title="Before images (optional)"

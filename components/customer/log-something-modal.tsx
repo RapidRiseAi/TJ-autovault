@@ -188,7 +188,7 @@ export function LogSomethingModal({
           <input
             ref={fileInputRef}
             type="file"
-            accept="application/pdf,image/*"
+            accept="application/pdf,image/*" capture="environment"
             onChange={(event) => setFile(event.target.files?.[0] ?? null)}
             className="block w-full rounded border p-2 text-xs"
           />
