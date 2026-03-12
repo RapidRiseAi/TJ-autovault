@@ -12,6 +12,7 @@ body {
   background: rgb(var(--background));
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  overflow-x: hidden;
 }
 
 .no-scrollbar {
@@ -26,7 +27,7 @@ body {
 .watermark {
   position: fixed;
   left: 10px;
-  top: calc(env(safe-area-inset-top) + 8px);
+  top: calc(env(safe-area-inset-top) + 6px);
   z-index: 45;
   opacity: 0.94;
   font-size: 11px;
@@ -66,7 +67,7 @@ body {
 @media (max-width: 768px) {
   .watermark {
     left: 8px;
-    top: calc(env(safe-area-inset-top) + 6px);
+    top: calc(env(safe-area-inset-top) + 4px);
     font-size: 10px;
     padding: 4px 7px;
   }

@@ -402,8 +402,8 @@ export function CustomerVehicleDetailView({
         }
       />
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Card className="space-y-4 rounded-3xl">
+      <section className="grid gap-4 xl:grid-cols-4">
+        <Card className="space-y-4 rounded-3xl border-black/10 bg-gradient-to-br from-white to-neutral-50">
           <p className="text-xs uppercase tracking-wide text-gray-500">
             Quotes
           </p>
@@ -423,7 +423,7 @@ export function CustomerVehicleDetailView({
               </p>
             </div>
             <RingChart
-              size={96}
+              size={90}
               strokeWidth={4}
               segments={pendingQuoteSegments}
               centerLabel={`${pendingQuotes.length}`}
@@ -440,7 +440,7 @@ export function CustomerVehicleDetailView({
         </Card>
 
         <Card
-          className={`space-y-4 rounded-3xl ${invoicesAllPaid ? 'border-emerald-200 bg-emerald-50/60' : 'border-red-200 bg-red-50/70'}`}
+          className={`space-y-4 rounded-3xl ${invoicesAllPaid ? 'border-emerald-200 bg-gradient-to-br from-emerald-50/80 to-white' : 'border-red-200 bg-gradient-to-br from-red-50/70 to-white'}`}
         >
           <p className="text-xs uppercase tracking-wide text-gray-500">
             Invoices
@@ -469,7 +469,7 @@ export function CustomerVehicleDetailView({
               </p>
             </div>
             <SegmentRing
-              size={96}
+              size={90}
               total={safeInvoices.length || 1}
               segments={invoiceSegments}
               centerLabel={`${Math.round(outstandingPercent * 100)}%`}
@@ -483,7 +483,7 @@ export function CustomerVehicleDetailView({
           </Button>
         </Card>
 
-        <Card className="space-y-4 rounded-3xl">
+        <Card className="space-y-4 rounded-3xl border-black/10 bg-gradient-to-br from-white to-neutral-50">
           <p className="text-xs uppercase tracking-wide text-gray-500">
             Requests
           </p>
@@ -501,14 +501,14 @@ export function CustomerVehicleDetailView({
               </p>
             </div>
             <SegmentRing
-              size={96}
+              size={90}
               total={openRequests.length || 1}
               segments={requestSegments}
               centerLabel={`${openRequests.length}`}
               subLabel="Open"
             />
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="grid gap-2 sm:flex sm:flex-wrap">
             <Button size="sm" onClick={() => setOpenModal('request')}>
               Create request
             </Button>
@@ -520,7 +520,7 @@ export function CustomerVehicleDetailView({
           </div>
         </Card>
 
-        <Card className="space-y-4 rounded-3xl">
+        <Card className="space-y-4 rounded-3xl border-black/10 bg-gradient-to-br from-white to-neutral-50">
           <p className="text-xs uppercase tracking-wide text-gray-500">
             Recommendations
           </p>
@@ -538,7 +538,7 @@ export function CustomerVehicleDetailView({
               </p>
             </div>
             <SegmentRing
-              size={96}
+              size={90}
               total={openRecommendations.length || 1}
               segments={recommendationSegments}
               centerLabel={`${openRecommendations.length}`}

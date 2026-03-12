@@ -149,13 +149,13 @@ export function AuthShell({ children }: { children: ReactNode }) {
         </span>
       </div>
 
-      <header className="relative z-10 border-b border-black/10 bg-white/92 shadow-[0_10px_24px_rgba(15,23,42,0.06)] backdrop-blur">
-        <div className="mx-auto flex w-full max-w-[1340px] flex-col gap-2 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+      <header className="sticky top-0 z-30 border-b border-black/10 bg-white/92 shadow-[0_10px_24px_rgba(15,23,42,0.06)] backdrop-blur">
+        <div className="mx-auto flex w-full max-w-[1340px] flex-col gap-2 px-4 pb-3 pt-8 sm:px-6 sm:pt-6 lg:flex-row lg:items-end lg:justify-between lg:px-8">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">
               Customer Portal
             </p>
-            <p className="inline-flex items-center text-2xl font-semibold leading-tight text-gray-900 sm:text-lg">
+            <p className="inline-flex items-center text-2xl font-semibold leading-tight text-gray-900 sm:text-xl">
               TJ Service &amp; Repairs
               <span
                 className="ml-2 mt-px inline-block h-1.5 w-1.5 rounded-full bg-brand-red"

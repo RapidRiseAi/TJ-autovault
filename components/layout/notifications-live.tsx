@@ -168,7 +168,7 @@ export function NotificationsLive({ fullPage = false }: { fullPage?: boolean }) 
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 overflow-x-hidden">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex gap-1 rounded-lg border p-1">
           <Button size="sm" variant={filter === 'all' ? 'primary' : 'ghost'} onClick={() => setFilter('all')}>All</Button>
@@ -192,8 +192,8 @@ export function NotificationsLive({ fullPage = false }: { fullPage?: boolean }) 
         const isMessage = item.kind === 'message';
         return (
           <div key={item.id} className={`rounded-2xl border bg-white p-4 transition hover:border-black/25 ${item.is_read ? 'border-black/10 opacity-80' : 'border-black/20 shadow-sm'} ${isMessage ? 'border-blue-200 bg-blue-50/40' : ''}`}>
-            <div className="flex items-start justify-between gap-3">
-              <Link href={itemHref(item)} className="group flex flex-1 items-start gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <Link href={itemHref(item)} className="group flex min-w-0 flex-1 items-start gap-3">
                 <span className={`mt-1 h-10 w-1 rounded-full ${item.is_read ? 'bg-gray-200' : isMessage ? 'bg-blue-500' : 'bg-brand-red'}`} />
                 <div className="min-w-0">
                   <p className={item.is_read ? 'text-gray-600' : 'font-semibold text-brand-black'}>{item.title}</p>
@@ -202,12 +202,12 @@ export function NotificationsLive({ fullPage = false }: { fullPage?: boolean }) 
                   <p className="text-xs text-gray-500">{new Date(item.created_at).toLocaleString()}</p>
                 </div>
               </Link>
-              <div className="flex flex-col items-end gap-2">
+              <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
                 <span className={`inline-flex items-center gap-1 text-xs ${item.is_read ? 'text-gray-400' : 'text-brand-red'}`}>
                   <Circle className={`h-3 w-3 ${item.is_read ? 'fill-gray-300 text-gray-300' : 'fill-brand-red text-brand-red'}`} />
                   {item.is_read ? 'Read' : 'Unread'}
                 </span>
-                <div className="flex flex-wrap justify-end gap-1">
+                <div className="flex flex-wrap gap-1 sm:justify-end">
                   {isMessage && item.data?.message_thread_id ? (
                     <Button size="sm" variant="outline" onClick={() => setOpenThreadId(item.data?.message_thread_id ?? null)}>Open thread</Button>
                   ) : null}
@@ -223,7 +223,7 @@ export function NotificationsLive({ fullPage = false }: { fullPage?: boolean }) 
                   })}>
                     <Trash2 className="mr-1 h-4 w-4" /> Delete
                   </Button>
-                  <Button asChild size="sm" variant="ghost">
+                  <Button asChild size="sm" variant="ghost" className="justify-start sm:justify-center">
                     <Link href={itemHref(item)}>Open <ChevronRight className="ml-1 h-3 w-3" /></Link>
                   </Button>
                 </div>
