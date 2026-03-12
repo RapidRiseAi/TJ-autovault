@@ -12,7 +12,6 @@ import {
 import { ReportIssueForm } from '@/components/customer/report-issue-form';
 import { RemoveVehicleButton } from '@/components/customer/remove-vehicle-button';
 import { CustomerUploadActions } from '@/components/customer/customer-upload-actions';
-import { HeroHeader } from '@/components/layout/hero-header';
 import { Modal } from '@/components/ui/modal';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -281,41 +280,45 @@ export function CustomerVehicleDetailView({
 
   return (
     <div className="space-y-4 pb-3">
-      <HeroHeader
-        className="p-3 sm:p-5"
-        title={vehicle.registration_number}
-        media={
-          vehicle.primary_image_path ? (
-            <img
-              src={`/api/uploads/download?bucket=vehicle-images&path=${encodeURIComponent(vehicle.primary_image_path)}`}
-              alt={`${vehicle.registration_number} photo`}
-              className="h-20 w-20 rounded-2xl border border-white/20 object-cover sm:h-24 sm:w-24"
-            />
-          ) : (
-            <div className="h-20 w-20 rounded-2xl border border-white/20 bg-white/10 sm:h-24 sm:w-24" />
-          )
-        }
-        meta={
-          <div className="w-full space-y-2">
-            <p className="text-base font-medium leading-[1.1] text-white/80 sm:text-lg">
-              {vehicle.make ?? 'Unknown make'} {vehicle.model ?? 'Unknown model'} {vehicle.year ? `(${vehicle.year})` : ''}
-            </p>
-            <div className="grid w-full grid-cols-3 gap-2">
-              <span
-                className={`inline-flex min-h-9 items-center justify-center rounded-full border px-2.5 py-1 text-center text-xs font-semibold uppercase ${statusBadgeClass(vehicle.status)}`}
-              >
-                {vehicle.status ?? 'Pending'}
-              </span>
-              <span className="inline-flex min-h-9 items-center justify-center rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-center text-xs">
-                Mileage {vehicle.odometer_km ? `${vehicle.odometer_km.toLocaleString()} km` : 'N/A'}
-              </span>
-              <span className="inline-flex min-h-9 items-center justify-center rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-center text-xs">
-                Uploads {safeAttachments.length}
-              </span>
+      <section className="rounded-3xl border border-black/10 bg-gradient-to-br from-black via-[#151515] to-[#262626] p-3 text-white shadow-[0_16px_50px_rgba(0,0,0,0.28)] sm:p-5">
+        <div className="space-y-2.5">
+          <div className="flex items-start gap-3">
+            {vehicle.primary_image_path ? (
+              <img
+                src={`/api/uploads/download?bucket=vehicle-images&path=${encodeURIComponent(vehicle.primary_image_path)}`}
+                alt={`${vehicle.registration_number} photo`}
+                className="h-20 w-20 rounded-2xl border border-white/20 object-cover sm:h-24 sm:w-24"
+              />
+            ) : (
+              <div className="h-20 w-20 rounded-2xl border border-white/20 bg-white/10 sm:h-24 sm:w-24" />
+            )}
+            <div className="flex min-h-20 flex-1 flex-col justify-between sm:min-h-24">
+              <h1 className="truncate text-[2.35rem] font-bold leading-[0.95] tracking-tight sm:text-[2.6rem]">
+                {vehicle.registration_number}
+              </h1>
+              <p className="truncate text-xl font-medium leading-none text-white/85 sm:text-2xl">
+                {vehicle.make ?? 'Unknown make'} {vehicle.model ?? 'Unknown model'} {vehicle.year ? `(${vehicle.year})` : ''}
+              </p>
             </div>
           </div>
-        }
-        actions={
+
+          <div className="grid w-full grid-cols-3 gap-2">
+            <span
+              className={`flex h-14 flex-col items-center justify-center rounded-full border px-2 text-center text-[11px] ${statusBadgeClass(vehicle.status)}`}
+            >
+              <span className="text-[10px] uppercase tracking-[0.11em] text-white/70">Status</span>
+              <span className="font-semibold uppercase leading-none">{vehicle.status ?? 'Pending'}</span>
+            </span>
+            <span className="flex h-14 flex-col items-center justify-center rounded-full border border-white/20 bg-white/10 px-2 text-center text-[11px]">
+              <span className="text-[10px] uppercase tracking-[0.11em] text-white/70">Mileage</span>
+              <span className="font-semibold leading-none">{vehicle.odometer_km ? `${vehicle.odometer_km.toLocaleString()} km` : 'N/A'}</span>
+            </span>
+            <span className="flex h-14 flex-col items-center justify-center rounded-full border border-white/20 bg-white/10 px-2 text-center text-[11px]">
+              <span className="text-[10px] uppercase tracking-[0.11em] text-white/70">Uploads</span>
+              <span className="font-semibold leading-none">{safeAttachments.length}</span>
+            </span>
+          </div>
+
           <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
             <span className="inline-flex min-h-10 items-center justify-center rounded-full border border-emerald-300/50 bg-emerald-500/15 px-3 py-1 text-center text-xs font-semibold text-emerald-100 sm:min-h-9">
               Total spent {money(paidInvoiceTotalCents)}
@@ -400,8 +403,8 @@ export function CustomerVehicleDetailView({
               ) : null}
             </div>
           </div>
-        }
-      />
+        </div>
+      </section>
 
       <div className="px-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500 sm:hidden">Swipe metrics →</div>
 
