@@ -10,6 +10,17 @@
 body {
   color: rgb(var(--foreground));
   background: rgb(var(--background));
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
 .watermark {
@@ -51,7 +62,6 @@ body {
     transform: translateX(28%);
   }
 }
-
 
 .watermark-version {
   font-size: 10px;

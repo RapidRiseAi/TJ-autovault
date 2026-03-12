@@ -42,19 +42,15 @@ export async function WorkshopTopNav() {
     .is('deleted_at', null)
     .eq('to_profile_id', user.id);
 
-  const displayName =
-    profile?.display_name ||
-    profile?.full_name ||
-    user.email ||
-    'Workshop user';
+  const displayName = profile?.display_name || profile?.full_name || user.email || 'Workshop user';
   const businessName = workshopAccount?.name || 'Workshop';
 
   return (
     <header className="sticky top-0 z-40 border-b border-black/10 bg-white/95 backdrop-blur">
-      <div className="mx-auto flex h-[74px] w-full max-w-[1320px] items-center justify-between px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto flex h-[72px] w-full max-w-[1320px] items-center justify-between px-4 sm:px-6 lg:px-8">
         <Link
           href="/workshop/dashboard"
-          className="text-sm font-semibold uppercase tracking-[0.2em] text-brand-black sm:text-base"
+          className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-black sm:text-sm"
         >
           TJ service & repairs
         </Link>
@@ -62,12 +58,14 @@ export async function WorkshopTopNav() {
         <div className="flex items-center gap-2 sm:gap-3">
           <Link
             href="/workshop/notifications"
-            className="inline-flex items-center gap-1.5 rounded-full border border-black/15 bg-white px-3.5 py-2 text-xs font-semibold text-brand-black shadow-sm transition hover:-translate-y-px hover:bg-gray-50 hover:shadow-md sm:text-sm"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-black/15 bg-white px-3.5 py-2 text-xs font-semibold text-brand-black shadow-sm transition hover:-translate-y-px hover:bg-gray-50 hover:shadow-md sm:text-sm"
           >
             <Bell className="h-4 w-4" />
             {count && count > 0 ? <span>{count}</span> : null}
           </Link>
-          <WorkshopSupportTicketButton />
+          <div className="hidden sm:block">
+            <WorkshopSupportTicketButton />
+          </div>
           <Link
             href="/workshop/profile"
             className="inline-flex min-h-11 items-center gap-2 rounded-full border border-black/10 bg-white px-3 py-1.5 shadow-sm transition hover:-translate-y-px hover:border-black/20 hover:bg-gray-50 hover:shadow-md"
@@ -83,16 +81,14 @@ export async function WorkshopTopNav() {
                 {initialsFromName(displayName)}
               </div>
             )}
-            <div className="pr-2 text-left">
-              <p className="text-xs font-semibold leading-tight text-black">
-                {displayName}
-              </p>
-              <p className="text-[11px] leading-tight text-gray-500">
-                {businessName}
-              </p>
+            <div className="hidden pr-2 text-left sm:block">
+              <p className="text-xs font-semibold leading-tight text-black">{displayName}</p>
+              <p className="text-[11px] leading-tight text-gray-500">{businessName}</p>
             </div>
           </Link>
-          <SignOutButton />
+          <div className="hidden sm:block">
+            <SignOutButton />
+          </div>
         </div>
       </div>
     </header>

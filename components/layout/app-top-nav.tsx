@@ -35,26 +35,40 @@ export async function AppTopNav() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-black/10 bg-white/95 backdrop-blur">
-      <div className="mx-auto flex h-16 w-full max-w-[1320px] items-center justify-between px-4 sm:px-6 lg:px-8">
-        <Link href="/customer/dashboard" className="text-sm font-semibold uppercase tracking-[0.2em] text-brand-black sm:text-base">
+      <div className="mx-auto flex h-[72px] w-full max-w-[1320px] items-center justify-between px-4 sm:px-6 lg:px-8">
+        <Link
+          href="/customer/dashboard"
+          className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-black sm:text-sm"
+        >
           TJ service & repairs
         </Link>
 
-        <nav className="absolute left-1/2 hidden -translate-x-1/2 items-center justify-center gap-2 md:flex">
+        <nav className="absolute left-1/2 hidden -translate-x-1/2 items-center justify-center gap-2 lg:flex">
           {customerLinks.map((item) => (
-            <Link key={item.href} href={item.href} className="rounded-full px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-black hover:text-white">
+            <Link
+              key={item.href}
+              href={item.href}
+              className="rounded-full px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-neutral-900 hover:text-white"
+            >
               {item.label}
             </Link>
           ))}
         </nav>
 
         <div className="flex items-center gap-2">
-          <Link href="/customer/notifications" className="inline-flex items-center gap-1 rounded-full border border-black/15 px-3 py-1.5 text-xs font-semibold text-brand-black hover:bg-gray-100 sm:text-sm">
+          <Link
+            href="/customer/notifications"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-black/15 bg-white px-3 py-2 text-xs font-semibold text-brand-black shadow-sm transition hover:-translate-y-px hover:bg-gray-100 sm:text-sm"
+          >
             <Bell className="h-4 w-4" />
             {count && count > 0 ? <span>{count}</span> : null}
           </Link>
-          <WorkshopSupportTicketButton />
-          <SignOutButton />
+          <div className="hidden sm:block">
+            <WorkshopSupportTicketButton />
+          </div>
+          <div className="hidden sm:block">
+            <SignOutButton />
+          </div>
         </div>
       </div>
     </header>
