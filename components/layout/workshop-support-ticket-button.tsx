@@ -70,7 +70,7 @@ export function WorkshopSupportTicketButton() {
         aria-label="Open support"
       >
         <LifeBuoy className="h-4 w-4" />
-        <span className="hidden sm:inline">Support</span>
+        <span>Support</span>
       </Button>
 
       {open && canUseDom

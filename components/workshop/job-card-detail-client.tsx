@@ -907,7 +907,7 @@ export function JobCardDetailClient(props: {
           />
           <input
             type="file"
-            accept="image/*"
+            accept="application/pdf,image/*" capture="environment"
             multiple
             required
             onChange={(event) =>
@@ -982,7 +982,7 @@ export function JobCardDetailClient(props: {
           />
           <input
             type="file"
-            accept="application/pdf,image/*"
+            accept="application/pdf,image/*" capture="environment"
             onChange={(event) =>
               setRequestFile(event.target.files?.[0] ?? null)
             }
@@ -1106,7 +1106,7 @@ export function JobCardDetailClient(props: {
           />
           <input
             type="file"
-            accept="image/*"
+            accept="application/pdf,image/*" capture="environment"
             required
             onChange={(event) =>
               setPhotoUploadFile(event.target.files?.[0] ?? null)
@@ -1228,7 +1228,7 @@ export function JobCardDetailClient(props: {
           />
           <input
             type="file"
-            accept="application/pdf,image/*"
+            accept="application/pdf,image/*" capture="environment"
             onChange={(event) => setReportFile(event.target.files?.[0] ?? null)}
             className="w-full rounded-xl border border-neutral-300 px-3 py-2 text-sm"
           />

@@ -10,26 +10,63 @@
 body {
   color: rgb(var(--foreground));
   background: rgb(var(--background));
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
 .watermark {
   position: fixed;
-  right: 12px;
-  bottom: 8px;
-  z-index: 50;
-  opacity: 0.9;
-  font-size: 12px;
+  left: 8px;
+  top: calc(env(safe-area-inset-top) + 8px);
+  z-index: 45;
+  opacity: 0.94;
+  font-size: 11px;
   font-weight: 700;
   background: #111;
   color: #fff;
   border-radius: 9999px;
-  padding: 6px 10px;
+  padding: 3px 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
   border: none;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   cursor: pointer;
+}
+
+.watermark-auth {
+  left: auto;
+  right: 8px;
+  top: calc(env(safe-area-inset-top) + 8px);
+}
+
+@media (min-width: 640px) {
+  .watermark,
+  .watermark-auth {
+    left: auto;
+    right: 12px;
+    top: auto;
+    bottom: 8px;
+    z-index: 50;
+    font-size: 12px;
+    padding: 6px 10px;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 639px) {
+  body {
+    overflow-x: hidden;
+  }
 }
 
 .watermark:hover {
@@ -62,4 +99,10 @@ body {
   border-radius: 9999px;
   background: rgba(255, 255, 255, 0.18);
   border: 1px solid rgba(255, 255, 255, 0.28);
+}
+
+@media (max-width: 639px) {
+  .watermark-version {
+    display: none;
+  }
 }

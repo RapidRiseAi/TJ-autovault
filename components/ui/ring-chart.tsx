@@ -16,7 +16,7 @@ export function RingChart({
 }: {
   segments: RingChartSegment[];
   centerLabel: string;
-  subLabel: string;
+  subLabel?: string;
   className?: string;
   size?: number;
   strokeWidth?: number;
@@ -92,9 +92,11 @@ export function RingChart({
         <p className="text-[28px] font-semibold leading-none text-black">
           {centerLabel}
         </p>
-        <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.12em] text-gray-500">
-          {subLabel}
-        </p>
+        {subLabel ? (
+          <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.12em] text-gray-500">
+            {subLabel}
+          </p>
+        ) : null}
       </div>
     </div>
   );

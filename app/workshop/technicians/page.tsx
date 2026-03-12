@@ -548,22 +548,22 @@ export default async function WorkshopTechniciansPage({
                       <Link href={`/workshop/technicians/${tech.id}/timeline`} className="text-xs font-semibold text-brand-red underline-offset-4 hover:underline">Open technician timeline</Link>
                     </div>
                     {profile.role === 'admin' ? (
-                      <div className="flex min-w-80 flex-col gap-2">
+                      <div className="flex w-full flex-col gap-2 sm:min-w-80 sm:w-auto">
                         <form action={updateTechnicianComp} className="rounded-xl border border-black/10 p-3">
                           <input type="hidden" name="technicianId" value={tech.id} />
                           <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">Daily wage (ZAR)</label>
-                          <div className="flex gap-2">
+                          <div className="flex flex-col gap-2 sm:flex-row">
                             <input name="dailyWage" type="number" min="0" step="0.01" defaultValue={(tech.dailyWageCents / 100).toFixed(2)} className="w-full rounded-xl border border-black/15 px-3 py-2 text-sm" />
-                            <Button type="submit" size="sm">Save</Button>
+                            <Button type="submit" size="sm" className="w-full sm:w-auto">Save</Button>
                           </div>
                         </form>
                         <form action="/api/workshop/technicians/payout" method="post" encType="multipart/form-data" className="rounded-xl border border-black/10 p-3">
                           <input type="hidden" name="technicianId" value={tech.id} />
                           <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">Pay technician (requires proof)</label>
                           <input name="amount" type="number" min="0.01" step="0.01" required placeholder="Amount" className="mb-2 w-full rounded-xl border border-black/15 px-3 py-2 text-sm" />
-                          <input name="proof" type="file" required className="mb-2 w-full rounded-xl border border-black/15 px-3 py-2 text-xs" />
+                          <input name="proof" type="file" accept="application/pdf,image/*" capture="environment" required className="mb-2 w-full rounded-xl border border-black/15 px-3 py-2 text-xs" />
                           <textarea spellCheck autoCorrect="on" autoCapitalize="sentences" name="notes" rows={2} placeholder="Optional internal note" className="mb-2 w-full rounded-xl border border-black/15 px-3 py-2 text-xs" />
-                          <Button type="submit" size="sm">Submit payment</Button>
+                          <Button type="submit" size="sm" className="w-full sm:w-auto">Submit payment</Button>
                         </form>
                       </div>
                     ) : null}
@@ -603,29 +603,29 @@ export default async function WorkshopTechniciansPage({
                     </div>
 
                     {profile.role === 'admin' ? (
-                      <form action={sendStaffMessage} className="mt-3 flex flex-wrap gap-2">
+                      <form action={sendStaffMessage} className="mt-3 flex flex-col gap-2 sm:flex-row">
                         <input type="hidden" name="mode" value="to_technician" />
                         <input type="hidden" name="technicianId" value={tech.id} />
                         <input
                           name="body"
                           required
-                          className="min-w-52 flex-1 rounded-xl border border-black/15 px-3 py-2 text-xs"
+                          className="w-full flex-1 rounded-xl border border-black/15 px-3 py-2 text-xs sm:min-w-52"
                           placeholder={`Message ${tech.name}`}
                         />
-                        <Button type="submit" size="sm">Send message</Button>
+                        <Button type="submit" size="sm" className="w-full sm:w-auto">Send message</Button>
                       </form>
                     ) : null}
 
                     {profile.role === 'technician' && profile.id === tech.id ? (
-                      <form action={sendStaffMessage} className="mt-3 flex flex-wrap gap-2">
+                      <form action={sendStaffMessage} className="mt-3 flex flex-col gap-2 sm:flex-row">
                         <input type="hidden" name="mode" value="to_workshop" />
                         <input
                           name="body"
                           required
-                          className="min-w-52 flex-1 rounded-xl border border-black/15 px-3 py-2 text-xs"
+                          className="w-full flex-1 rounded-xl border border-black/15 px-3 py-2 text-xs sm:min-w-52"
                           placeholder="Message workshop admin"
                         />
-                        <Button type="submit" size="sm">Message workshop</Button>
+                        <Button type="submit" size="sm" className="w-full sm:w-auto">Message workshop</Button>
                       </form>
                     ) : null}
                   </div>
@@ -636,7 +636,7 @@ export default async function WorkshopTechniciansPage({
                       <form action={removeTechnician} className="mt-2 space-y-2 rounded-xl border border-red-200 bg-red-50 p-3">
                         <input type="hidden" name="technicianId" value={tech.id} />
                         <textarea spellCheck autoCorrect="on" autoCapitalize="sentences" name="reason" required rows={3} className="w-full rounded-xl border border-black/15 px-3 py-2 text-xs" placeholder="Reason for removing this technician" />
-                        <input name="document" type="file" className="w-full rounded-xl border border-black/15 bg-white px-3 py-2 text-xs" />
+                        <input name="document" type="file" accept="application/pdf,image/*" capture="environment" className="w-full rounded-xl border border-black/15 bg-white px-3 py-2 text-xs" />
                         <Button type="submit" variant="destructive" size="sm">Confirm remove</Button>
                       </form>
                     </details>

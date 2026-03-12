@@ -281,6 +281,7 @@ export function CustomerVehicleDetailView({
 
   return (
     <div className="space-y-4 pb-3">
+      <div className="hidden sm:block">
       <HeroHeader
         title={vehicle.registration_number}
         subtitle={`${vehicle.make ?? 'Unknown make'} ${vehicle.model ?? 'Unknown model'} ${vehicle.year ? `(${vehicle.year})` : ''}`}
@@ -400,9 +401,119 @@ export function CustomerVehicleDetailView({
           </>
         }
       />
+      </div>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Card className="space-y-4 rounded-3xl">
+      <section className="rounded-3xl border border-black/10 bg-gradient-to-br from-black via-[#151515] to-[#262626] p-3 text-white shadow-[0_16px_50px_rgba(0,0,0,0.28)] sm:hidden">
+        <div className="space-y-2.5">
+          <div className="flex items-start gap-3">
+            {vehicle.primary_image_path ? (
+              <img
+                src={`/api/uploads/download?bucket=vehicle-images&path=${encodeURIComponent(vehicle.primary_image_path)}`}
+                alt={`${vehicle.registration_number} photo`}
+                className="h-20 w-20 rounded-2xl border border-white/20 object-cover"
+              />
+            ) : (
+              <div className="h-20 w-20 rounded-2xl border border-white/20 bg-white/10" />
+            )}
+            <div className="flex min-h-20 flex-1 flex-col justify-between">
+              <h1 className="truncate text-[2.35rem] font-bold leading-[0.95] tracking-tight">
+                {vehicle.registration_number}
+              </h1>
+              <p className="truncate text-xl font-medium leading-none text-white/85">
+                {vehicle.make ?? 'Unknown make'} {vehicle.model ?? 'Unknown model'} {vehicle.year ? `(${vehicle.year})` : ''}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid w-full grid-cols-3 gap-2">
+            <span
+              className={`flex h-14 flex-col items-center justify-center rounded-full border px-2 text-center text-[11px] ${statusBadgeClass(vehicle.status)}`}
+            >
+              <span className="text-[10px] uppercase tracking-[0.11em] text-white/70">Status</span>
+              <span className="font-semibold uppercase leading-none">{vehicle.status ?? 'Pending'}</span>
+            </span>
+            <span className="flex h-14 flex-col items-center justify-center rounded-full border border-white/20 bg-white/10 px-2 text-center text-[11px]">
+              <span className="text-[10px] uppercase tracking-[0.11em] text-white/70">Mileage</span>
+              <span className="font-semibold leading-none">{vehicle.odometer_km ? `${vehicle.odometer_km.toLocaleString()} km` : 'N/A'}</span>
+            </span>
+            <span className="flex h-14 flex-col items-center justify-center rounded-full border border-white/20 bg-white/10 px-2 text-center text-[11px]">
+              <span className="text-[10px] uppercase tracking-[0.11em] text-white/70">Uploads</span>
+              <span className="font-semibold leading-none">{safeAttachments.length}</span>
+            </span>
+          </div>
+
+          <div className="grid w-full grid-cols-2 gap-2">
+            <span className="inline-flex min-h-10 items-center justify-center rounded-full border border-emerald-300/50 bg-emerald-500/15 px-3 py-1 text-center text-xs font-semibold text-emerald-100">
+              Total spent {money(paidInvoiceTotalCents)}
+            </span>
+            <SendMessageModal
+              vehicles={customerVehiclesForMessage}
+              defaultVehicleId={vehicle.id}
+              triggerClassName="w-full border-white/30 bg-white/10 text-white hover:bg-white/20"
+            />
+            <Button
+              asChild
+              size="sm"
+              className="w-full min-h-10 bg-white text-black hover:bg-gray-100"
+            >
+              <Link href={timelineHref}>View timeline</Link>
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="w-full min-h-10 border-white/30 bg-white/10 text-white hover:bg-white/20"
+              onClick={() => setOpenModal('log')}
+            >
+              Log something
+            </Button>
+            <Button
+              asChild
+              size="sm"
+              variant="secondary"
+              className="w-full min-h-10 border-white/30 bg-white/10 text-white hover:bg-white/20"
+            >
+              <Link href={documentsHref}>Documents</Link>
+            </Button>
+            <div className="relative">
+              <Button
+                size="sm"
+                variant="secondary"
+                className="w-full min-h-10 border-white/30 bg-white/10 px-4 text-base text-white hover:bg-white/20"
+                onClick={() => setMoreOpen((prev) => !prev)}
+              >
+                <Ellipsis className="mr-1 h-4 w-4" /> More
+              </Button>
+              {moreOpen ? (
+                <div className="absolute right-0 z-30 mt-2 w-44 rounded-xl border border-black/15 bg-white p-1 text-sm text-black shadow-xl">
+                  <Button asChild variant="ghost" size="sm" className="w-full justify-start">
+                    <Link href={editHref}>Edit vehicle</Link>
+                  </Button>
+                  <Button variant="ghost" size="sm" className="w-full justify-start" onClick={() => setOpenModal('mileage')}>
+                    Update mileage
+                  </Button>
+                  <Button variant="ghost" size="sm" className="w-full justify-start" onClick={() => setOpenModal('upload')}>
+                    Upload actions
+                  </Button>
+                  <div className="my-1 border-t" />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start text-red-700 hover:bg-red-50"
+                    onClick={() => document.getElementById('danger-zone')?.scrollIntoView({ behavior: 'smooth' })}
+                  >
+                    Remove vehicle
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="px-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500 sm:hidden">Swipe metrics →</div>
+
+      <section className="no-scrollbar -mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-1 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 xl:grid-cols-4">
+        <Card className="w-[78vw] shrink-0 snap-start space-y-3 rounded-3xl p-4 sm:w-auto sm:space-y-4">
           <p className="text-xs uppercase tracking-wide text-gray-500">
             Quotes
           </p>
@@ -421,13 +532,26 @@ export function CustomerVehicleDetailView({
                 pending value
               </p>
             </div>
-            <RingChart
-              size={112}
-              strokeWidth={4}
-              segments={pendingQuoteSegments}
-              centerLabel={`${pendingQuotes.length}`}
-              subLabel="PENDING"
-            />
+            <div className="sm:hidden">
+              <div className="flex flex-col items-center gap-1">
+                <RingChart
+                  size={86}
+                  strokeWidth={4}
+                  segments={pendingQuoteSegments}
+                  centerLabel={`${pendingQuotes.length}`}
+                />
+                <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-gray-500">Pending</p>
+              </div>
+            </div>
+            <div className="hidden sm:block">
+              <RingChart
+                size={112}
+                strokeWidth={4}
+                segments={pendingQuoteSegments}
+                centerLabel={`${pendingQuotes.length}`}
+                subLabel="PENDING"
+              />
+            </div>
           </div>
           <Button
             size="sm"
@@ -439,7 +563,7 @@ export function CustomerVehicleDetailView({
         </Card>
 
         <Card
-          className={`space-y-4 rounded-3xl ${invoicesAllPaid ? 'border-emerald-200 bg-emerald-50/60' : 'border-red-200 bg-red-50/70'}`}
+          className={`w-[78vw] shrink-0 snap-start space-y-3 rounded-3xl p-4 sm:w-auto sm:space-y-4 ${invoicesAllPaid ? 'border-emerald-200 bg-emerald-50/60' : 'border-red-200 bg-red-50/70'}`}
         >
           <p className="text-xs uppercase tracking-wide text-gray-500">
             Invoices
@@ -467,13 +591,26 @@ export function CustomerVehicleDetailView({
                 total spent
               </p>
             </div>
-            <SegmentRing
-              size={110}
-              total={safeInvoices.length || 1}
-              segments={invoiceSegments}
-              centerLabel={`${Math.round(outstandingPercent * 100)}%`}
-              subLabel="Outstanding"
-            />
+            <div className="sm:hidden">
+              <div className="flex flex-col items-center gap-1">
+                <SegmentRing
+                  size={84}
+                  total={safeInvoices.length || 1}
+                  segments={invoiceSegments}
+                  centerLabel={`${Math.round(outstandingPercent * 100)}%`}
+                />
+                <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-gray-500">Outstanding</p>
+              </div>
+            </div>
+            <div className="hidden sm:block">
+              <SegmentRing
+                size={110}
+                total={safeInvoices.length || 1}
+                segments={invoiceSegments}
+                centerLabel={`${Math.round(outstandingPercent * 100)}%`}
+                subLabel="Outstanding"
+              />
+            </div>
           </div>
           <Button asChild size="sm" variant="secondary">
             <Link href={`/customer/invoices?vehicleId=${vehicle.id}`}>
@@ -482,7 +619,7 @@ export function CustomerVehicleDetailView({
           </Button>
         </Card>
 
-        <Card className="space-y-4 rounded-3xl">
+        <Card className="w-[78vw] shrink-0 snap-start space-y-3 rounded-3xl p-4 sm:w-auto sm:space-y-4">
           <p className="text-xs uppercase tracking-wide text-gray-500">
             Requests
           </p>
@@ -499,13 +636,26 @@ export function CustomerVehicleDetailView({
                 · Low {requestBuckets.low}
               </p>
             </div>
-            <SegmentRing
-              size={110}
-              total={openRequests.length || 1}
-              segments={requestSegments}
-              centerLabel={`${openRequests.length}`}
-              subLabel="Open"
-            />
+            <div className="sm:hidden">
+              <div className="flex flex-col items-center gap-1">
+                <SegmentRing
+                  size={84}
+                  total={openRequests.length || 1}
+                  segments={requestSegments}
+                  centerLabel={`${openRequests.length}`}
+                />
+                <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-gray-500">Open</p>
+              </div>
+            </div>
+            <div className="hidden sm:block">
+              <SegmentRing
+                size={110}
+                total={openRequests.length || 1}
+                segments={requestSegments}
+                centerLabel={`${openRequests.length}`}
+                subLabel="Open"
+              />
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button size="sm" onClick={() => setOpenModal('request')}>
@@ -519,7 +669,7 @@ export function CustomerVehicleDetailView({
           </div>
         </Card>
 
-        <Card className="space-y-4 rounded-3xl">
+        <Card className="w-[78vw] shrink-0 snap-start space-y-3 rounded-3xl p-4 sm:w-auto sm:space-y-4">
           <p className="text-xs uppercase tracking-wide text-gray-500">
             Recommendations
           </p>
@@ -536,13 +686,26 @@ export function CustomerVehicleDetailView({
                 {recommendationBuckets.normal} · Low {recommendationBuckets.low}
               </p>
             </div>
-            <SegmentRing
-              size={110}
-              total={openRecommendations.length || 1}
-              segments={recommendationSegments}
-              centerLabel={`${openRecommendations.length}`}
-              subLabel="Open"
-            />
+            <div className="sm:hidden">
+              <div className="flex flex-col items-center gap-1">
+                <SegmentRing
+                  size={84}
+                  total={openRecommendations.length || 1}
+                  segments={recommendationSegments}
+                  centerLabel={`${openRecommendations.length}`}
+                />
+                <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-gray-500">Open</p>
+              </div>
+            </div>
+            <div className="hidden sm:block">
+              <SegmentRing
+                size={110}
+                total={openRecommendations.length || 1}
+                segments={recommendationSegments}
+                centerLabel={`${openRecommendations.length}`}
+                subLabel="Open"
+              />
+            </div>
           </div>
           <Button
             size="sm"
@@ -556,7 +719,7 @@ export function CustomerVehicleDetailView({
 
       <section className="rounded-3xl border border-black/10 bg-white p-5">
         <h3 className="text-lg font-semibold">Quick actions</h3>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <Button
             className="justify-start"
             onClick={() => setOpenModal('request')}
@@ -586,7 +749,7 @@ export function CustomerVehicleDetailView({
           </Button>
           <Button
             variant="secondary"
-            className="justify-start"
+            className="hidden justify-start sm:inline-flex"
             onClick={() => setOpenModal('mileage')}
           >
             Update mileage

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
+import { usePathname } from 'next/navigation';
 import { Modal } from '@/components/ui/modal';
 import { appConfig } from '@/lib/config/app-config';
 import rapidRiseLogo from '@/rapid_rise_ai_logo.png';
@@ -10,6 +11,8 @@ const RAPID_RISE_URL = 'https://www.rapidriseai.com';
 
 export function WatermarkLink() {
   const [isPromptOpen, setIsPromptOpen] = useState(false);
+  const pathname = usePathname();
+  const isAuthRoute = pathname === '/login' || pathname === '/signup' || pathname === '/verify-email';
 
   const handleClick = () => {
     setIsPromptOpen(true);
@@ -24,7 +27,7 @@ export function WatermarkLink() {
     <>
       <button
         type="button"
-        className="watermark"
+        className={isAuthRoute ? 'watermark watermark-auth' : 'watermark'}
         onClick={handleClick}
         aria-label="Visit Rapid Rise AI website"
       >

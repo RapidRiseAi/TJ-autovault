@@ -111,7 +111,7 @@ export function ReportIssueForm({ vehicleId }: { vehicleId: string }) {
         autoCorrect="on"
         autoCapitalize="sentences"
       />
-      <input type="file" className="w-full rounded border p-2" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+      <input type="file" accept="application/pdf,image/*" capture="environment" className="w-full rounded border p-2" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
       <button
         type="submit"
         disabled={isSubmitting}

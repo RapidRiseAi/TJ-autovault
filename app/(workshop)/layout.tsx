@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { PageContainer } from '@/components/layout/page-container';
+import { WorkshopMobileNav } from '@/components/layout/workshop-mobile-nav';
 import { WorkshopSubNav } from '@/components/layout/workshop-sub-nav';
 import { WorkshopTopNav } from '@/components/layout/workshop-top-nav';
 
@@ -11,6 +12,7 @@ export default function WorkshopLayout({ children }: { children: ReactNode }) {
         <WorkshopSubNav />
         {children}
       </PageContainer>
+      <WorkshopMobileNav />
     </div>
   );
 }
