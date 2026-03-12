@@ -98,7 +98,7 @@ export function WorldTimeline({ activities, vehicleId, viewerRole, deletionReque
     return <p className="rounded border border-dashed p-6 text-sm text-gray-600">No timeline activity for this vehicle yet.</p>;
   }
 
-  const chips: Array<{ key: 'all' | ActivityItem['category']; label: string }> = [
+  const categoryOptions: Array<{ key: 'all' | ActivityItem['category']; label: string }> = [
     { key: 'all', label: 'All' },
     { key: 'requests', label: 'Requests' },
     { key: 'quotes', label: 'Quotes' },
@@ -108,24 +108,64 @@ export function WorldTimeline({ activities, vehicleId, viewerRole, deletionReque
     { key: 'system', label: 'System' }
   ];
 
+  const actorOptions: Array<{ key: 'all' | ActivityItem['actorType']; label: string }> = [
+    { key: 'all', label: 'All actors' },
+    { key: 'workshop', label: 'Workshop' },
+    { key: 'technician', label: 'Technician' },
+    { key: 'customer', label: 'Customer' },
+    { key: 'system', label: 'System' }
+  ];
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
-        {chips.map((chip) => (
-          <Button key={chip.key} size="sm" variant={filter === chip.key ? 'primary' : 'secondary'} onClick={() => { setFilter(chip.key); setVisibleCount(12); }}>
-            {chip.label}
-          </Button>
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {(['all', 'workshop', 'technician', 'customer', 'system'] as const).map((chip) => (
-          <Button key={chip} size="sm" variant={actorFilter === chip ? 'primary' : 'secondary'} onClick={() => { setActorFilter(chip); setVisibleCount(12); }}>
-            {chip === 'all' ? 'All actors' : chip}
-          </Button>
-        ))}
-        <Button size="sm" variant="secondary" onClick={() => setSortOrder((prev) => (prev === 'newest' ? 'oldest' : 'newest'))}>
-          Sort: {sortOrder === 'newest' ? 'Newest first' : 'Oldest first'}
-        </Button>
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">
+          Category
+          <select
+            value={filter}
+            onChange={(event) => {
+              setFilter(event.target.value as 'all' | ActivityItem['category']);
+              setVisibleCount(12);
+            }}
+            className="h-10 rounded-xl border border-black/15 bg-white px-3 text-sm font-medium text-black"
+          >
+            {categoryOptions.map((option) => (
+              <option key={option.key} value={option.key}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">
+          Actor
+          <select
+            value={actorFilter}
+            onChange={(event) => {
+              setActorFilter(event.target.value as 'all' | ActivityItem['actorType']);
+              setVisibleCount(12);
+            }}
+            className="h-10 rounded-xl border border-black/15 bg-white px-3 text-sm font-medium text-black"
+          >
+            {actorOptions.map((option) => (
+              <option key={option.key} value={option.key}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">
+          Sort by date
+          <select
+            value={sortOrder}
+            onChange={(event) => setSortOrder(event.target.value as 'newest' | 'oldest')}
+            className="h-10 rounded-xl border border-black/15 bg-white px-3 text-sm font-medium text-black"
+          >
+            <option value="newest">Newest to oldest</option>
+            <option value="oldest">Oldest to newest</option>
+          </select>
+        </label>
       </div>
 
       {highlightedRequest ? (
