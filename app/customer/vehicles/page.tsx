@@ -31,18 +31,25 @@ export default async function CustomerVehiclesPage() {
       />
       <div className="grid gap-3">
         {(vehicles ?? []).map((vehicle) => (
-          <Card key={vehicle.id} className="rounded-2xl p-4">
-            <p className="text-lg font-semibold text-black">{vehicle.registration_number}</p>
-            <p className="text-sm text-gray-600">
-              {vehicle.make ?? 'Unknown make'} {vehicle.model ?? ''} {vehicle.year ? `(${vehicle.year})` : ''}
-            </p>
-            <div className="mt-3 flex items-center justify-between gap-2">
-              <span className="rounded-full border border-black/10 px-2.5 py-1 text-xs capitalize text-gray-600">
-                {vehicle.status ?? 'pending'}
-              </span>
-              <Button asChild size="sm" variant="secondary">
+          <Card key={vehicle.id} className="rounded-2xl p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-base font-semibold text-black">{vehicle.registration_number}</p>
+                <p className="truncate text-xs text-gray-600">
+                  {vehicle.make ?? 'Unknown make'} {vehicle.model ?? ''} {vehicle.year ? `(${vehicle.year})` : ''}
+                </p>
+              </div>
+              <Button asChild size="sm" variant="secondary" className="shrink-0 px-3">
                 <Link href={`/customer/vehicles/${vehicle.id}`}>Open</Link>
               </Button>
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-1.5 text-[11px]">
+              <span className="rounded-full border border-black/10 px-2 py-1 capitalize text-gray-600">
+                {vehicle.status ?? 'pending'}
+              </span>
+              <span className="rounded-full border border-black/10 px-2 py-1 text-gray-600">
+                {vehicle.year ? `Year ${vehicle.year}` : 'Year unknown'}
+              </span>
             </div>
           </Card>
         ))}

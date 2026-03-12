@@ -297,13 +297,13 @@ export function CustomerVehicleDetailView({
           )
         }
         meta={
-          <>
+          <div className="grid w-full grid-cols-2 gap-2">
             <span
               className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase ${statusBadgeClass(vehicle.status)}`}
             >
               {vehicle.status ?? 'Pending'}
             </span>
-            <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
+            <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-right">
               Mileage{' '}
               {vehicle.odometer_km
                 ? `${vehicle.odometer_km.toLocaleString()} km`
@@ -312,24 +312,30 @@ export function CustomerVehicleDetailView({
             <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
               Uploads {safeAttachments.length}
             </span>
-            <span className="rounded-full border border-emerald-300/50 bg-emerald-500/15 px-3 py-1 text-emerald-100">
+            <span className="rounded-full border border-emerald-300/50 bg-emerald-500/15 px-3 py-1 text-right text-emerald-100">
               Total spent {money(paidInvoiceTotalCents)}
             </span>
-          </>
+          </div>
         }
         actions={
-          <>
+          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
+            <div className="hidden sm:block" aria-hidden />
+            <SendMessageModal
+              vehicles={customerVehiclesForMessage}
+              defaultVehicleId={vehicle.id}
+              triggerClassName="col-start-2 w-full border-white/30 bg-white/10 text-white hover:bg-white/20 sm:w-auto"
+            />
             <Button
               asChild
               size="sm"
-              className="w-[calc(50%-0.25rem)] min-h-10 bg-white text-black hover:bg-gray-100 sm:w-auto"
+              className="w-full min-h-10 bg-white text-black hover:bg-gray-100 sm:w-auto"
             >
               <Link href={timelineHref}>View timeline</Link>
             </Button>
             <Button
               size="sm"
               variant="secondary"
-              className="w-[calc(50%-0.25rem)] min-h-10 border-white/30 bg-white/10 text-white hover:bg-white/20 sm:w-auto"
+              className="w-full min-h-10 border-white/30 bg-white/10 text-white hover:bg-white/20 sm:w-auto"
               onClick={() => setOpenModal('log')}
             >
               Log something
@@ -338,20 +344,15 @@ export function CustomerVehicleDetailView({
               asChild
               size="sm"
               variant="secondary"
-              className="w-[calc(50%-0.25rem)] min-h-10 border-white/30 bg-white/10 text-white hover:bg-white/20 sm:w-auto"
+              className="w-full min-h-10 border-white/30 bg-white/10 text-white hover:bg-white/20 sm:w-auto"
             >
               <Link href={documentsHref}>Documents</Link>
             </Button>
-            <SendMessageModal
-              vehicles={customerVehiclesForMessage}
-              defaultVehicleId={vehicle.id}
-              triggerClassName="w-[calc(50%-0.25rem)] border-white/30 bg-white/10 text-white hover:bg-white/20 sm:w-auto"
-            />
             <div className="relative">
               <Button
                 size="sm"
                 variant="secondary"
-                className="w-[calc(50%-0.25rem)] min-h-10 border-white/30 bg-white/10 text-white hover:bg-white/20 sm:w-auto"
+                className="w-full min-h-10 border-white/30 bg-white/10 px-4 text-base text-white hover:bg-white/20 sm:w-auto sm:text-sm"
                 onClick={() => setMoreOpen((prev) => !prev)}
               >
                 <Ellipsis className="mr-1 h-4 w-4" /> More
@@ -398,14 +399,14 @@ export function CustomerVehicleDetailView({
                 </div>
               ) : null}
             </div>
-          </>
+          </div>
         }
       />
 
       <div className="px-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500 sm:hidden">Swipe metrics →</div>
 
       <section className="no-scrollbar -mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-1 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 xl:grid-cols-4">
-        <Card className="w-[72vw] shrink-0 snap-start space-y-3 rounded-3xl border-black/10 bg-gradient-to-br from-white to-neutral-50 sm:w-auto">
+        <Card className="w-[64vw] shrink-0 snap-start space-y-2 rounded-3xl border-black/10 bg-gradient-to-br from-white to-neutral-50 p-4 sm:w-auto">
           <p className="text-xs uppercase tracking-wide text-gray-500">
             Quotes
           </p>
@@ -425,7 +426,7 @@ export function CustomerVehicleDetailView({
               </p>
             </div>
             <RingChart
-              size={72}
+              size={64}
               strokeWidth={4}
               segments={pendingQuoteSegments}
               centerLabel={`${pendingQuotes.length}`}
@@ -442,7 +443,7 @@ export function CustomerVehicleDetailView({
         </Card>
 
         <Card
-          className={`w-[72vw] shrink-0 snap-start space-y-3 rounded-3xl sm:w-auto ${invoicesAllPaid ? 'border-emerald-200 bg-gradient-to-br from-emerald-50/80 to-white' : 'border-red-200 bg-gradient-to-br from-red-50/70 to-white'}`}
+          className={`w-[64vw] shrink-0 snap-start space-y-2 rounded-3xl p-4 sm:w-auto ${invoicesAllPaid ? 'border-emerald-200 bg-gradient-to-br from-emerald-50/80 to-white' : 'border-red-200 bg-gradient-to-br from-red-50/70 to-white'}`}
         >
           <p className="text-xs uppercase tracking-wide text-gray-500">
             Invoices
@@ -471,7 +472,7 @@ export function CustomerVehicleDetailView({
               </p>
             </div>
             <SegmentRing
-              size={72}
+              size={64}
               total={safeInvoices.length || 1}
               segments={invoiceSegments}
               centerLabel={`${Math.round(outstandingPercent * 100)}%`}
@@ -485,7 +486,7 @@ export function CustomerVehicleDetailView({
           </Button>
         </Card>
 
-        <Card className="w-[72vw] shrink-0 snap-start space-y-3 rounded-3xl border-black/10 bg-gradient-to-br from-white to-neutral-50 sm:w-auto">
+        <Card className="w-[64vw] shrink-0 snap-start space-y-2 rounded-3xl border-black/10 bg-gradient-to-br from-white to-neutral-50 p-4 sm:w-auto">
           <p className="text-xs uppercase tracking-wide text-gray-500">
             Requests
           </p>
@@ -503,7 +504,7 @@ export function CustomerVehicleDetailView({
               </p>
             </div>
             <SegmentRing
-              size={72}
+              size={64}
               total={openRequests.length || 1}
               segments={requestSegments}
               centerLabel={`${openRequests.length}`}
@@ -522,7 +523,7 @@ export function CustomerVehicleDetailView({
           </div>
         </Card>
 
-        <Card className="w-[72vw] shrink-0 snap-start space-y-3 rounded-3xl border-black/10 bg-gradient-to-br from-white to-neutral-50 sm:w-auto">
+        <Card className="w-[64vw] shrink-0 snap-start space-y-2 rounded-3xl border-black/10 bg-gradient-to-br from-white to-neutral-50 p-4 sm:w-auto">
           <p className="text-xs uppercase tracking-wide text-gray-500">
             Recommendations
           </p>
@@ -540,7 +541,7 @@ export function CustomerVehicleDetailView({
               </p>
             </div>
             <SegmentRing
-              size={72}
+              size={64}
               total={openRecommendations.length || 1}
               segments={recommendationSegments}
               centerLabel={`${openRecommendations.length}`}

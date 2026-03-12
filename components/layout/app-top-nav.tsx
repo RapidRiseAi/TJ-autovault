@@ -35,10 +35,10 @@ export async function AppTopNav() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-black/10 bg-white/95 backdrop-blur">
-      <div className="mx-auto flex min-h-[78px] w-full max-w-[1320px] items-end justify-between px-4 pb-2 pt-4 sm:min-h-[74px] sm:px-6 sm:pt-3 lg:px-8">
+      <div className="mx-auto flex min-h-[64px] w-full max-w-[1320px] items-end justify-between px-4 pb-1.5 pt-2 sm:min-h-[62px] sm:px-6 sm:pt-2 lg:px-8">
         <Link
           href="/customer/dashboard"
-          className="text-sm font-semibold uppercase tracking-[0.18em] text-brand-black sm:text-base"
+          className="text-base font-semibold uppercase tracking-[0.16em] text-brand-black sm:text-[1.02rem]"
         >
           TJ service & repairs
         </Link>

@@ -34,13 +34,13 @@ function OverviewTile({
   ring?: ReactNode;
 }) {
   const tile = (
-    <div className="h-full rounded-2xl border border-black/10 bg-white/95 p-3 shadow-[0_6px_24px_rgba(17,17,17,0.06)]">
+    <div className="h-full rounded-2xl border border-black/10 bg-white/95 p-2.5 shadow-[0_6px_20px_rgba(17,17,17,0.06)]">
       <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-500">
         {title}
       </p>
       <div className="mt-2 flex items-center justify-between gap-3">
         <div className="min-w-0 space-y-1">
-          <p className="text-base font-semibold text-black sm:text-lg">{value}</p>
+          <p className="text-sm font-semibold text-black sm:text-base">{value}</p>
           {detail ? <p className="text-xs text-gray-600">{detail}</p> : null}
           {secondary ? <p className="text-[11px] text-gray-500">{secondary}</p> : null}
         </div>
@@ -211,7 +211,7 @@ export default async function CustomerDashboardPage() {
           detail={`${Math.max(allowedVehicles - usedVehicles, 0)} available`}
           ring={
             <SegmentRing
-              size={66}
+              size={58}
               centerLabel={`${usedVehicles}/${allowedVehicles}`}
               subLabel="Slots"
               total={allowedVehicles}
@@ -262,44 +262,47 @@ export default async function CustomerDashboardPage() {
           ) : null}
           {(vehicles ?? []).map((vehicle) => (
             <Card key={vehicle.id} className="rounded-2xl border border-black/10 p-3 shadow-[0_8px_26px_rgba(17,17,17,0.06)]">
-              <div className="flex gap-3 sm:block">
-              {vehicle.primary_image_path ? (
-                <img
-                  src={`/api/uploads/download?bucket=vehicle-images&path=${encodeURIComponent(vehicle.primary_image_path)}`}
-                  alt={`${vehicle.registration_number} vehicle`}
-                  className="h-24 w-24 rounded-xl object-cover sm:h-28 sm:w-full"
-                />
-              ) : (
-                <div className="h-24 w-24 rounded-xl bg-gray-100 sm:h-28 sm:w-full" />
-              )}
-              <div>
-                <h2 className="text-lg font-semibold">{vehicle.registration_number}</h2>
-                <p className="text-sm text-gray-600">
-                  {vehicle.make ?? 'Unknown'} {vehicle.model ?? ''}{' '}
-                  {vehicle.year ? `(${vehicle.year})` : ''}
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <span
-                  className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase ${vehicleStatusTone(vehicle.status)}`}
-                >
-                  {vehicle.status ?? 'pending'}
-                </span>
-                <span className="rounded-full border border-black/10 bg-gray-50 px-2.5 py-1 text-[11px] text-gray-700">
-                  Outstanding {formatMoney(outstandingByVehicle.get(vehicle.id) ?? 0)}
-                </span>
-                <span className="rounded-full border border-black/10 bg-gray-50 px-2.5 py-1 text-[11px] text-gray-700">
-                  Open requests {requestByVehicle.get(vehicle.id) ?? 0}
-                </span>
-                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] text-emerald-700">
-                  Total spent {formatMoney(spentByVehicle.get(vehicle.id) ?? 0)}
-                </span>
-              </div>
-              <div className="mt-2 sm:mt-3">
-              <Button asChild variant="secondary" size="sm" className="w-full">
-                <Link href={customerVehicle(vehicle.id)}>Open vehicle</Link>
-              </Button>
-              </div>
+              <div className="grid grid-cols-[84px_minmax(0,1fr)] gap-3">
+                {vehicle.primary_image_path ? (
+                  <img
+                    src={`/api/uploads/download?bucket=vehicle-images&path=${encodeURIComponent(vehicle.primary_image_path)}`}
+                    alt={`${vehicle.registration_number} vehicle`}
+                    className="h-24 w-full rounded-xl object-cover"
+                  />
+                ) : (
+                  <div className="h-24 w-full rounded-xl bg-gray-100" />
+                )}
+                <div className="min-w-0 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <h2 className="truncate text-base font-semibold">{vehicle.registration_number}</h2>
+                      <p className="truncate text-xs text-gray-600">
+                        {vehicle.make ?? 'Unknown'} {vehicle.model ?? ''}{' '}
+                        {vehicle.year ? `(${vehicle.year})` : ''}
+                      </p>
+                    </div>
+                    <Button asChild variant="secondary" size="sm" className="shrink-0 px-3">
+                      <Link href={customerVehicle(vehicle.id)}>Open</Link>
+                    </Button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+                    <span
+                      className={`rounded-full border px-2 py-1 font-semibold uppercase ${vehicleStatusTone(vehicle.status)}`}
+                    >
+                      {vehicle.status ?? 'pending'}
+                    </span>
+                    <span className="rounded-full border border-black/10 bg-gray-50 px-2 py-1 text-gray-700">
+                      Open {requestByVehicle.get(vehicle.id) ?? 0}
+                    </span>
+                    <span className="rounded-full border border-black/10 bg-gray-50 px-2 py-1 text-gray-700">
+                      Due {formatMoney(outstandingByVehicle.get(vehicle.id) ?? 0)}
+                    </span>
+                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-emerald-700">
+                      Spent {formatMoney(spentByVehicle.get(vehicle.id) ?? 0)}
+                    </span>
+                  </div>
+                </div>
               </div>
             </Card>
           ))}
