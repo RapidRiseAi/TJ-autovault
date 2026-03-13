@@ -95,16 +95,28 @@ function TrendBars({
               <div className="mx-auto flex h-36 items-end justify-center">
                 <div className={`relative w-full max-w-9 rounded-t-md ${colorClass}`} style={{ height }} title={`${row.label}: ${formatValue(value)}`}>
                   {value > 0 ? (
-                    <span className="absolute bottom-1.5 left-1/2 -translate-x-1/2">
-                      <span
-                        className="block origin-bottom whitespace-nowrap text-[9px] font-semibold leading-none text-white -rotate-90 md:text-[18px]"
+                    <svg
+                      viewBox="0 0 100 100"
+                      className="pointer-events-none absolute inset-0 overflow-visible"
+                      preserveAspectRatio="none"
+                      aria-hidden
+                    >
+                      <text
+                        x="50"
+                        y="94"
+                        textAnchor="middle"
+                        dominantBaseline="text-after-edge"
+                        transform="rotate(-90 50 94)"
+                        className="fill-white text-[9px] font-semibold md:text-[18px]"
                         style={{
-                          textShadow: '-0.6px 0 #111, 0 0.6px #111, 0.6px 0 #111, 0 -0.6px #111'
+                          paintOrder: 'stroke',
+                          stroke: '#111',
+                          strokeWidth: '1.1px'
                         }}
                       >
                         {formatValue(value)}
-                      </span>
-                    </span>
+                      </text>
+                    </svg>
                   ) : null}
                 </div>
               </div>
