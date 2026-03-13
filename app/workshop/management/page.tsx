@@ -66,17 +66,21 @@ function TrendBars({
   const visibleRows = rowsWithData.length ? rowsWithData : rows.slice(-1);
   const values = visibleRows.map((row) => Math.max(0, row[keyName]));
   const max = Math.max(...values, 1);
+  const compact = (num: number, maxDecimals: number) => num.toFixed(maxDecimals).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1');
+
   const formatValue = (value: number) => {
     const normalized = Math.max(0, Math.floor(value));
-    if (normalized >= 1_000_000) {
-      const short = (normalized / 1_000_000).toFixed(3).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1');
-      return keyName === 'customers' ? `${short}M` : `R ${short}M`;
+
+    if (keyName === 'customers') {
+      if (normalized >= 1_000_000) return `${compact(normalized / 1_000_000, 3)}M`;
+      if (normalized >= 1_000) return `${compact(normalized / 1_000, 2)}K`;
+      return `${normalized}`;
     }
-    if (normalized >= 1_000) {
-      const short = (normalized / 1_000).toFixed(2).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1');
-      return keyName === 'customers' ? `${short}K` : `R ${short}K`;
-    }
-    return keyName === 'customers' ? `${normalized}` : `R ${normalized}`;
+
+    const randValue = normalized / 100;
+    if (randValue >= 1_000_000) return `R ${compact(randValue / 1_000_000, 3)}M`;
+    if (randValue >= 1_000) return `R ${compact(randValue / 1_000, 2)}K`;
+    return `R ${Math.floor(randValue)}`;
   };
 
   return (
@@ -92,7 +96,7 @@ function TrendBars({
                 <div className={`relative w-full max-w-9 rounded-t-md ${colorClass}`} style={{ height }} title={`${row.label}: ${formatValue(value)}`}>
                   {value > 0 ? (
                     <span
-                      className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap text-[9px] font-semibold leading-none text-white rotate-[-90deg] md:text-[18px]"
+                      className="absolute bottom-1 left-1/2 origin-bottom -translate-x-1/2 whitespace-nowrap text-[9px] font-semibold leading-none text-white -rotate-90 md:text-[18px]"
                       style={{ textShadow: '-0.6px 0 #111, 0 0.6px #111, 0.6px 0 #111, 0 -0.6px #111' }}
                     >
                       {formatValue(value)}
