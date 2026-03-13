@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { splitBillingAddress } from '@/lib/customer/billing-address';
 
 export type OnboardingTask = {
   id: string;
@@ -28,13 +29,11 @@ export async function getCustomerOnboardingChecklist(input: {
 }): Promise<CustomerOnboardingChecklist> {
   const { supabase, userId, customerAccountId } = input;
 
-  const [{ data: profile }, { count: vehicleCount }, { data: notificationPrefs }] =
+  const [{ data: profile }, { count: vehicleCount }, { data: notificationPrefs }, { data: account }] =
     await Promise.all([
       supabase
         .from('profiles')
-        .select(
-          'full_name,phone,preferred_contact_method,billing_name,billing_address,avatar_url'
-        )
+        .select('full_name,phone,preferred_contact_method,avatar_url')
         .eq('id', userId)
         .maybeSingle(),
       supabase
@@ -45,17 +44,42 @@ export async function getCustomerOnboardingChecklist(input: {
         .from('notification_email_preferences')
         .select('profile_id')
         .eq('profile_id', userId)
+        .maybeSingle(),
+      supabase
+        .from('customer_accounts')
+        .select('billing_name,billing_company,billing_address,billing_email,billing_phone,billing_tax_number')
+        .eq('id', customerAccountId)
         .maybeSingle()
     ]);
 
   const hasFullName = Boolean(profile?.full_name?.trim());
   const hasPhone = Boolean(profile?.phone?.trim());
   const hasContactMethod = Boolean(profile?.preferred_contact_method?.trim());
-  const hasBillingName = Boolean(profile?.billing_name?.trim());
-  const hasBillingAddress = Boolean(profile?.billing_address?.trim());
   const hasAvatar = Boolean(profile?.avatar_url?.trim());
   const hasVehicle = (vehicleCount ?? 0) > 0;
   const reviewedNotificationPreferences = Boolean(notificationPrefs?.profile_id);
+
+  const billingAddress = splitBillingAddress(account?.billing_address);
+  const hasBillingName = Boolean(account?.billing_name?.trim());
+  const hasBillingCompany = Boolean(account?.billing_company?.trim());
+  const hasBillingEmail = Boolean(account?.billing_email?.trim());
+  const hasBillingPhone = Boolean(account?.billing_phone?.trim());
+  const hasBillingTaxNumber = Boolean(account?.billing_tax_number?.trim());
+  const hasBillingStreet = Boolean(billingAddress.street.trim());
+  const hasBillingCity = Boolean(billingAddress.city.trim());
+  const hasBillingProvince = Boolean(billingAddress.province.trim());
+  const hasBillingPostalCode = Boolean(billingAddress.postalCode.trim());
+
+  const billingDetailsComplete =
+    hasBillingName &&
+    hasBillingCompany &&
+    hasBillingEmail &&
+    hasBillingPhone &&
+    hasBillingTaxNumber &&
+    hasBillingStreet &&
+    hasBillingCity &&
+    hasBillingProvince &&
+    hasBillingPostalCode;
 
   const profileTasks: OnboardingTask[] = [
     {
@@ -77,10 +101,11 @@ export async function getCustomerOnboardingChecklist(input: {
     {
       id: 'billing',
       title: 'Complete billing details',
-      description: 'Fill in billing name and address for statements and invoices.',
+      description:
+        'Fill all billing fields (name, company, email, phone, VAT, and full address) for invoicing.',
       href: '/customer/profile/edit',
       required: true,
-      complete: hasBillingName && hasBillingAddress
+      complete: billingDetailsComplete
     },
     {
       id: 'vehicle',

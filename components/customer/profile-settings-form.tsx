@@ -37,7 +37,13 @@ export function ProfileSettingsForm({
     avatar_url: string;
     billing_name: string;
     company_name: string;
-    billing_address: string;
+    billing_email: string;
+    billing_phone: string;
+    billing_tax_number: string;
+    billing_address_street: string;
+    billing_address_city: string;
+    billing_address_province: string;
+    billing_address_postal_code: string;
   };
   email: string;
   avatarRules: AvatarRules;
@@ -105,9 +111,10 @@ export function ProfileSettingsForm({
             return;
           }
 
-          // Upload directly from browser to Storage, then send only metadata to the server action.
           const supabase = createBrowserSupabaseClient();
-          const { error } = await supabase.storage.from(signPayload.bucket).uploadToSignedUrl(signPayload.path, signPayload.token, file);
+          const { error } = await supabase.storage
+            .from(signPayload.bucket)
+            .uploadToSignedUrl(signPayload.path, signPayload.token, file);
           if (error) {
             setAvatarError(error.message || 'Avatar upload failed. Please try again.');
             return;
@@ -115,8 +122,6 @@ export function ProfileSettingsForm({
 
           setUploadedAvatarUrl(signPayload.publicUrl);
           formData.set('avatar_url', signPayload.publicUrl);
-
-          // Prevent the raw file from being part of the server action payload.
           formData.delete('avatar');
         }
 
@@ -195,15 +200,54 @@ export function ProfileSettingsForm({
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium" htmlFor="company_name">
-            Company name
+            Billing company
           </label>
           <input id="company_name" name="company_name" defaultValue={defaults.company_name} className="w-full rounded-xl border border-black/15 px-3 py-2 text-sm" />
         </div>
-        <div className="sm:col-span-2">
-          <label className="mb-1 block text-sm font-medium" htmlFor="billing_address">
-            Address
+        <div>
+          <label className="mb-1 block text-sm font-medium" htmlFor="billing_email">
+            Billing email
           </label>
-          <textarea spellCheck autoCorrect="on" autoCapitalize="sentences" id="billing_address" name="billing_address" defaultValue={defaults.billing_address} rows={3} className="w-full rounded-xl border border-black/15 px-3 py-2 text-sm" />
+          <input id="billing_email" name="billing_email" type="email" defaultValue={defaults.billing_email} className="w-full rounded-xl border border-black/15 px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium" htmlFor="billing_phone">
+            Billing phone
+          </label>
+          <input id="billing_phone" name="billing_phone" defaultValue={defaults.billing_phone} className="w-full rounded-xl border border-black/15 px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium" htmlFor="billing_tax_number">
+            Billing tax / VAT number
+          </label>
+          <input id="billing_tax_number" name="billing_tax_number" defaultValue={defaults.billing_tax_number} className="w-full rounded-xl border border-black/15 px-3 py-2 text-sm" />
+        </div>
+      </section>
+
+      <section className="grid gap-4 sm:grid-cols-2">
+        <div className="sm:col-span-2">
+          <label className="mb-1 block text-sm font-medium" htmlFor="billing_address_street">
+            Street address
+          </label>
+          <input id="billing_address_street" name="billing_address_street" defaultValue={defaults.billing_address_street} className="w-full rounded-xl border border-black/15 px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium" htmlFor="billing_address_city">
+            City
+          </label>
+          <input id="billing_address_city" name="billing_address_city" defaultValue={defaults.billing_address_city} className="w-full rounded-xl border border-black/15 px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium" htmlFor="billing_address_province">
+            Province / state
+          </label>
+          <input id="billing_address_province" name="billing_address_province" defaultValue={defaults.billing_address_province} className="w-full rounded-xl border border-black/15 px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium" htmlFor="billing_address_postal_code">
+            Postal code
+          </label>
+          <input id="billing_address_postal_code" name="billing_address_postal_code" defaultValue={defaults.billing_address_postal_code} className="w-full rounded-xl border border-black/15 px-3 py-2 text-sm" />
         </div>
       </section>
 
