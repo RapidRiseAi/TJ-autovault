@@ -62,24 +62,50 @@ function TrendBars({
   keyName: 'income' | 'expenses' | 'profit' | 'customers';
   colorClass: string;
 }) {
-  const values = rows.map((row) => Math.max(0, row[keyName]));
+  const rowsWithData = rows.filter((row) => Math.max(0, row[keyName]) > 0);
+  const visibleRows = rowsWithData.length ? rowsWithData : rows.slice(-1);
+  const values = visibleRows.map((row) => Math.max(0, row[keyName]));
   const max = Math.max(...values, 1);
-  const formatValue = (value: number) => (keyName === 'customers' ? String(value) : formatMoney(value));
+  const compact = (num: number, maxDecimals: number) => num.toFixed(maxDecimals).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1');
+
+  const formatValue = (value: number) => {
+    const normalized = Math.max(0, Math.floor(value));
+
+    if (keyName === 'customers') {
+      if (normalized >= 1_000_000) return `${compact(normalized / 1_000_000, 3)}M`;
+      if (normalized >= 1_000) return `${compact(normalized / 1_000, 2)}K`;
+      return `${normalized}`;
+    }
+
+    const randValue = normalized / 100;
+    if (randValue >= 1_000_000) return `R ${compact(randValue / 1_000_000, 3)}M`;
+    if (randValue >= 1_000) return `R ${compact(randValue / 1_000, 2)}K`;
+    return `R ${Math.floor(randValue)}`;
+  };
 
   return (
     <Card className="rounded-3xl border-black/10 p-5">
       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500">{title}</p>
-      <div className="mt-4 grid grid-cols-12 items-end gap-2">
-        {rows.map((row) => {
+      <div className="mt-4 flex items-end gap-2">
+        {visibleRows.map((row) => {
           const value = Math.max(0, row[keyName]);
           const height = value === 0 ? 0 : Math.max(10, Math.round((value / max) * 128));
           return (
-            <div key={`${title}-${row.monthKey}`} className="space-y-2 text-center">
+            <div key={`${title}-${row.monthKey}`} className="min-w-0 flex-1 space-y-2 text-center">
               <div className="mx-auto flex h-36 items-end justify-center">
-                <div className={`relative w-6 overflow-hidden rounded-t-md ${colorClass}`} style={{ height }} title={`${row.label}: ${formatValue(value)}`}>
+                <div className={`relative w-full max-w-9 rounded-t-md ${colorClass}`} style={{ height }} title={`${row.label}: ${formatValue(value)}`}>
                   {value > 0 ? (
-                    <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap text-[9px] font-semibold leading-none text-white rotate-[-90deg]">
-                      {formatValue(value)}
+                    <span className="pointer-events-none absolute bottom-1.5 left-1/2 translate-x-1.5 md:translate-x-2">
+                      <span
+                        className="block whitespace-nowrap text-[12px] font-semibold leading-none text-white md:text-[24px]"
+                        style={{
+                          transform: 'rotate(-90deg)',
+                          transformOrigin: 'left bottom',
+                          textShadow: '-0.6px 0 #111, 0 0.6px #111, 0.6px 0 #111, 0 -0.6px #111'
+                        }}
+                      >
+                        {formatValue(value)}
+                      </span>
                     </span>
                   ) : null}
                 </div>

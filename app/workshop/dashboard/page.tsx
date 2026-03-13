@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -96,6 +97,36 @@ function formatDate(value: string) {
     month: 'short',
     year: 'numeric'
   });
+}
+
+function CollapsibleDashboardPanel({
+  title,
+  action,
+  defaultOpen = false,
+  children,
+  id
+}: {
+  title: string;
+  action?: ReactNode;
+  defaultOpen?: boolean;
+  children: ReactNode;
+  id?: string;
+}) {
+  return (
+    <SectionCard id={id}>
+      <details open={defaultOpen} className="group">
+        <summary className="mb-4 flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
+          <h2 className="text-lg font-semibold text-brand-black">{title}</h2>
+          <div className="flex items-center gap-3">
+            {action}
+            <span className="text-xs font-medium text-gray-500 group-open:hidden">Expand</span>
+            <span className="hidden text-xs font-medium text-gray-500 group-open:inline">Collapse</span>
+          </div>
+        </summary>
+        <div>{children}</div>
+      </details>
+    </SectionCard>
+  );
 }
 
 export default async function WorkshopDashboardPage({ searchParams }: { searchParams?: Promise<{ clocked?: string }> }) {
@@ -198,24 +229,26 @@ export default async function WorkshopDashboardPage({ searchParams }: { searchPa
 
   return (
     <main className="space-y-7 pb-2">
-      <HeroHeader
-        title="Workshop dashboard"
-        subtitle="Track customers, active jobs, and billing from one polished workspace."
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <SendMessageModal
-              vehicles={(customerVehicles ?? []).map((vehicle) => ({ id: vehicle.id, registration_number: vehicle.registration_number }))}
-              customers={customerRows.map((customer) => ({ id: customer.id, name: customer.name }))}
-            />
-            <Button asChild variant="secondary" className="shadow-sm hover:-translate-y-px hover:shadow-md">
-              <Link href="/workshop/management">Open management center</Link>
-            </Button>
-            <Button asChild className="shadow-sm hover:-translate-y-px hover:shadow-md">
-              <Link href="/workshop/work-requests">Open work request board</Link>
-            </Button>
-          </div>
-        }
-      />
+      <div className="hidden md:block">
+        <HeroHeader
+          title="Workshop dashboard"
+          subtitle="Track customers, active jobs, and billing from one polished workspace."
+          actions={
+            <div className="flex flex-wrap gap-2">
+              <SendMessageModal
+                vehicles={(customerVehicles ?? []).map((vehicle) => ({ id: vehicle.id, registration_number: vehicle.registration_number }))}
+                customers={customerRows.map((customer) => ({ id: customer.id, name: customer.name }))}
+              />
+              <Button asChild variant="secondary" className="shadow-sm hover:-translate-y-px hover:shadow-md">
+                <Link href="/workshop/management">Open management center</Link>
+              </Button>
+              <Button asChild className="shadow-sm hover:-translate-y-px hover:shadow-md">
+                <Link href="/workshop/work-requests">Open work request board</Link>
+              </Button>
+            </div>
+          }
+        />
+      </div>
 
       {profile.role === 'technician' && !todaysAttendance ? (
         <SectionCard className="rounded-3xl border border-amber-200 bg-amber-50 p-5">
@@ -232,7 +265,69 @@ export default async function WorkshopDashboardPage({ searchParams }: { searchPa
         <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">Clock-in response saved for today.</p>
       ) : null}
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <section className="grid grid-cols-3 gap-2.5 md:hidden">
+        <article className="rounded-2xl border border-neutral-200 bg-white p-3 shadow-[0_10px_20px_rgba(17,17,17,0.06)]">
+          <div className="flex items-center gap-2.5">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-neutral-100 text-neutral-900">
+              <UserRound className="h-4 w-4" />
+            </span>
+            <div>
+              <p className="text-base font-bold leading-none text-neutral-900">{customerRows.length}</p>
+              <p className="text-[11px] text-gray-500">Customers</p>
+            </div>
+          </div>
+        </article>
+
+        <article className="rounded-2xl border border-neutral-200 bg-white p-3 shadow-[0_10px_20px_rgba(17,17,17,0.06)]">
+          <div className="flex items-center gap-2.5">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-neutral-100 text-neutral-900">
+              <Car className="h-4 w-4" />
+            </span>
+            <div>
+              <p className="text-base font-bold leading-none text-neutral-900">{totalVehicles}</p>
+              <p className="text-[11px] text-gray-500">Vehicles</p>
+            </div>
+          </div>
+        </article>
+
+        <article className={`rounded-2xl border bg-white p-3 shadow-[0_10px_20px_rgba(17,17,17,0.06)] ${openRequestCount > 0 ? 'border-amber-200' : 'border-neutral-200'}`}>
+          <div className="flex items-center gap-2.5">
+            <span className={`inline-flex h-8 w-8 items-center justify-center rounded-full ${openRequestCount > 0 ? 'bg-amber-100 text-amber-700' : 'bg-neutral-100 text-neutral-500'}`}>
+              <AlertTriangle className="h-4 w-4" />
+            </span>
+            <div>
+              <p className="text-base font-bold leading-none text-neutral-900">{openRequestCount}</p>
+              <p className="text-[11px] text-gray-500">Open requests</p>
+            </div>
+          </div>
+        </article>
+
+        <article className="col-span-3 rounded-2xl border border-neutral-200 bg-white p-3.5 shadow-[0_10px_20px_rgba(17,17,17,0.06)]">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-500">Outstanding invoices</p>
+          <div className="mt-2 flex items-center justify-between gap-2.5">
+            {unpaidInvoiceCount > 0 && totalOutstandingCents > 0 ? (
+              <SegmentRing
+                size={70}
+                centerLabel={`${unpaidInvoiceCount}`}
+                subLabel="unpaid"
+                segments={outstandingSegments}
+                total={totalOutstandingCents}
+              />
+            ) : (
+              <div className="flex h-[74px] w-[74px] flex-col items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700">
+                <CheckCircle2 className="h-6 w-6" />
+                <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.14em]">Paid</p>
+              </div>
+            )}
+            <div className="min-w-0 text-right">
+              <p className="text-base font-bold leading-none text-neutral-900">{new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 }).format(totalOutstandingCents / 100)}</p>
+              <p className="mt-1 text-[11px] text-gray-500">Amount unpaid</p>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section className="hidden gap-3 md:grid md:grid-cols-2 xl:grid-cols-3">
         <article className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-[0_14px_30px_rgba(17,17,17,0.08)]">
           <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">Customers & vehicles</p>
           <div className="grid grid-cols-2 divide-x divide-neutral-200">
@@ -302,13 +397,14 @@ export default async function WorkshopDashboardPage({ searchParams }: { searchPa
         </article>
       </section>
 
-      <SectionCard>
-        <div className="mb-5 flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-brand-black">Customers</h2>
+      <CollapsibleDashboardPanel
+        title="Customers"
+        action={
           <Button asChild size="sm" variant="secondary">
             <Link href="/workshop/customers">View all</Link>
           </Button>
-        </div>
+        }
+      >
         {customersError ? (
           <EmptyState
             title="Unable to load customers"
@@ -350,31 +446,33 @@ export default async function WorkshopDashboardPage({ searchParams }: { searchPa
             ) : null}
           </div>
         ) : null}
-      </SectionCard>
+      </CollapsibleDashboardPanel>
 
 
-      <SectionCard>
-        <div className="mb-5 flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-brand-black">Vehicle list</h2>
+      <CollapsibleDashboardPanel
+        title="Vehicle list"
+        action={
           <Button asChild size="sm" variant="secondary">
             <Link href="/workshop/customers">Manage customers</Link>
           </Button>
-        </div>
+        }
+      >
         {!customerVehicles?.length ? (
           <EmptyState title="No vehicles yet" description="Vehicles linked to your customers will appear here." />
         ) : (
           <div className="grid gap-2 md:grid-cols-2">
             {customerVehicles.map((vehicle) => (
               <div key={vehicle.id} className="rounded-xl border border-neutral-200 p-3">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start justify-between gap-2 sm:flex-row sm:items-center">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-brand-black">{getVehicleDisplayName(vehicle)}</p>
                     <p className="truncate text-xs text-gray-500">{vehicle.registration_number}</p>
                     <p className="truncate text-xs text-gray-400">{vehicle.current_customer_account_id ? customerNameById.get(vehicle.current_customer_account_id) ?? 'Customer unavailable' : 'Customer unavailable'}</p>
+                    <span className="mt-2 inline-flex rounded-full border border-black/10 bg-white px-2 py-1 text-[10px] uppercase text-gray-600 sm:hidden">{vehicle.status ?? 'active'}</span>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                    <span className="rounded-full border border-black/10 bg-white px-2 py-1 text-[10px] uppercase text-gray-600">{vehicle.status ?? 'active'}</span>
-                    <Button asChild size="sm" variant="secondary" className="w-full sm:w-auto">
+                  <div className="flex shrink-0 items-center gap-2 sm:justify-end">
+                    <span className="hidden rounded-full border border-black/10 bg-white px-2 py-1 text-[10px] uppercase text-gray-600 sm:inline-flex">{vehicle.status ?? 'active'}</span>
+                    <Button asChild size="sm" variant="secondary" className="h-7 px-2.5 py-1 text-[11px] sm:h-9 sm:px-3 sm:py-2 sm:text-xs">
                       <Link href={`/workshop/vehicles/${vehicle.id}`}>Open</Link>
                     </Button>
                   </div>
@@ -383,10 +481,9 @@ export default async function WorkshopDashboardPage({ searchParams }: { searchPa
             ))}
           </div>
         )}
-      </SectionCard>
+      </CollapsibleDashboardPanel>
 
-      <SectionCard id="pending-verification">
-        <h2 className="mb-3 text-lg font-semibold text-brand-black">Pending verification</h2>
+      <CollapsibleDashboardPanel title="Pending verification" id="pending-verification">
         {!pendingVehicles?.length ? (
           <p className="text-sm text-gray-500">No vehicles pending verification.</p>
         ) : (
@@ -407,7 +504,7 @@ export default async function WorkshopDashboardPage({ searchParams }: { searchPa
             ))}
           </div>
         )}
-      </SectionCard>
+      </CollapsibleDashboardPanel>
     </main>
   );
 }
