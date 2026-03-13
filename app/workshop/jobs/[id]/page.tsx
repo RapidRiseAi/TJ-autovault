@@ -49,7 +49,7 @@ export default async function WorkshopJobCardPage({
     supabase
       .from('job_cards')
       .select(
-        'id,vehicle_id,title,status,started_at,last_updated_at,completed_at,closed_at,is_locked,customer_summary,job_card_assignments(id,technician_user_id,status,force_assigned,technician_profile:profiles!job_card_assignments_technician_user_id_fkey(display_name,full_name))'
+        'id,vehicle_id,title,status,started_at,last_updated_at,completed_at,closed_at,is_locked,customer_summary,job_card_assignments(id,technician_user_id,status,force_assigned,technician_profile:profiles!job_card_assignments_technician_user_id_fkey(display_name,full_name)),vehicles!job_cards_vehicle_id_fkey(current_customer_account_id)'
       )
       .eq('id', id)
       .eq('workshop_id', profile.workshop_account_id)
@@ -272,6 +272,7 @@ export default async function WorkshopJobCardPage({
       <JobCardDetailClient
         jobId={job.id}
         vehicleId={job.vehicle_id}
+        customerAccountId={job.vehicles?.[0]?.current_customer_account_id ?? null}
         isLocked={job.is_locked}
         status={job.status}
         statusProgress={jobProgressIndex(job.status)}

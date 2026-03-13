@@ -181,7 +181,8 @@ export default async function WorkshopVehiclePage({
         'waiting_parts',
         'waiting_approval',
         'quality_check',
-        'ready'
+        'ready',
+        'completed'
       ])
       .order('created_at', { ascending: false })
       .limit(1)
