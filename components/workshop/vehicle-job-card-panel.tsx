@@ -157,6 +157,7 @@ export function VehicleJobCardPanel({
           description="Create a new job card, optionally link an approved quote, and upload before photos."
           icon={<PlayCircle className="h-4 w-4" />}
           primary
+          compactMobile
           onClick={() => setStartOpen(true)}
         />
         <Modal

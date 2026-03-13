@@ -54,6 +54,7 @@ function resolvePhotoTitle(
 export function JobCardDetailClient(props: {
   jobId: string;
   vehicleId: string;
+  customerAccountId?: string | null;
   isLocked: boolean;
   isManager: boolean;
   viewerRole: 'admin' | 'technician';
@@ -1251,6 +1252,7 @@ export function JobCardDetailClient(props: {
             vehicleId={props.vehicleId}
             kind="invoice"
             linkedQuoteId={props.linkedQuoteId}
+            customerAccountId={props.customerAccountId ?? undefined}
             onDone={() => {
               setIsClosingJob(true);
               void (async () => {
