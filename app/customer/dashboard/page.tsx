@@ -9,6 +9,8 @@ import { getCustomerContextOrCreate } from '@/lib/customer/get-customer-context-
 import { customerVehicle, customerVehicleNew } from '@/lib/routes';
 import { createClient } from '@/lib/supabase/server';
 import { SendMessageModal } from '@/components/messages/send-message-modal';
+import { CustomerOnboardingHub } from '@/components/customer/customer-onboarding-hub';
+import { getCustomerOnboardingChecklist } from '@/lib/customer/onboarding-checklist';
 
 function formatMoney(cents: number) {
   return new Intl.NumberFormat('en-ZA', {
@@ -66,6 +68,12 @@ export default async function CustomerDashboardPage() {
   if (!customerContext) redirect('/customer/profile-required');
 
   const customerAccountId = customerContext.customer_account.id;
+
+  const onboardingChecklist = await getCustomerOnboardingChecklist({
+    supabase,
+    userId: user.id,
+    customerAccountId
+  });
 
   const [
     { data: account },
@@ -202,6 +210,14 @@ export default async function CustomerDashboardPage() {
             </Button>
           </div>
         }
+      />
+
+      <CustomerOnboardingHub
+        userId={user.id}
+        profileTasks={onboardingChecklist.profileTasks}
+        profileCompletionPercent={onboardingChecklist.profileCompletionPercent}
+        completedRequiredProfileTasks={onboardingChecklist.completedRequiredProfileTasks}
+        totalRequiredProfileTasks={onboardingChecklist.totalRequiredProfileTasks}
       />
 
       <section className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-2 xl:grid-cols-4">

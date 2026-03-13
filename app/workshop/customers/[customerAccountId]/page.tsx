@@ -8,6 +8,7 @@ import { CustomerVehicleManager } from '@/components/workshop/customer-vehicle-m
 import { RemoveCustomerAccountButton } from '@/components/workshop/remove-customer-account-button';
 import { CustomerBillingDetailsForm, type CustomerBillingActionState } from '@/components/workshop/customer-billing-details-form';
 import { dispatchRecentCustomerNotifications } from '@/lib/email/dispatch-now';
+import { composeBillingAddress, splitBillingAddress } from '@/lib/customer/billing-address';
 
 type CustomerVehicleRow = {
   id: string;
@@ -99,40 +100,6 @@ function extractMissingBillingColumns(
   return keys.filter((column) => combined.includes(column));
 }
 
-
-
-function splitBillingAddress(address: string | null | undefined) {
-  const parts = (address ?? '')
-    .split(/\n|,/)
-    .map((part) => part.trim())
-    .filter(Boolean);
-
-  return {
-    street: parts[0] ?? '',
-    city: parts[1] ?? '',
-    province: parts[2] ?? '',
-    postalCode: parts[3] ?? ''
-  };
-}
-
-function composeBillingAddress({
-  street,
-  city,
-  province,
-  postalCode
-}: {
-  street: string;
-  city: string;
-  province: string;
-  postalCode: string;
-}) {
-  const lineOne = street.trim();
-  const lineTwo = [city, province, postalCode]
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .join(', ');
-  return [lineOne, lineTwo].filter(Boolean).join('\n');
-}
 
 function isMissingCustomerBillingColumnError(
   error: { code?: string; message?: string } | null
@@ -405,6 +372,24 @@ export default async function WorkshopCustomerPage({
       };
     }
 
+    const { data: linkedCustomer } = await supabase
+      .from('customer_accounts')
+      .select('auth_user_id')
+      .eq('id', customerAccountId)
+      .eq('workshop_account_id', currentProfile.workshop_account_id)
+      .maybeSingle();
+
+    if (linkedCustomer?.auth_user_id) {
+      await supabase
+        .from('profiles')
+        .update({
+          billing_name: billingName || null,
+          company_name: billingCompany || null,
+          billing_address: billingAddress || null
+        })
+        .eq('id', linkedCustomer.auth_user_id);
+    }
+
     if (billingColumnsMissing) {
       const missingColumnsText = Array.from(missingBillingColumns).sort().join(', ');
       return {
@@ -455,6 +440,9 @@ export default async function WorkshopCustomerPage({
     }
 
     revalidatePath(`/workshop/customers/${customerAccountId}`);
+    revalidatePath('/customer/profile/edit');
+    revalidatePath('/customer/profile/billing');
+    revalidatePath('/customer/dashboard');
 
     return {
       status: 'success',
