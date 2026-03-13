@@ -10,7 +10,8 @@ export function ActionTile({
   onClick,
   href,
   disabled,
-  primary = false
+  primary = false,
+  compactMobile = false
 }: {
   title: string;
   description: string;
@@ -19,9 +20,11 @@ export function ActionTile({
   href?: string;
   disabled?: boolean;
   primary?: boolean;
+  compactMobile?: boolean;
 }) {
   const className = cn(
     'group relative flex w-full items-center justify-between gap-3 overflow-hidden rounded-xl border bg-neutral-50/70 p-4 text-left shadow-[0_10px_24px_rgba(17,17,17,0.09)] transition duration-150 hover:-translate-y-0.5 hover:border-neutral-400 hover:bg-white hover:shadow-[0_14px_30px_rgba(17,17,17,0.12)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-red/35 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
+    compactMobile ? 'p-3 sm:p-4' : '',
     primary
       ? 'border-brand-red/40 bg-gradient-to-r from-red-50 to-white'
       : 'border-neutral-300'
@@ -40,11 +43,11 @@ export function ActionTile({
           {icon}
         </span>
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-black">{title}</p>
-          <p className="text-xs text-gray-500">{description}</p>
+          <p className={cn("text-sm font-semibold text-black", compactMobile ? "text-[13px] leading-snug sm:text-sm" : "")}>{title}</p>
+          <p className={cn("text-xs text-gray-500", compactMobile ? "hidden sm:block" : "")}>{description}</p>
         </div>
       </div>
-      <ChevronRight className="h-4 w-4 shrink-0 text-gray-400 transition group-hover:text-gray-600" />
+      <ChevronRight className={cn("h-4 w-4 shrink-0 text-gray-400 transition group-hover:text-gray-600", compactMobile ? "hidden sm:block" : "")} />
     </>
   );
 

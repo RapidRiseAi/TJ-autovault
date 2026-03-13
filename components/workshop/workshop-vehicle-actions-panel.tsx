@@ -66,13 +66,14 @@ export function WorkshopVehicleActionsPanel({
 
   return (
     <>
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-2 md:gap-4">
         {prependTiles}
         <ActionTile
           title="Upload document"
           description="Attach reports, invoices, quotes, or photos for this vehicle."
           icon={<Upload className="h-4 w-4" />}
           primary
+          compactMobile
           onClick={() => setUploadOpen(true)}
         />
       </div>

@@ -56,7 +56,7 @@ function StatTile({
           {label}
         </p>
       </div>
-      <p className="mt-2 text-xl font-bold leading-none text-neutral-900 md:text-2xl">{value}</p>
+      <p className="mt-2 max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-[clamp(1.12rem,5.4vw,1.5rem)] font-bold leading-none text-neutral-900 md:text-2xl">{value}</p>
       <p className="mt-1 text-[11px] text-gray-500 md:text-xs">{subtext}</p>
     </div>
   );
