@@ -95,7 +95,7 @@ function TrendBars({
               <div className="mx-auto flex h-36 items-end justify-center">
                 <div className={`relative w-full max-w-9 rounded-t-md ${colorClass}`} style={{ height }} title={`${row.label}: ${formatValue(value)}`}>
                   {value > 0 ? (
-                    <span className="pointer-events-none absolute bottom-1.5 left-1/2 translate-x-1 md:translate-x-1.5">
+                    <span className="pointer-events-none absolute bottom-1.5 left-1/2 translate-x-1.5 md:translate-x-2">
                       <span
                         className="block whitespace-nowrap text-[12px] font-semibold leading-none text-white md:text-[24px]"
                         style={{
