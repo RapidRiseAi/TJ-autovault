@@ -16,7 +16,6 @@ import {
 } from '@/lib/actions/job-cards';
 import { formatJobCardStatus, JOB_CARD_STATUSES } from '@/lib/job-cards';
 import { parseAmountInputToCents } from '@/lib/money';
-import { FinancialDocumentBuilder } from '@/components/workshop/financial-document-builder';
 
 type Tab =
   | 'overview'
@@ -123,8 +122,13 @@ export function JobCardDetailClient(props: {
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [clientReportModalOpen, setClientReportModalOpen] = useState(false);
   const [uploadPhotoModalOpen, setUploadPhotoModalOpen] = useState(false);
-  const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
+  const [invoicePromptOpen, setInvoicePromptOpen] = useState(false);
   const [requirementsPromptOpen, setRequirementsPromptOpen] = useState(false);
+  const [isClosingLater, setIsClosingLater] = useState(false);
+  const [isRedirectingToInvoice, setIsRedirectingToInvoice] = useState(false);
+  const [unmetCloseRequirements, setUnmetCloseRequirements] = useState<
+    string[]
+  >([]);
 
   const [statusDraft, setStatusDraft] = useState<StatusValue>(
     (MANUAL_STATUS_OPTIONS.includes(props.status as never)
@@ -150,11 +154,7 @@ export function JobCardDetailClient(props: {
   const hasCompletionPhoto = props.photos.some(
     (photo) => photo.kind === 'after'
   );
-  const unmetCloseRequirements = [
-    !hasCompletionStatus ? 'Set the job status to Ready or Completed.' : null,
-    !hasCompletionPhoto ? 'Upload at least one completion photo.' : null
-  ].filter((requirement): requirement is string => Boolean(requirement));
-  const canCloseNow = unmetCloseRequirements.length === 0;
+  const canCloseNow = hasCompletionStatus && hasCompletionPhoto;
 
   const tabs: Tab[] = [
     'overview',
@@ -183,6 +183,39 @@ export function JobCardDetailClient(props: {
       window.location.reload();
     }
     return true;
+  }
+
+  function parseCloseRequirement(error: string) {
+    if (
+      error ===
+      'Job must be marked as ready or completed before it can be closed.'
+    ) {
+      return 'Set the job status to Ready or Completed.';
+    }
+    if (
+      error ===
+      'At least one completion image is required before closing the job.'
+    ) {
+      return 'Upload at least one completion photo.';
+    }
+    return error;
+  }
+
+  async function openCloseJobFlow() {
+    setIsClosingJob(true);
+    try {
+      const validation = await canCloseJobCard({ jobId: props.jobId });
+      if (!validation.ok) {
+        setUnmetCloseRequirements([parseCloseRequirement(validation.error)]);
+        setRequirementsPromptOpen(true);
+        return;
+      }
+
+      setUnmetCloseRequirements([]);
+      setInvoicePromptOpen(true);
+    } finally {
+      setIsClosingJob(false);
+    }
   }
 
   async function uploadPhotoFiles(files: File[], kind: 'before' | 'after') {
@@ -554,15 +587,9 @@ export function JobCardDetailClient(props: {
                 size="sm"
                 variant="outline"
                 disabled={props.isLocked || isClosingJob || isUploading}
-                onClick={() => {
-                  if (!canCloseNow) {
-                    setRequirementsPromptOpen(true);
-                    return;
-                  }
-                  setInvoiceModalOpen(true);
-                }}
+                onClick={() => void openCloseJobFlow()}
               >
-                Close & create invoice
+                Close job
               </Button>
             ) : null}
           </div>
@@ -1240,48 +1267,57 @@ export function JobCardDetailClient(props: {
       </Modal>
 
       <Modal
-        open={invoiceModalOpen}
-        onClose={() => setInvoiceModalOpen(false)}
-        title="Close job and create invoice"
+        open={invoicePromptOpen}
+        onClose={() => setInvoicePromptOpen(false)}
+        title="Send invoice now?"
       >
-        <div className="space-y-3">
-          <p className="text-xs text-gray-500">
-            Create a structured invoice with line items. A signed PDF will be generated automatically.
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Upload an invoice now, or close later once the job is completed and
+            completion images are uploaded.
           </p>
-          <FinancialDocumentBuilder
-            vehicleId={props.vehicleId}
-            kind="invoice"
-            linkedQuoteId={props.linkedQuoteId}
-            customerAccountId={props.customerAccountId ?? undefined}
-            onDone={() => {
-              setIsClosingJob(true);
-              void (async () => {
-                try {
-                  const precheck = await canCloseJobCard({ jobId: props.jobId });
-                  if (!precheck.ok) {
-                    setRequirementsPromptOpen(true);
-                    throw new Error(precheck.error);
-                  }
-
-                  const closeResult = await closeJobCard({ jobId: props.jobId });
-                  if (!closeResult.ok) throw new Error(closeResult.error);
-
-                  setInvoiceModalOpen(false);
-                  pushToast({ title: 'Invoice created and job closed', tone: 'success' });
-                  window.location.href = `/workshop/vehicles/${props.vehicleId}`;
-                } catch (error) {
-                  pushToast({
-                    title: 'Invoice flow failed',
-                    description:
-                      error instanceof Error ? error.message : 'Please try again.',
-                    tone: 'error'
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="secondary"
+              disabled={isClosingJob || isRedirectingToInvoice || !canCloseNow}
+              onClick={() => {
+                setIsClosingLater(true);
+                setIsClosingJob(true);
+                void closeJobCard({ jobId: props.jobId })
+                  .then((result) => {
+                    if (!result.ok) {
+                      throw new Error(result.error ?? 'Could not close job.');
+                    }
+                    setInvoicePromptOpen(false);
+                    pushToast({ title: 'Job closed', tone: 'success' });
+                    window.location.reload();
+                  })
+                  .catch((error) => {
+                    pushToast({
+                      title: 'Could not close job',
+                      description:
+                        error instanceof Error ? error.message : 'Please try again.',
+                      tone: 'error'
+                    });
+                  })
+                  .finally(() => {
+                    setIsClosingLater(false);
+                    setIsClosingJob(false);
                   });
-                } finally {
-                  setIsClosingJob(false);
-                }
-              })();
-            }}
-          />
+              }}
+            >
+              {isClosingLater ? 'Closing…' : 'Close later'}
+            </Button>
+            <Button
+              disabled={isClosingJob || isClosingLater || isRedirectingToInvoice}
+              onClick={() => {
+                setIsRedirectingToInvoice(true);
+                window.location.href = `/workshop/vehicles/${props.vehicleId}?upload=invoice&closeJobId=${props.jobId}`;
+              }}
+            >
+              {isRedirectingToInvoice ? 'Opening…' : 'Upload invoice'}
+            </Button>
+          </div>
         </div>
       </Modal>
 
