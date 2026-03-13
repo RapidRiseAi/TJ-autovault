@@ -56,7 +56,7 @@ function StatTile({
           {label}
         </p>
       </div>
-      <p className="mt-2 max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-[clamp(1.12rem,5.4vw,1.5rem)] font-bold leading-none text-neutral-900 md:text-2xl">{value}</p>
+      <p className="mt-2 max-w-full whitespace-normal break-words text-[clamp(0.95rem,4.4vw,1.5rem)] font-bold leading-tight text-neutral-900 md:whitespace-nowrap md:text-2xl md:leading-none">{value}</p>
       <p className="mt-1 text-[11px] text-gray-500 md:text-xs">{subtext}</p>
     </div>
   );
@@ -597,6 +597,7 @@ export default async function WorkshopVehiclePage({
                   description="This vehicle has an active job card. Open it to update progress and close the work."
                   icon={<Hammer className="h-4 w-4" />}
                   primary
+                  compactMobile
                   href={`/workshop/jobs/${activeJob.id}`}
                 />
               )
