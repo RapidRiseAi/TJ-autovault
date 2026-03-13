@@ -205,6 +205,11 @@ export default async function WorkshopJobCardPage({
     name: technician.display_name ?? technician.full_name ?? 'Technician'
   }));
 
+  const vehicleCustomerAccountId = Array.isArray(job.vehicles)
+    ? job.vehicles[0]?.current_customer_account_id ?? null
+    : (job.vehicles as { current_customer_account_id?: string | null } | null)
+        ?.current_customer_account_id ?? null;
+
   return (
     <main className="space-y-5">
       <Card className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-[0_14px_30px_rgba(17,17,17,0.07)] md:p-6">
@@ -272,7 +277,7 @@ export default async function WorkshopJobCardPage({
       <JobCardDetailClient
         jobId={job.id}
         vehicleId={job.vehicle_id}
-        customerAccountId={job.vehicles?.[0]?.current_customer_account_id ?? null}
+        customerAccountId={vehicleCustomerAccountId}
         isLocked={job.is_locked}
         status={job.status}
         statusProgress={jobProgressIndex(job.status)}
