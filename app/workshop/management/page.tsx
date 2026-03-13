@@ -78,7 +78,10 @@ function TrendBars({
               <div className="mx-auto flex h-36 items-end justify-center">
                 <div className={`relative w-6 overflow-hidden rounded-t-md ${colorClass}`} style={{ height }} title={`${row.label}: ${formatValue(value)}`}>
                   {value > 0 ? (
-                    <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap text-[9px] font-semibold leading-none text-white rotate-[-90deg]">
+                    <span
+                      className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap text-[9px] font-semibold leading-none text-white rotate-[-90deg]"
+                      style={{ textShadow: '-0.6px 0 #111, 0 0.6px #111, 0.6px 0 #111, 0 -0.6px #111' }}
+                    >
                       {formatValue(value)}
                     </span>
                   ) : null}

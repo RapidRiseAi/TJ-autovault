@@ -43,7 +43,7 @@ export function ActionTile({
           {icon}
         </span>
         <div className="min-w-0">
-          <p className={cn("text-sm font-semibold text-black", compactMobile ? "text-xs leading-snug break-words sm:text-sm" : "")}>{title}</p>
+          <p className={cn("text-sm font-semibold text-black", compactMobile ? "text-[11px] leading-tight break-words sm:text-sm" : "")}>{title}</p>
           <p className={cn("text-xs text-gray-500", compactMobile ? "hidden sm:block" : "")}>{description}</p>
         </div>
       </div>
