@@ -95,15 +95,15 @@ function TrendBars({
               <div className="mx-auto flex h-36 items-end justify-center">
                 <div className={`relative w-full max-w-9 rounded-t-md ${colorClass}`} style={{ height }} title={`${row.label}: ${formatValue(value)}`}>
                   {value > 0 ? (
-                    <span
-                      className="absolute bottom-1.5 left-1/2 whitespace-nowrap text-[9px] font-semibold leading-none text-white md:text-[18px]"
-                      style={{
-                        transform: 'translateX(-50%) rotate(-90deg)',
-                        transformOrigin: 'bottom center',
-                        textShadow: '-0.6px 0 #111, 0 0.6px #111, 0.6px 0 #111, 0 -0.6px #111'
-                      }}
-                    >
-                      {formatValue(value)}
+                    <span className="absolute bottom-1.5 left-1/2 -translate-x-1/2">
+                      <span
+                        className="block origin-bottom whitespace-nowrap text-[9px] font-semibold leading-none text-white -rotate-90 md:text-[18px]"
+                        style={{
+                          textShadow: '-0.6px 0 #111, 0 0.6px #111, 0.6px 0 #111, 0 -0.6px #111'
+                        }}
+                      >
+                        {formatValue(value)}
+                      </span>
                     </span>
                   ) : null}
                 </div>
