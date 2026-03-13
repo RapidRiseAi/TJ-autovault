@@ -1,8 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
-import { BookOpenCheck, CheckCircle2, Circle, CircleDashed, Sparkles } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  BookOpenCheck,
+  CheckCircle2,
+  Circle,
+  CircleDashed,
+  Sparkles,
+  X
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { OnboardingTask } from '@/lib/customer/onboarding-checklist';
@@ -77,24 +84,44 @@ export function CustomerOnboardingHub({
   completedRequiredProfileTasks: number;
   totalRequiredProfileTasks: number;
 }) {
-  const storageKey = `customer_tutorial_state_${userId}`;
+  const tutorialStorageKey = `customer_tutorial_state_${userId}`;
+  const dismissedStorageKey = `customer_onboarding_hidden_${userId}`;
+
   const [tutorialOpen, setTutorialOpen] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
   const [tutorialState, setTutorialState] = useState<TutorialState>(() => {
     if (typeof window === 'undefined') return {};
     try {
-      return JSON.parse(window.localStorage.getItem(storageKey) ?? '{}') as TutorialState;
+      return JSON.parse(window.localStorage.getItem(tutorialStorageKey) ?? '{}') as TutorialState;
     } catch {
       return {};
     }
   });
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const rawValue = window.localStorage.getItem(dismissedStorageKey);
+    setDismissed(rawValue === '1');
+  }, [dismissedStorageKey]);
+
   const completedTutorialSteps = tutorialSteps.filter((step) => tutorialState[step.id]).length;
   const tutorialCompletionPercent = Math.round(
     (completedTutorialSteps / tutorialSteps.length) * 100
   );
+  const tutorialComplete = completedTutorialSteps === tutorialSteps.length;
+  const profileComplete = completedRequiredProfileTasks >= totalRequiredProfileTasks;
   const overallCompletionPercent = Math.round(
     (profileCompletionPercent + tutorialCompletionPercent) / 2
   );
+  const fullyComplete = profileComplete && tutorialComplete;
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!fullyComplete) return;
+
+    window.localStorage.setItem(dismissedStorageKey, '1');
+    setDismissed(true);
+  }, [dismissedStorageKey, fullyComplete]);
 
   const nextProfileTask = useMemo(
     () => profileTasks.find((task) => task.required && !task.complete) ?? null,
@@ -109,12 +136,20 @@ export function CustomerOnboardingHub({
   const saveTutorialState = (nextState: TutorialState) => {
     setTutorialState(nextState);
     if (typeof window === 'undefined') return;
-    window.localStorage.setItem(storageKey, JSON.stringify(nextState));
+    window.localStorage.setItem(tutorialStorageKey, JSON.stringify(nextState));
   };
 
   const completeTutorialStep = (id: string) => {
     saveTutorialState({ ...tutorialState, [id]: true });
   };
+
+  const handleDismiss = () => {
+    setDismissed(true);
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(dismissedStorageKey, '1');
+  };
+
+  if (dismissed) return null;
 
   return (
     <section className="space-y-3 rounded-3xl border border-black/10 bg-white/95 p-3 shadow-[0_12px_36px_rgba(17,17,17,0.08)] sm:p-5">
@@ -130,7 +165,20 @@ export function CustomerOnboardingHub({
             Finish your profile checklist and tutorial to unlock the smoothest customer experience.
           </p>
         </div>
-        <Sparkles className="mt-1 h-5 w-5 text-brand-red" />
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-5 w-5 text-brand-red" />
+          {(fullyComplete || profileComplete) ? (
+            <button
+              type="button"
+              onClick={handleDismiss}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-black/15 text-gray-600 transition hover:bg-black/5 hover:text-black"
+              aria-label="Close setup assistant"
+              title="Close"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <Progress value={overallCompletionPercent} />
@@ -195,10 +243,17 @@ export function CustomerOnboardingHub({
             <Link href={nextProfileTask.href}>Continue profile setup</Link>
           </Button>
         ) : null}
-        <Button variant="secondary" onClick={() => setTutorialOpen((open) => !open)}>
-          <BookOpenCheck className="mr-1 h-4 w-4" />
-          {tutorialOpen ? 'Hide tutorial guide' : 'Open tutorial guide'}
-        </Button>
+        {!tutorialComplete ? (
+          <Button variant="secondary" onClick={() => setTutorialOpen((open) => !open)}>
+            <BookOpenCheck className="mr-1 h-4 w-4" />
+            {tutorialOpen ? 'Hide tutorial guide' : 'Open tutorial guide'}
+          </Button>
+        ) : null}
+        {fullyComplete ? (
+          <Button variant="secondary" onClick={handleDismiss}>
+            Dismiss setup assistant
+          </Button>
+        ) : null}
       </div>
 
       {tutorialOpen ? (

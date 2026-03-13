@@ -10,7 +10,10 @@ import type { ProfileUpdateState } from '@/lib/customer/profile-types';
 import { buildProfileUpdatePatch } from '@/lib/customer/profile-update';
 import {
   ALLOWED_AVATAR_MIME_TYPES,
+  AVATAR_BUCKET,
   AVATAR_MAX_SIZE_BYTES,
+  buildAvatarReadUrl,
+  buildAvatarStoragePath,
   mapProfileUpdateError,
   validateAvatarFile
 } from '@/lib/customer/avatar-upload';
@@ -35,26 +38,29 @@ async function updateProfile(
     const loginEmail = (formData.get('login_email')?.toString() ?? '').trim().toLowerCase();
     if (!loginEmail) return { status: 'error', message: 'Email is required.' };
 
-    const avatarFileInput = formData.get('avatar_file');
+    const avatarUrlFromSignedUpload = (formData.get('avatar_url')?.toString() ?? '').trim();
+
+    const avatarFileInput = formData.get('avatar') ?? formData.get('avatar_file');
     const avatarFile = avatarFileInput instanceof File && avatarFileInput.size > 0
       ? avatarFileInput
       : null;
 
-    let avatarUrlFromDirectUpload: string | null = null;
-    if (avatarFile) {
+    let avatarUrlToSave = avatarUrlFromSignedUpload || '';
+
+    // Fallback for non-JS/no direct browser upload: upload server-side and persist read URL.
+    if (!avatarUrlToSave && avatarFile) {
       const avatarValidationError = validateAvatarFile(avatarFile);
       if (avatarValidationError) {
         return { status: 'error', message: avatarValidationError };
       }
 
-      const extension = avatarFile.name.split('.').pop() ?? 'jpg';
-      const path = `${user.id}/avatar-${Date.now()}.${extension}`;
+      const path = buildAvatarStoragePath(user.id, avatarFile.name);
       const { error: uploadError } = await supabase.storage
-        .from('private-images')
+        .from(AVATAR_BUCKET)
         .upload(path, avatarFile, { upsert: true, contentType: avatarFile.type || 'image/jpeg' });
 
       if (uploadError) return { status: 'error', message: uploadError.message };
-      avatarUrlFromDirectUpload = path;
+      avatarUrlToSave = buildAvatarReadUrl(path);
     }
 
     const phone = (formData.get('phone')?.toString() ?? '').trim();
@@ -72,7 +78,7 @@ async function updateProfile(
       billingName,
       companyName,
       billingAddress,
-      avatarUrl: avatarUrlFromDirectUpload || undefined
+      avatarUrl: avatarUrlToSave || undefined
     });
 
     const { error } = await supabase.from('profiles').update(profilePatch).eq('id', user.id);
@@ -91,6 +97,7 @@ async function updateProfile(
 
     revalidatePath('/customer/profile');
     revalidatePath('/customer/profile/edit');
+    revalidatePath('/customer/dashboard');
     return { status: 'success', message: 'Profile saved successfully.' };
   } catch (error) {
     return { status: 'error', message: mapProfileUpdateError(error) };
