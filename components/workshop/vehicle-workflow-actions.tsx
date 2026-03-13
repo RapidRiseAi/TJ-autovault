@@ -43,7 +43,7 @@ export function VehicleWorkflowActions({ vehicleId, invoices, workRequests, curr
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid gap-3 md:grid-cols-2">
         <ActionTile title="Add recommendation" description="Log work and recommended follow-up items." icon={<ClipboardCheck className="h-4 w-4" />} onClick={() => setOpen('recommendation')} />
         <ActionTile title="Update mileage" description="Capture latest odometer and service reminders." icon={<Gauge className="h-4 w-4" />} onClick={() => setOpen('mileage')} />
         {activeWorkRequests.length ? <ActionTile title="Update work request status" description="Move requests through the workshop pipeline." icon={<ClipboardCheck className="h-4 w-4" />} onClick={() => setOpen('request')} /> : null}

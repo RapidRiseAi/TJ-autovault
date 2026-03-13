@@ -42,20 +42,22 @@ function StatTile({
   badge?: string;
 }) {
   return (
-    <div className="relative flex h-full flex-col rounded-2xl border border-neutral-200 bg-white p-4 shadow-[0_12px_24px_rgba(17,17,17,0.06)]">
+    <div className="relative flex h-full min-w-[162px] snap-start flex-col rounded-2xl border border-neutral-200 bg-white p-3 shadow-[0_12px_24px_rgba(17,17,17,0.06)] md:min-w-0 md:p-4">
       {badge ? (
-        <span className="absolute right-4 top-4 rounded-full bg-red-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-red-700">
+        <span className="absolute right-2 top-2 rounded-full bg-red-50 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-red-700 md:right-4 md:top-4 md:py-1 md:text-[10px]">
           {badge}
         </span>
       ) : null}
-      <span className="mb-3 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-neutral-100 text-neutral-700">
-        {icon}
-      </span>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-gray-500">
-        {label}
-      </p>
-      <p className="mt-2 text-2xl font-bold text-neutral-900">{value}</p>
-      <p className="mt-1 text-xs text-gray-500">{subtext}</p>
+      <div className="flex items-center gap-2">
+        <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-700 md:h-9 md:w-9">
+          {icon}
+        </span>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-500 md:text-[11px] md:tracking-[0.15em]">
+          {label}
+        </p>
+      </div>
+      <p className="mt-2 text-xl font-bold leading-none text-neutral-900 md:text-2xl">{value}</p>
+      <p className="mt-1 text-[11px] text-gray-500 md:text-xs">{subtext}</p>
     </div>
   );
 }
@@ -379,12 +381,9 @@ export default async function WorkshopVehiclePage({
 
   return (
     <main className="space-y-4">
-      <HeroHeader
-        className="p-4 sm:p-6"
-        title={vehicle.registration_number}
-        subtitle={`${vehicle.make ?? ''} ${vehicle.model ?? ''} ${vehicle.year ? `(${vehicle.year})` : ''}`}
-        media={
-          vehicle.primary_image_path ? (
+      <section className="rounded-3xl border border-black/10 bg-gradient-to-br from-black via-[#151515] to-[#262626] p-4 text-white shadow-[0_16px_50px_rgba(0,0,0,0.28)] md:hidden">
+        <div className="flex items-start gap-3">
+          {vehicle.primary_image_path ? (
             <img
               src={`/api/uploads/download?bucket=vehicle-images&path=${encodeURIComponent(vehicle.primary_image_path)}`}
               alt="Vehicle"
@@ -392,57 +391,118 @@ export default async function WorkshopVehiclePage({
             />
           ) : (
             <div className="h-20 w-20 rounded-2xl bg-white/10" />
-          )
-        }
-        meta={
-          <>
-            <span className="rounded-full border border-white/25 bg-white/10 px-2.5 py-1 text-[11px] sm:px-3 sm:text-xs">
-              Mileage {vehicle.odometer_km ?? 'N/A'} km
-            </span>
-            <span className="rounded-full border border-white/25 bg-white/10 px-2.5 py-1 text-[11px] sm:px-3 sm:text-xs">
-              Status {vehicle.status ?? 'pending'}
-            </span>
-          </>
-        }
-        actions={
-          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
-            <div className="col-span-2 sm:col-span-1">
-              <SendMessageModal
-                vehicles={[
-                  {
-                    id: vehicle.id,
-                    registration_number: vehicle.registration_number
-                  }
-                ]}
-                defaultVehicleId={vehicle.id}
-                customers={(customersResult.data ?? []).map((customer) => ({
-                  id: customer.id,
-                  name: customer.name
-                }))}
-                defaultCustomerId={vehicle.current_customer_account_id}
+          )}
+          <div className="flex h-20 min-w-0 flex-1 flex-col">
+            <h1 className="truncate text-[clamp(2rem,11vw,2.65rem)] font-bold leading-none">{vehicle.registration_number}</h1>
+            <p className="mt-auto truncate text-[clamp(1.15rem,5.2vw,1.4rem)] font-semibold leading-none text-white/86">
+              {`${vehicle.make ?? ''} ${vehicle.model ?? ''} ${vehicle.year ? `(${vehicle.year})` : ''}`}
+            </p>
+          </div>
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+          <span className="inline-flex items-center justify-center rounded-full border border-white/25 bg-white/10 px-2 py-1">Mileage {vehicle.odometer_km ?? 'N/A'} km</span>
+          <span className="inline-flex items-center justify-center rounded-full border border-white/25 bg-white/10 px-2 py-1">Status {vehicle.status ?? 'pending'}</span>
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <SendMessageModal
+            triggerClassName="h-9 w-full text-xs"
+            vehicles={[
+              {
+                id: vehicle.id,
+                registration_number: vehicle.registration_number
+              }
+            ]}
+            defaultVehicleId={vehicle.id}
+            customers={(customersResult.data ?? []).map((customer) => ({
+              id: customer.id,
+              name: customer.name
+            }))}
+            defaultCustomerId={vehicle.current_customer_account_id}
+          />
+          {activeJob ? (
+            <Button asChild size="sm" variant="secondary" className="h-9 text-xs">
+              <Link href={`/workshop/jobs/${activeJob.id}`}>Open active job card</Link>
+            </Button>
+          ) : pendingVerification ? (
+            <VerifyVehicleButton vehicleId={vehicle.id} />
+          ) : (
+            <span />
+          )}
+          <Button asChild size="sm" variant="secondary" className="h-9 text-xs">
+            <Link href={`/workshop/vehicles/${vehicle.id}/timeline`}>View full timeline</Link>
+          </Button>
+          <Button asChild size="sm" variant="secondary" className="h-9 text-xs">
+            <Link href={`/workshop/vehicles/${vehicle.id}/documents`}>View documents</Link>
+          </Button>
+        </div>
+      </section>
+
+      <div className="hidden md:block">
+        <HeroHeader
+          className="p-4 sm:p-6"
+          title={vehicle.registration_number}
+          subtitle={`${vehicle.make ?? ''} ${vehicle.model ?? ''} ${vehicle.year ? `(${vehicle.year})` : ''}`}
+          media={
+            vehicle.primary_image_path ? (
+              <img
+                src={`/api/uploads/download?bucket=vehicle-images&path=${encodeURIComponent(vehicle.primary_image_path)}`}
+                alt="Vehicle"
+                className="h-20 w-20 rounded-2xl object-cover"
               />
-            </div>
-            <Button asChild size="sm" variant="secondary" className="h-8 px-2.5 text-[11px] sm:h-9 sm:px-3 sm:text-xs">
-              <Link href={`/workshop/vehicles/${vehicle.id}/timeline`}>
-                View full timeline
-              </Link>
-            </Button>
-            <Button asChild size="sm" variant="secondary" className="h-8 px-2.5 text-[11px] sm:h-9 sm:px-3 sm:text-xs">
-              <Link href={`/workshop/vehicles/${vehicle.id}/documents`}>
-                View documents
-              </Link>
-            </Button>
-            {activeJob ? (
+            ) : (
+              <div className="h-20 w-20 rounded-2xl bg-white/10" />
+            )
+          }
+          meta={
+            <>
+              <span className="rounded-full border border-white/25 bg-white/10 px-2.5 py-1 text-[11px] sm:px-3 sm:text-xs">
+                Mileage {vehicle.odometer_km ?? 'N/A'} km
+              </span>
+              <span className="rounded-full border border-white/25 bg-white/10 px-2.5 py-1 text-[11px] sm:px-3 sm:text-xs">
+                Status {vehicle.status ?? 'pending'}
+              </span>
+            </>
+          }
+          actions={
+            <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
+              <div className="col-span-2 sm:col-span-1">
+                <SendMessageModal
+                  vehicles={[
+                    {
+                      id: vehicle.id,
+                      registration_number: vehicle.registration_number
+                    }
+                  ]}
+                  defaultVehicleId={vehicle.id}
+                  customers={(customersResult.data ?? []).map((customer) => ({
+                    id: customer.id,
+                    name: customer.name
+                  }))}
+                  defaultCustomerId={vehicle.current_customer_account_id}
+                />
+              </div>
               <Button asChild size="sm" variant="secondary" className="h-8 px-2.5 text-[11px] sm:h-9 sm:px-3 sm:text-xs">
-                <Link href={`/workshop/jobs/${activeJob.id}`}>
-                  Open active job card
+                <Link href={`/workshop/vehicles/${vehicle.id}/timeline`}>
+                  View full timeline
                 </Link>
               </Button>
-            ) : null}
-            {pendingVerification ? <VerifyVehicleButton vehicleId={vehicle.id} /> : null}
-          </div>
-        }
-      />
+              <Button asChild size="sm" variant="secondary" className="h-8 px-2.5 text-[11px] sm:h-9 sm:px-3 sm:text-xs">
+                <Link href={`/workshop/vehicles/${vehicle.id}/documents`}>
+                  View documents
+                </Link>
+              </Button>
+              {activeJob ? (
+                <Button asChild size="sm" variant="secondary" className="h-8 px-2.5 text-[11px] sm:h-9 sm:px-3 sm:text-xs">
+                  <Link href={`/workshop/jobs/${activeJob.id}`}>
+                    Open active job card
+                  </Link>
+                </Button>
+              ) : null}
+              {pendingVerification ? <VerifyVehicleButton vehicleId={vehicle.id} /> : null}
+            </div>
+          }
+        />
+      </div>
 
       {activeJob ? (
         <VehicleJobCardPanel
@@ -484,7 +544,7 @@ export default async function WorkshopVehiclePage({
         </Card>
       ) : null}
 
-      <section className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+      <section className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 md:grid md:grid-cols-2 md:gap-4 md:overflow-visible md:pb-0 xl:grid-cols-4">
         <StatTile
           label="Revenue collected"
           value={money(paidTotal)}
@@ -516,8 +576,8 @@ export default async function WorkshopVehiclePage({
 
       <SectionCard className="rounded-3xl border border-neutral-200/90 bg-neutral-50/70 p-4 shadow-[0_20px_42px_rgba(17,17,17,0.08)] sm:p-7">
         <div className="mb-4">
-          <h2 className="text-base font-semibold">Quick actions</h2>
-          <p className="text-sm text-gray-500">
+          <h2 className="text-sm font-semibold sm:text-base">Quick actions</h2>
+          <p className="hidden text-sm text-gray-500 sm:block">
             Run common workshop updates without leaving this page.
           </p>
         </div>

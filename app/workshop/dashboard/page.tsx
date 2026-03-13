@@ -102,7 +102,7 @@ function formatDate(value: string) {
 function CollapsibleDashboardPanel({
   title,
   action,
-  defaultOpen = true,
+  defaultOpen = false,
   children,
   id
 }: {
@@ -265,7 +265,69 @@ export default async function WorkshopDashboardPage({ searchParams }: { searchPa
         <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">Clock-in response saved for today.</p>
       ) : null}
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <section className="grid grid-cols-2 gap-3 md:hidden">
+        <article className="rounded-2xl border border-neutral-200 bg-white p-3.5 shadow-[0_10px_20px_rgba(17,17,17,0.06)]">
+          <div className="flex items-center gap-2.5">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-neutral-100 text-neutral-900">
+              <UserRound className="h-4 w-4" />
+            </span>
+            <div>
+              <p className="text-lg font-bold leading-none text-neutral-900">{customerRows.length}</p>
+              <p className="text-[11px] text-gray-500">Customers</p>
+            </div>
+          </div>
+        </article>
+
+        <article className="rounded-2xl border border-neutral-200 bg-white p-3.5 shadow-[0_10px_20px_rgba(17,17,17,0.06)]">
+          <div className="flex items-center gap-2.5">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-neutral-100 text-neutral-900">
+              <Car className="h-4 w-4" />
+            </span>
+            <div>
+              <p className="text-lg font-bold leading-none text-neutral-900">{totalVehicles}</p>
+              <p className="text-[11px] text-gray-500">Vehicles</p>
+            </div>
+          </div>
+        </article>
+
+        <article className={`rounded-2xl border bg-white p-3.5 shadow-[0_10px_20px_rgba(17,17,17,0.06)] ${openRequestCount > 0 ? 'border-amber-200' : 'border-neutral-200'}`}>
+          <div className="flex items-center gap-2.5">
+            <span className={`inline-flex h-8 w-8 items-center justify-center rounded-full ${openRequestCount > 0 ? 'bg-amber-100 text-amber-700' : 'bg-neutral-100 text-neutral-500'}`}>
+              <AlertTriangle className="h-4 w-4" />
+            </span>
+            <div>
+              <p className="text-lg font-bold leading-none text-neutral-900">{openRequestCount}</p>
+              <p className="text-[11px] text-gray-500">Open requests</p>
+            </div>
+          </div>
+        </article>
+
+        <article className="rounded-2xl border border-neutral-200 bg-white p-3.5 shadow-[0_10px_20px_rgba(17,17,17,0.06)]">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-500">Outstanding invoices</p>
+          <div className="mt-2 flex items-start justify-between gap-3">
+            {unpaidInvoiceCount > 0 && totalOutstandingCents > 0 ? (
+              <SegmentRing
+                size={74}
+                centerLabel={`${unpaidInvoiceCount}`}
+                subLabel="unpaid"
+                segments={outstandingSegments}
+                total={totalOutstandingCents}
+              />
+            ) : (
+              <div className="flex h-[74px] w-[74px] flex-col items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700">
+                <CheckCircle2 className="h-6 w-6" />
+                <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.14em]">Paid</p>
+              </div>
+            )}
+            <div className="pt-2 text-right">
+              <p className="text-lg font-bold leading-none text-neutral-900">{new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 }).format(totalOutstandingCents / 100)}</p>
+              <p className="mt-1 text-[11px] text-gray-500">Amount unpaid</p>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section className="hidden gap-3 md:grid md:grid-cols-2 xl:grid-cols-3">
         <article className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-[0_14px_30px_rgba(17,17,17,0.08)]">
           <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">Customers & vehicles</p>
           <div className="grid grid-cols-2 divide-x divide-neutral-200">
