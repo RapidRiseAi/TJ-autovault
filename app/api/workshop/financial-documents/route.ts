@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { sendEmail } from '@/lib/email/resend';
 import {
   dispatchNotificationEmailsNow,
   dispatchRecentCustomerNotifications
@@ -804,6 +805,25 @@ export async function POST(request: NextRequest) {
           : { quote_id: linkedId })
       }
     });
+
+
+    if (payload.sendEmailTo) {
+      const safeTo = payload.sendEmailTo.trim().toLowerCase();
+      const referenceLabel = payload.kind === 'quote' ? 'Quote' : 'Invoice';
+      await sendEmail(
+        safeTo,
+        `${referenceLabel} ${referenceNumber}`,
+        `<p>${referenceLabel} ${referenceNumber} from ${workshop.name} is attached.</p>`,
+        {
+          attachments: [
+            {
+              filename: `${referenceNumber}.pdf`,
+              content: Buffer.from(pdfBytes)
+            }
+          ]
+        }
+      );
+    }
 
     const customerHref = `/customer/vehicles/${vehicle.id}`;
     await dispatchFinancialNotificationEmail({
