@@ -112,15 +112,19 @@ Migrations are applied automatically on every push to the `main` branch via GitH
    - Create initial admin user in Auth.
    - Update `supabase/seed/seed.sql` admin UUID before seeding.
 
-## Reset Supabase to only the admin user
-If you want to clear test data and keep only the admin account (`team@rapidriseai.com`):
+## Reset Supabase for a clean client demo
+If you want to remove all test data and keep only your real workshop login +
+developer login:
 
-1. Open **Supabase → SQL Editor**.
-2. Run `supabase/seed/reset_to_admin_only.sql`.
+1. Open **Supabase → SQL Editor** in the exact project used by your deployed app.
+2. Open `supabase/seed/reset_to_admin_only.sql`.
+3. Set **both** real emails in `v_keep_emails` (workshop owner + developer).
+4. Run the script.
 
-The reset script removes all vehicle/customer/workshop activity data and deletes
-all storage objects, while preserving only the admin auth user and their linked
-profile/workshop records.
+The script deletes all storage objects and clears app activity data (customers,
+vehicles, quotes, invoices, documents, technician/test accounts, timeline data,
+notifications, etc.), while preserving only selected auth user(s), their
+profile(s), and linked workshop account/branding records.
 
 ## Config editing
 Main app/business limits live in:
