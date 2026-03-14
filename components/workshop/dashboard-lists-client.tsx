@@ -11,6 +11,7 @@ type CustomerRow = {
   id: string;
   name: string;
   created_at: string;
+  auth_user_id?: string | null;
   customer_users?: Array<{
     profiles?: Array<{
       display_name: string | null;
@@ -79,16 +80,11 @@ export function DashboardListsClient({
   );
 
   const filteredCustomers = useMemo(() => {
-    const linkedCustomerIds = new Set(
-      customerVehicles
-        .map((vehicle) => vehicle.current_customer_account_id)
-        .filter((value): value is string => Boolean(value))
-    );
-
     return customerRows
       .filter((customer) => {
-        if (customerLinkage === 'linked') return linkedCustomerIds.has(customer.id);
-        if (customerLinkage === 'unlinked') return !linkedCustomerIds.has(customer.id);
+        const isLinked = Boolean(customer.auth_user_id);
+        if (customerLinkage === 'linked') return isLinked;
+        if (customerLinkage === 'unlinked') return !isLinked;
         return true;
       })
       .sort((a, b) => {
@@ -96,7 +92,7 @@ export function DashboardListsClient({
         if (customerSort === 'oldest') return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       });
-  }, [customerLinkage, customerRows, customerSort, customerVehicles]);
+  }, [customerLinkage, customerRows, customerSort]);
 
   const filteredVehicles = useMemo(() => {
     const unpaidVehicleIds = new Set(
@@ -154,6 +150,9 @@ export function DashboardListsClient({
                       <div className="min-w-0">
                         <p className="truncate text-xs font-semibold leading-tight text-brand-black">{customerName}</p>
                         <p className="truncate text-[11px] leading-tight text-gray-400">{customer.name}</p>
+                        <p className={`text-[10px] font-medium ${customer.auth_user_id ? 'text-emerald-700' : 'text-amber-700'}`}>
+                          {customer.auth_user_id ? 'Linked account' : 'Unlinked account'}
+                        </p>
                       </div>
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-1.5">

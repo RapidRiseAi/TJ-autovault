@@ -681,7 +681,14 @@ export default async function WorkshopCustomerPage({
             />
           </details>
         </Card>
-      ) : null}
+      ) : (
+        <Card className="rounded-3xl border-emerald-200 bg-emerald-50 p-5">
+          <p className="text-sm font-semibold text-emerald-900">Linked portal account</p>
+          <p className="mt-1 text-sm text-emerald-800">
+            This customer is linked to a signed-in portal profile, so workshop-side unlinked notification settings are not shown for this account.
+          </p>
+        </Card>
+      )}
 
       <Card className="rounded-3xl p-6">
         <details>

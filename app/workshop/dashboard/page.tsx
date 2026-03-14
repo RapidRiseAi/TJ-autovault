@@ -17,6 +17,7 @@ type CustomerRow = {
   id: string;
   name: string;
   created_at: string;
+  auth_user_id?: string | null;
   customer_users?: Array<{
     profiles?: Array<{
       display_name: string | null;
@@ -34,6 +35,13 @@ type InvoiceRow = {
   invoice_number?: string | null;
 };
 
+
+
+function isMissingCustomerLinkageColumnError(error: { code?: string; message?: string } | null) {
+  if (!error) return false;
+  const combined = `${error.code ?? ''} ${error.message ?? ''}`.toLowerCase();
+  return error.code === 'PGRST204' || error.code === '42703' || combined.includes('auth_user_id');
+}
 
 function getSouthAfricaDateIso() {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -131,12 +139,25 @@ export default async function WorkshopDashboardPage({ searchParams }: { searchPa
       .neq('payment_status', 'paid')
       .order('total_cents', { ascending: false })
       .limit(200),
-    supabase
-      .from('customer_accounts')
-      .select('id,name,created_at,customer_users(profiles(display_name,full_name,avatar_url))')
-      .eq('workshop_account_id', workshopId)
-      .order('created_at', { ascending: false })
-      .limit(100),
+    (async () => {
+      const withLinkage = await supabase
+        .from('customer_accounts')
+        .select('id,name,created_at,auth_user_id,customer_users(profiles(display_name,full_name,avatar_url))')
+        .eq('workshop_account_id', workshopId)
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (withLinkage.error && isMissingCustomerLinkageColumnError(withLinkage.error)) {
+        return supabase
+          .from('customer_accounts')
+          .select('id,name,created_at,customer_users(profiles(display_name,full_name,avatar_url))')
+          .eq('workshop_account_id', workshopId)
+          .order('created_at', { ascending: false })
+          .limit(100);
+      }
+
+      return withLinkage;
+    })(),
     supabase
       .from('vehicles')
       .select('id,registration_number,status')
