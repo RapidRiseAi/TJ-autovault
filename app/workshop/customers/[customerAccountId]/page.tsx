@@ -504,6 +504,25 @@ export default async function WorkshopCustomerPage({
       return { status: 'error', message: accountUpdate.error.message };
     }
 
+    const { data: accountState, error: accountStateError } = await admin
+      .from('customer_accounts')
+      .select('auth_user_id,onboarding_status')
+      .eq('id', customerAccountId)
+      .eq('workshop_account_id', currentProfile.workshop_account_id)
+      .maybeSingle();
+
+    if (accountStateError) {
+      return { status: 'error', message: accountStateError.message };
+    }
+
+    if (!accountState?.auth_user_id && accountState?.onboarding_status !== 'prospect_unpaid') {
+      await admin
+        .from('customer_accounts')
+        .update({ onboarding_status: 'prospect_unpaid' })
+        .eq('id', customerAccountId)
+        .eq('workshop_account_id', currentProfile.workshop_account_id);
+    }
+
     const settingsUpsert = await admin
       .from('customer_notification_email_settings')
       .upsert({

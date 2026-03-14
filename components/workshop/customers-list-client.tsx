@@ -9,6 +9,7 @@ type CustomerRow = {
   id: string;
   name: string;
   linked_email?: string | null;
+  auth_user_id?: string | null;
   onboarding_status?: string | null;
   customer_users?: Array<{
     profiles?: Array<{
@@ -38,7 +39,7 @@ export function CustomersListClient({ customers }: { customers: CustomerRow[] })
   const sortedCustomers = useMemo(() => {
     const filtered = customers.filter((customer) => {
       const onboarding = (customer.onboarding_status ?? 'prospect_unpaid').toLowerCase();
-      const linked = Boolean(customer.linked_email);
+      const linked = Boolean(customer.auth_user_id);
       const onboardingMatch = onboardingFilter === 'all' || onboarding === onboardingFilter;
       const linkageMatch = linkageFilter === 'all' || (linkageFilter === 'linked' ? linked : !linked);
       return onboardingMatch && linkageMatch;

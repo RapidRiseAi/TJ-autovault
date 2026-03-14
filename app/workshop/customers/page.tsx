@@ -9,6 +9,7 @@ type CustomerRow = {
   id: string;
   name: string;
   linked_email?: string | null;
+  auth_user_id?: string | null;
   onboarding_status?: string | null;
   customer_users?: Array<{
     profiles?: Array<{
@@ -28,7 +29,8 @@ function isMissingProspectColumnsError(
     error.code === 'PGRST204' ||
     error.code === '42703' ||
     combined.includes('linked_email') ||
-    combined.includes('onboarding_status')
+    combined.includes('onboarding_status') ||
+    combined.includes('auth_user_id')
   );
 }
 
@@ -50,7 +52,7 @@ export default async function WorkshopCustomersPage() {
   const withProspectColumns = await supabase
     .from('customer_accounts')
     .select(
-      'id,name,linked_email,onboarding_status,customer_users(profiles(display_name,full_name,avatar_url))'
+      'id,name,linked_email,auth_user_id,onboarding_status,customer_users(profiles(display_name,full_name,avatar_url))'
     )
     .eq('workshop_account_id', profile.workshop_account_id)
     .order('name');

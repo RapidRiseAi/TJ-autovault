@@ -83,7 +83,7 @@ async function createUnlinkedUploadCase(_prevState: OneTimeUploadActionState, fo
     return { status: 'error', message: 'Could not initialize one-time client profile.' };
   }
 
-  const oneTimeRegistration = `ONE-TIME-${ctx.profile.workshop_account_id.slice(0, 6).toUpperCase()}`;
+  const oneTimeRegistration = `ONE-TIME-${ctx.profile.workshop_account_id.replace(/-/g, '').slice(0, 12).toUpperCase()}`;
   const existingOneTimeVehicle = await supabase
     .from('vehicles')
     .select('id')
@@ -92,8 +92,10 @@ async function createUnlinkedUploadCase(_prevState: OneTimeUploadActionState, fo
     .limit(1)
     .maybeSingle();
 
-  const oneTimeVehicleId = existingOneTimeVehicle.data?.id ?? (
-    await supabase
+  let oneTimeVehicleId = existingOneTimeVehicle.data?.id ?? null;
+
+  if (!oneTimeVehicleId) {
+    const primaryVehicleInsert = await supabase
       .from('vehicles')
       .insert({
         workshop_account_id: ctx.profile.workshop_account_id,
@@ -104,8 +106,41 @@ async function createUnlinkedUploadCase(_prevState: OneTimeUploadActionState, fo
         created_by: ctx.profile.id
       })
       .select('id')
-      .single()
-  ).data?.id;
+      .single();
+
+    const fallbackVehicleInsert =
+      primaryVehicleInsert.error && isMissingColumnError(primaryVehicleInsert.error)
+        ? await supabase
+            .from('vehicles')
+            .insert({
+              workshop_account_id: ctx.profile.workshop_account_id,
+              registration_number: oneTimeRegistration,
+              make: 'One-time',
+              model: 'Client',
+              current_customer_account_id: oneTimeCustomerId
+            })
+            .select('id')
+            .single()
+        : primaryVehicleInsert;
+
+    oneTimeVehicleId = fallbackVehicleInsert.data?.id ?? null;
+
+    if (!oneTimeVehicleId) {
+      const emergencyRegistration = `${oneTimeRegistration}-${Date.now().toString().slice(-4)}`;
+      const emergencyInsert = await supabase
+        .from('vehicles')
+        .insert({
+          workshop_account_id: ctx.profile.workshop_account_id,
+          registration_number: emergencyRegistration,
+          make: 'One-time',
+          model: 'Client',
+          current_customer_account_id: oneTimeCustomerId
+        })
+        .select('id')
+        .single();
+      oneTimeVehicleId = emergencyInsert.data?.id ?? null;
+    }
+  }
 
   if (!oneTimeVehicleId) {
     return { status: 'error', message: 'Could not initialize one-time client vehicle.' };
