@@ -1,53 +1,42 @@
--- Reset the database to a clean client-demo state while preserving selected login(s).
+-- Reset the database to a clean testing state while preserving one admin account.
 --
 -- Usage:
 --   1) Open the Supabase SQL editor for your project.
 --   2) Paste this file and run it as the project owner/service role.
 --
--- Configure v_keep_emails below with the account(s) you want to keep.
--- The script preserves:
---   - matching auth.users row(s)
---   - their profile row(s)
---   - any linked workshop account(s) + branding settings
---
--- Everything else (customers, quotes, invoices, job cards, files, technician accounts,
--- notifications, etc.) is removed.
+-- This script keeps only the auth user with email team@rapidriseai.com and
+-- that user's profile/workshop context. All other app data and storage objects
+-- are removed.
 
 begin;
 
 DO $$
 DECLARE
-  -- Keep these login(s). Update as needed before running.
-  v_keep_emails constant text[] := array[
-    'team@rapidriseai.com'
-    -- ,'developer@your-workshop.com'
-  ];
-  v_keep_user_ids uuid[];
-  v_keep_workshop_ids uuid[];
+  v_admin_email constant text := 'team@rapidriseai.com';
+  v_admin_user_id uuid;
+  v_admin_workshop_id uuid;
   v_tables_to_truncate text;
 BEGIN
-  select coalesce(array_agg(u.id), array[]::uuid[])
-    into v_keep_user_ids
+  select u.id
+    into v_admin_user_id
   from auth.users u
-  where lower(u.email) = any (
-    select lower(email)
-    from unnest(v_keep_emails) as email
-  );
+  where lower(u.email) = lower(v_admin_email)
+  limit 1;
 
-  if coalesce(array_length(v_keep_user_ids, 1), 0) = 0 then
-    raise exception 'No auth users found for configured keep_emails: %', v_keep_emails;
+  if v_admin_user_id is null then
+    raise exception 'No auth user found for %', v_admin_email;
   end if;
 
-  select coalesce(array_agg(distinct p.workshop_account_id), array[]::uuid[])
-    into v_keep_workshop_ids
+  select p.workshop_account_id
+    into v_admin_workshop_id
   from public.profiles p
-  where p.id = any(v_keep_user_ids)
-    and p.workshop_account_id is not null;
+  where p.id = v_admin_user_id
+  limit 1;
 
   -- Remove every stored file from all buckets.
   delete from storage.objects;
 
-  -- Truncate all domain tables, excluding tables with kept identities/workshops.
+  -- Truncate all domain tables, excluding the admin profile/workshop tables.
   select string_agg(format('%I.%I', schemaname, tablename), ', ')
     into v_tables_to_truncate
   from pg_tables
@@ -58,25 +47,25 @@ BEGIN
     execute 'truncate table ' || v_tables_to_truncate || ' restart identity cascade';
   end if;
 
-  -- Keep only selected profiles.
+  -- Keep only the admin profile.
   delete from public.profiles
-  where not (id = any(v_keep_user_ids));
+  where id <> v_admin_user_id;
 
-  -- Keep only selected workshop account(s).
-  if coalesce(array_length(v_keep_workshop_ids, 1), 0) = 0 then
+  -- Keep only the admin workshop account (if present).
+  if v_admin_workshop_id is null then
     delete from public.workshop_branding_settings;
     delete from public.workshop_accounts;
   else
     delete from public.workshop_branding_settings
-    where not (workshop_account_id = any(v_keep_workshop_ids));
+    where workshop_account_id <> v_admin_workshop_id;
 
     delete from public.workshop_accounts
-    where not (id = any(v_keep_workshop_ids));
+    where id <> v_admin_workshop_id;
   end if;
 
-  -- Keep only selected auth account(s).
+  -- Keep only the admin auth account.
   delete from auth.users
-  where not (id = any(v_keep_user_ids));
+  where id <> v_admin_user_id;
 END $$;
 
 commit;
