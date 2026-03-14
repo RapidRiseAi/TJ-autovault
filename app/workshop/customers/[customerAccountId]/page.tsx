@@ -3,10 +3,12 @@ import { revalidatePath } from 'next/cache';
 import { PageHeader } from '@/components/layout/page-header';
 import { Card } from '@/components/ui/card';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { SendMessageModal } from '@/components/messages/send-message-modal';
 import { CustomerVehicleManager } from '@/components/workshop/customer-vehicle-manager';
 import { RemoveCustomerAccountButton } from '@/components/workshop/remove-customer-account-button';
 import { CustomerBillingDetailsForm, type CustomerBillingActionState } from '@/components/workshop/customer-billing-details-form';
+import { UnlinkedNotificationSettingsForm } from '@/components/workshop/unlinked-notification-settings-form';
 import { dispatchRecentCustomerNotifications } from '@/lib/email/dispatch-now';
 import { composeBillingAddress, splitBillingAddress } from '@/lib/customer/billing-address';
 
@@ -43,6 +45,8 @@ type CustomerDetail = {
     }>;
   }>;
 };
+
+type UnlinkedNotificationActionState = { status: 'idle' | 'success' | 'error'; message?: string };
 
 type CustomerOptionalColumn =
   | 'linked_email'
@@ -100,6 +104,21 @@ function extractMissingBillingColumns(
   return keys.filter((column) => combined.includes(column));
 }
 
+
+
+function isMissingRelationOrColumnError(
+  error: { code?: string; message?: string } | null,
+  targets: string[]
+) {
+  if (!error) return false;
+  const combined = `${error.code ?? ''} ${error.message ?? ''}`.toLowerCase();
+  return (
+    error.code === 'PGRST204' ||
+    error.code === '42703' ||
+    error.code === '42P01' ||
+    targets.some((target) => combined.includes(target.toLowerCase()))
+  );
+}
 
 function isMissingCustomerBillingColumnError(
   error: { code?: string; message?: string } | null
@@ -450,11 +469,96 @@ export default async function WorkshopCustomerPage({
     };
   }
 
+
+  async function updateUnlinkedNotificationSettings(_prevState: UnlinkedNotificationActionState, formData: FormData): Promise<UnlinkedNotificationActionState> {
+    'use server';
+
+    const supabase = await createClient();
+    const admin = createAdminClient();
+    const user = (await supabase.auth.getUser()).data.user;
+    if (!user) return { status: 'error', message: 'Unauthorized' };
+
+    const { data: currentProfile } = await supabase
+      .from('profiles')
+      .select('role,workshop_account_id')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (
+      !currentProfile?.workshop_account_id ||
+      (currentProfile.role !== 'admin' && currentProfile.role !== 'technician')
+    ) {
+      return { status: 'error', message: 'Access denied' };
+    }
+
+    const sendToEmail = (formData.get('send_to_email')?.toString() ?? '').trim().toLowerCase();
+    const linkedEmail = (formData.get('linked_email')?.toString() ?? '').trim().toLowerCase();
+
+    const accountUpdate = await admin
+      .from('customer_accounts')
+      .update({ linked_email: linkedEmail || null })
+      .eq('id', customerAccountId)
+      .eq('workshop_account_id', currentProfile.workshop_account_id);
+
+    if (accountUpdate.error) {
+      return { status: 'error', message: accountUpdate.error.message };
+    }
+
+    const { data: accountState, error: accountStateError } = await admin
+      .from('customer_accounts')
+      .select('auth_user_id,onboarding_status')
+      .eq('id', customerAccountId)
+      .eq('workshop_account_id', currentProfile.workshop_account_id)
+      .maybeSingle();
+
+    if (accountStateError) {
+      return { status: 'error', message: accountStateError.message };
+    }
+
+    if (!accountState?.auth_user_id && accountState?.onboarding_status !== 'prospect_unpaid') {
+      await admin
+        .from('customer_accounts')
+        .update({ onboarding_status: 'prospect_unpaid' })
+        .eq('id', customerAccountId)
+        .eq('workshop_account_id', currentProfile.workshop_account_id);
+    }
+
+    const settingsUpsert = await admin
+      .from('customer_notification_email_settings')
+      .upsert({
+        customer_account_id: customerAccountId,
+        workshop_account_id: currentProfile.workshop_account_id,
+        email_enabled: formData.get('email_enabled') === 'on',
+        send_to_email: sendToEmail || null,
+        notify_quotes: formData.get('notify_quotes') === 'on',
+        notify_invoices: formData.get('notify_invoices') === 'on',
+        notify_reports: formData.get('notify_reports') === 'on',
+        notify_system: formData.get('notify_system') === 'on'
+      }, { onConflict: 'customer_account_id' });
+
+    if (settingsUpsert.error) {
+      if (isMissingRelationOrColumnError(settingsUpsert.error, ['customer_notification_email_settings', 'send_to_email', 'notify_quotes', 'notify_invoices', 'notify_reports', 'notify_system'])) {
+        revalidatePath(`/workshop/customers/${customerAccountId}`);
+        return {
+          status: 'success',
+          message: 'Linked email saved. Notification settings table is missing in this environment. Please run latest migrations.'
+        };
+      }
+      return { status: 'error', message: settingsUpsert.error.message };
+    }
+
+    revalidatePath(`/workshop/customers/${customerAccountId}`);
+    return { status: 'success', message: 'Notification settings saved.' };
+  }
+
+  const admin = createAdminClient();
+
   const [
     { vehicles, error: vehiclesError },
     { count: unpaidInvoices },
     { count: pendingQuotes },
-    { count: activeJobs }
+    { count: activeJobs },
+    { data: unlinkedNotificationSettings }
   ] = await Promise.all([
     loadCustomerVehicles({ supabase, customerAccountId, workshopId }),
     supabase
@@ -479,7 +583,23 @@ export default async function WorkshopCustomerPage({
         'waiting_approval',
         'quality_check',
         'ready'
-      ])
+      ]),
+    (async () => {
+      const result = await admin
+        .from('customer_notification_email_settings')
+        .select('email_enabled,send_to_email,notify_quotes,notify_invoices,notify_reports,notify_system')
+        .eq('customer_account_id', customerAccountId)
+        .maybeSingle();
+
+      if (
+        result.error &&
+        isMissingRelationOrColumnError(result.error, ['customer_notification_email_settings'])
+      ) {
+        return { data: null };
+      }
+
+      return result;
+    })()
   ]);
 
   return (
@@ -535,6 +655,40 @@ export default async function WorkshopCustomerPage({
         <CustomerVehicleManager customerAccountId={customer.id} vehicles={vehicles} />
       </Card>
 
+
+
+
+      {!customer.auth_user_id ? (
+        <Card className="rounded-3xl p-6">
+          <details>
+            <summary className="cursor-pointer list-none text-base font-semibold [&::-webkit-details-marker]:hidden">
+              <span className="inline-flex items-center gap-2">Unlinked customer notification settings <span className="text-xs text-gray-500">(expand)</span></span>
+            </summary>
+            <p className="mt-2 text-sm text-gray-600">
+              Control notification emails for this unlinked customer and choose the recipient address.
+            </p>
+            <UnlinkedNotificationSettingsForm
+              action={updateUnlinkedNotificationSettings}
+              defaults={{
+                linkedEmail: customer.linked_email ?? '',
+                sendToEmail: (unlinkedNotificationSettings as { send_to_email?: string | null } | null)?.send_to_email ?? customer.linked_email ?? '',
+                emailEnabled: (unlinkedNotificationSettings as { email_enabled?: boolean } | null)?.email_enabled ?? true,
+                notifyQuotes: (unlinkedNotificationSettings as { notify_quotes?: boolean } | null)?.notify_quotes ?? true,
+                notifyInvoices: (unlinkedNotificationSettings as { notify_invoices?: boolean } | null)?.notify_invoices ?? true,
+                notifyReports: (unlinkedNotificationSettings as { notify_reports?: boolean } | null)?.notify_reports ?? true,
+                notifySystem: (unlinkedNotificationSettings as { notify_system?: boolean } | null)?.notify_system ?? true
+              }}
+            />
+          </details>
+        </Card>
+      ) : (
+        <Card className="rounded-3xl border-emerald-200 bg-emerald-50 p-5">
+          <p className="text-sm font-semibold text-emerald-900">Linked portal account</p>
+          <p className="mt-1 text-sm text-emerald-800">
+            This customer is linked to a signed-in portal profile, so workshop-side unlinked notification settings are not shown for this account.
+          </p>
+        </Card>
+      )}
 
       <Card className="rounded-3xl p-6">
         <details>

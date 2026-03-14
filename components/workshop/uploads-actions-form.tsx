@@ -34,7 +34,8 @@ export function UploadsActionsForm({
   currentMileage,
   technicians = [],
   currentProfileId,
-  customerAccountId
+  customerAccountId,
+  oneTimeClientDetails
 }: {
   vehicleId: string;
   onSuccess?: () => void;
@@ -48,6 +49,20 @@ export function UploadsActionsForm({
   technicians?: Array<{ id: string; name: string }>;
   currentProfileId?: string;
   customerAccountId?: string | null;
+  oneTimeClientDetails?: {
+    enabled: boolean;
+    customerName: string;
+    notificationEmail?: string;
+    billingName?: string;
+    billingCompany?: string;
+    billingEmail?: string;
+    billingPhone?: string;
+    billingAddress?: string;
+    registrationNumber?: string;
+    make?: string;
+    model?: string;
+    vin?: string;
+  };
 }) {
   const router = useRouter();
   const { pushToast } = useToast();
@@ -262,6 +277,7 @@ export function UploadsActionsForm({
           kind={documentType === 'quote' ? 'quote' : 'invoice'}
           linkedQuoteId={linkedQuoteId}
           customerAccountId={customerAccountId ?? undefined}
+          oneTimeClientDetails={oneTimeClientDetails}
           onDone={() => {
             if (pendingCloseJobId && documentType === 'invoice') {
               void closePendingJob();

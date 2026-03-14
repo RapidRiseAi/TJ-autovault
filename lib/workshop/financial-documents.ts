@@ -23,7 +23,21 @@ export const financialDocumentPayloadSchema = z.object({
   notes: z.string().trim().max(3000).optional(),
   currencyCode: z.string().trim().default('ZAR'),
   lineItems: z.array(financialLineItemSchema).min(1),
-  quoteId: z.string().uuid().optional()
+  quoteId: z.string().uuid().optional(),
+  sendEmailTo: z.string().trim().email().optional(),
+  oneTimeClient: z.object({
+    customerName: z.string().trim().min(1).max(120),
+    notificationEmail: z.string().trim().email().optional(),
+    billingName: z.string().trim().max(120).optional(),
+    billingCompany: z.string().trim().max(120).optional(),
+    billingEmail: z.string().trim().email().optional(),
+    billingPhone: z.string().trim().max(60).optional(),
+    billingAddress: z.string().trim().max(500).optional(),
+    registrationNumber: z.string().trim().max(60).optional(),
+    make: z.string().trim().max(80).optional(),
+    model: z.string().trim().max(80).optional(),
+    vin: z.string().trim().max(80).optional()
+  }).optional()
 });
 
 export type FinancialLineItemInput = z.infer<typeof financialLineItemSchema>;

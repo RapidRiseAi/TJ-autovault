@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -8,9 +7,9 @@ import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/server';
 import { VerifyVehicleButton } from '@/components/workshop/verify-vehicle-button';
 import { SectionCard } from '@/components/ui/section-card';
+import { DashboardListsClient } from '@/components/workshop/dashboard-lists-client';
+import { PersistedCollapsiblePanel } from '@/components/workshop/persisted-collapsible-panel';
 import { SegmentRing } from '@/components/ui/segment-ring';
-import { EmptyState } from '@/components/ui/empty-state';
-import { getAvatarSrc, getCustomerDisplayName, getInitials, selectBestCustomerProfile } from '@/lib/workshop/customer-display';
 import { SendMessageModal } from '@/components/messages/send-message-modal';
 import { resolvePostLoginPath } from '@/lib/auth/role-redirect';
 
@@ -18,6 +17,7 @@ type CustomerRow = {
   id: string;
   name: string;
   created_at: string;
+  auth_user_id?: string | null;
   customer_users?: Array<{
     profiles?: Array<{
       display_name: string | null;
@@ -29,17 +29,19 @@ type CustomerRow = {
 
 type InvoiceRow = {
   id: string;
+  vehicle_id: string | null;
   total_cents: number | null;
   payment_status: string | null;
   invoice_number?: string | null;
 };
 
 
-function getVehicleDisplayName(vehicle: { make: string | null; model: string | null; registration_number: string }) {
-  const displayName = [vehicle.make, vehicle.model].filter(Boolean).join(' ').trim();
-  return displayName || vehicle.registration_number;
-}
 
+function isMissingCustomerLinkageColumnError(error: { code?: string; message?: string } | null) {
+  if (!error) return false;
+  const combined = `${error.code ?? ''} ${error.message ?? ''}`.toLowerCase();
+  return error.code === 'PGRST204' || error.code === '42703' || combined.includes('auth_user_id');
+}
 
 function getSouthAfricaDateIso() {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -90,45 +92,6 @@ async function submitTechnicianClockIn(formData: FormData) {
   redirect('/workshop/dashboard?clocked=1');
 }
 
-function formatDate(value: string) {
-  if (!value) return 'Unknown date';
-  return new Date(value).toLocaleDateString('en-ZA', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric'
-  });
-}
-
-function CollapsibleDashboardPanel({
-  title,
-  action,
-  defaultOpen = false,
-  children,
-  id
-}: {
-  title: string;
-  action?: ReactNode;
-  defaultOpen?: boolean;
-  children: ReactNode;
-  id?: string;
-}) {
-  return (
-    <SectionCard id={id}>
-      <details open={defaultOpen} className="group">
-        <summary className="mb-4 flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
-          <h2 className="text-lg font-semibold text-brand-black">{title}</h2>
-          <div className="flex items-center gap-3">
-            {action}
-            <span className="text-xs font-medium text-gray-500 group-open:hidden">Expand</span>
-            <span className="hidden text-xs font-medium text-gray-500 group-open:inline">Collapse</span>
-          </div>
-        </summary>
-        <div>{children}</div>
-      </details>
-    </SectionCard>
-  );
-}
-
 export default async function WorkshopDashboardPage({ searchParams }: { searchParams?: Promise<{ clocked?: string }> }) {
   const supabase = await createClient();
   const user = (await supabase.auth.getUser()).data.user;
@@ -171,17 +134,30 @@ export default async function WorkshopDashboardPage({ searchParams }: { searchPa
       .in('status', ['requested', 'waiting_for_deposit', 'waiting_for_parts', 'scheduled', 'in_progress']),
     supabase
       .from('invoices')
-      .select('id,total_cents,payment_status,invoice_number')
+      .select('id,vehicle_id,total_cents,payment_status,invoice_number')
       .eq('workshop_account_id', workshopId)
       .neq('payment_status', 'paid')
       .order('total_cents', { ascending: false })
       .limit(200),
-    supabase
-      .from('customer_accounts')
-      .select('id,name,created_at,customer_users(profiles(display_name,full_name,avatar_url))')
-      .eq('workshop_account_id', workshopId)
-      .order('created_at', { ascending: false })
-      .limit(100),
+    (async () => {
+      const withLinkage = await supabase
+        .from('customer_accounts')
+        .select('id,name,created_at,auth_user_id,customer_users(profiles(display_name,full_name,avatar_url))')
+        .eq('workshop_account_id', workshopId)
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (withLinkage.error && isMissingCustomerLinkageColumnError(withLinkage.error)) {
+        return supabase
+          .from('customer_accounts')
+          .select('id,name,created_at,customer_users(profiles(display_name,full_name,avatar_url))')
+          .eq('workshop_account_id', workshopId)
+          .order('created_at', { ascending: false })
+          .limit(100);
+      }
+
+      return withLinkage;
+    })(),
     supabase
       .from('vehicles')
       .select('id,registration_number,status')
@@ -196,7 +172,7 @@ export default async function WorkshopDashboardPage({ searchParams }: { searchPa
       .limit(200)
   ]);
 
-  const customerRows = (customerResult.data ?? []) as CustomerRow[];
+  const customerRows = ((customerResult.data ?? []) as CustomerRow[]).filter((customer) => customer.name !== '__ONE_TIME_CLIENT__');
   const customersError = customerResult.error;
   const totalVehicles = vehicles ?? 0;
   const openRequestCount = openRequests ?? 0;
@@ -219,13 +195,7 @@ export default async function WorkshopDashboardPage({ searchParams }: { searchPa
   const topOutstandingInvoices = [...invoiceBreakdown]
     .sort((a, b) => b.outstandingCents - a.outstandingCents)
     .slice(0, 3);
-  const customerNameById = new Map(
-    customerRows.map((customer) => {
-      const profileInfo = selectBestCustomerProfile(customer.customer_users);
-      const name = getCustomerDisplayName(profileInfo, customer.name);
-      return [customer.id, name];
-    })
-  );
+
 
   return (
     <main className="space-y-7 pb-2">
@@ -397,93 +367,14 @@ export default async function WorkshopDashboardPage({ searchParams }: { searchPa
         </article>
       </section>
 
-      <CollapsibleDashboardPanel
-        title="Customers"
-        action={
-          <Button asChild size="sm" variant="secondary">
-            <Link href="/workshop/customers">View all</Link>
-          </Button>
-        }
-      >
-        {customersError ? (
-          <EmptyState
-            title="Unable to load customers"
-            description="Please refresh and try again."
-          />
-        ) : null}
-        {!customersError ? (
-          <div className="grid gap-3 md:grid-cols-2">
-            {customerRows.map((customer) => {
-              const profileInfo = selectBestCustomerProfile(customer.customer_users);
-              const customerName = getCustomerDisplayName(profileInfo, customer.name);
-              const businessName = customer.name;
-              const avatar = getAvatarSrc(profileInfo?.avatar_url);
+      <DashboardListsClient
+        customerRows={customerRows}
+        customerVehicles={customerVehicles ?? []}
+        unpaidInvoices={unpaidInvoices}
+        customersError={customersError}
+      />
 
-              return (
-                <div key={customer.id} className="flex h-full items-center justify-between gap-2 rounded-xl border border-neutral-200/80 bg-white px-3 py-2">
-                  <div className="flex min-w-0 items-center gap-2.5">
-                    {avatar ? (
-                      <img src={avatar} alt={customerName} className="h-8 w-8 rounded-full border border-black/10 object-cover" />
-                    ) : (
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-neutral-100 text-[10px] font-semibold text-black/80">{getInitials(customerName)}</div>
-                    )}
-                    <div className="min-w-0">
-                      <p className="truncate text-xs font-semibold leading-tight text-brand-black">{customerName}</p>
-                      <p className="truncate text-[11px] leading-tight text-gray-400">{businessName}</p>
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end gap-1.5">
-                    <p className="text-xs text-gray-500">{formatDate(customer.created_at)}</p>
-                    <Button asChild size="sm" className="min-h-0 min-w-12 border border-brand-red/30 px-2.5 py-0.5 text-[11px] shadow-none">
-                      <Link href={`/workshop/customers/${customer.id}`}>Open</Link>
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
-            {!customerRows.length ? (
-              <EmptyState title="No customers yet" description="Customers linked to this workshop will appear here." className="xl:col-span-2" />
-            ) : null}
-          </div>
-        ) : null}
-      </CollapsibleDashboardPanel>
-
-
-      <CollapsibleDashboardPanel
-        title="Vehicle list"
-        action={
-          <Button asChild size="sm" variant="secondary">
-            <Link href="/workshop/customers">Manage customers</Link>
-          </Button>
-        }
-      >
-        {!customerVehicles?.length ? (
-          <EmptyState title="No vehicles yet" description="Vehicles linked to your customers will appear here." />
-        ) : (
-          <div className="grid gap-2 md:grid-cols-2">
-            {customerVehicles.map((vehicle) => (
-              <div key={vehicle.id} className="rounded-xl border border-neutral-200 p-3">
-                <div className="flex items-start justify-between gap-2 sm:flex-row sm:items-center">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-brand-black">{getVehicleDisplayName(vehicle)}</p>
-                    <p className="truncate text-xs text-gray-500">{vehicle.registration_number}</p>
-                    <p className="truncate text-xs text-gray-400">{vehicle.current_customer_account_id ? customerNameById.get(vehicle.current_customer_account_id) ?? 'Customer unavailable' : 'Customer unavailable'}</p>
-                    <span className="mt-2 inline-flex rounded-full border border-black/10 bg-white px-2 py-1 text-[10px] uppercase text-gray-600 sm:hidden">{vehicle.status ?? 'active'}</span>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2 sm:justify-end">
-                    <span className="hidden rounded-full border border-black/10 bg-white px-2 py-1 text-[10px] uppercase text-gray-600 sm:inline-flex">{vehicle.status ?? 'active'}</span>
-                    <Button asChild size="sm" variant="secondary" className="h-7 px-2.5 py-1 text-[11px] sm:h-9 sm:px-3 sm:py-2 sm:text-xs">
-                      <Link href={`/workshop/vehicles/${vehicle.id}`}>Open</Link>
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </CollapsibleDashboardPanel>
-
-      <CollapsibleDashboardPanel title="Pending verification" id="pending-verification">
+      <PersistedCollapsiblePanel title="Pending verification" id="pending-verification">
         {!pendingVehicles?.length ? (
           <p className="text-sm text-gray-500">No vehicles pending verification.</p>
         ) : (
@@ -504,7 +395,7 @@ export default async function WorkshopDashboardPage({ searchParams }: { searchPa
             ))}
           </div>
         )}
-      </CollapsibleDashboardPanel>
+      </PersistedCollapsiblePanel>
     </main>
   );
 }

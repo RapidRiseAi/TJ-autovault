@@ -115,6 +115,16 @@ async function resolveCustomerFallbackEmail(notification: NotificationRow) {
   if (!notification.to_customer_account_id) return null;
 
   const admin = createAdminClient();
+  const { data: customerEmailSetting } = await admin
+    .from('customer_notification_email_settings')
+    .select('email_enabled,send_to_email')
+    .eq('customer_account_id', notification.to_customer_account_id)
+    .maybeSingle();
+
+  if (customerEmailSetting?.email_enabled && customerEmailSetting.send_to_email?.trim()) {
+    return customerEmailSetting.send_to_email.trim().toLowerCase();
+  }
+
   const { data: customerAccount } = await admin
     .from('customer_accounts')
     .select('linked_email,auth_user_id')
@@ -211,39 +221,49 @@ export async function dispatchNotificationEmailsImmediately(notificationIds: str
     }
 
     const recipientProfileId = await resolveRecipientProfileId(notification as NotificationRow);
-    if (!recipientProfileId) {
-      await admin
-        .from('notification_email_queue')
-        .update({
-          status: 'failed',
-          last_error: 'No recipient profile',
-          attempt_count: priorAttempts + 1,
-          last_attempted_at: nowIso,
-          updated_at: nowIso
-        })
-        .eq('notification_id', notificationId);
-      processed += 1;
-      continue;
+
+    let effectivePrefs: PreferencesRow;
+    if (recipientProfileId) {
+      const { data: prefs } = await admin
+        .from('notification_email_preferences')
+        .select('email_enabled,notify_messages,notify_quotes,notify_invoices,notify_requests,notify_reports,notify_recommendations,notify_system,notify_job_updates,notify_payouts')
+        .eq('profile_id', recipientProfileId)
+        .maybeSingle();
+
+      effectivePrefs = {
+        email_enabled: prefs?.email_enabled ?? true,
+        notify_messages: prefs?.notify_messages ?? true,
+        notify_quotes: prefs?.notify_quotes ?? true,
+        notify_invoices: prefs?.notify_invoices ?? true,
+        notify_requests: prefs?.notify_requests ?? true,
+        notify_reports: prefs?.notify_reports ?? true,
+        notify_recommendations: prefs?.notify_recommendations ?? true,
+        notify_system: prefs?.notify_system ?? true,
+        notify_job_updates: prefs?.notify_job_updates ?? true,
+        notify_payouts: prefs?.notify_payouts ?? true
+      };
+    } else {
+      const { data: unlinkedPrefs } = (notification as NotificationRow).to_customer_account_id
+        ? await admin
+            .from('customer_notification_email_settings')
+            .select('email_enabled,notify_quotes,notify_invoices,notify_reports,notify_system')
+            .eq('customer_account_id', (notification as NotificationRow).to_customer_account_id)
+            .maybeSingle()
+        : { data: null };
+
+      effectivePrefs = {
+        email_enabled: unlinkedPrefs?.email_enabled ?? true,
+        notify_messages: false,
+        notify_quotes: unlinkedPrefs?.notify_quotes ?? true,
+        notify_invoices: unlinkedPrefs?.notify_invoices ?? true,
+        notify_requests: false,
+        notify_reports: unlinkedPrefs?.notify_reports ?? true,
+        notify_recommendations: false,
+        notify_system: unlinkedPrefs?.notify_system ?? true,
+        notify_job_updates: false,
+        notify_payouts: false
+      };
     }
-
-    const { data: prefs } = await admin
-      .from('notification_email_preferences')
-      .select('email_enabled,notify_messages,notify_quotes,notify_invoices,notify_requests,notify_reports,notify_recommendations,notify_system,notify_job_updates,notify_payouts')
-      .eq('profile_id', recipientProfileId)
-      .maybeSingle();
-
-    const effectivePrefs: PreferencesRow = {
-      email_enabled: prefs?.email_enabled ?? true,
-      notify_messages: prefs?.notify_messages ?? true,
-      notify_quotes: prefs?.notify_quotes ?? true,
-      notify_invoices: prefs?.notify_invoices ?? true,
-      notify_requests: prefs?.notify_requests ?? true,
-      notify_reports: prefs?.notify_reports ?? true,
-      notify_recommendations: prefs?.notify_recommendations ?? true,
-      notify_system: prefs?.notify_system ?? true,
-      notify_job_updates: prefs?.notify_job_updates ?? true,
-      notify_payouts: prefs?.notify_payouts ?? true
-    };
 
     if (!notificationMatchesPreferences((notification as NotificationRow).kind, effectivePrefs)) {
       await admin
@@ -261,13 +281,15 @@ export async function dispatchNotificationEmailsImmediately(notificationIds: str
       continue;
     }
 
-    const { data: recipients } = await admin
-      .from('notification_email_recipients')
-      .select('email,is_active,position')
-      .eq('profile_id', recipientProfileId)
-      .eq('is_active', true)
-      .order('position', { ascending: true })
-      .limit(2);
+    const { data: recipients } = recipientProfileId
+      ? await admin
+          .from('notification_email_recipients')
+          .select('email,is_active,position')
+          .eq('profile_id', recipientProfileId)
+          .eq('is_active', true)
+          .order('position', { ascending: true })
+          .limit(2)
+      : { data: [] };
 
     const configuredRecipientEmails = (recipients as RecipientRow[] | null | undefined)
       ?.filter((row) => row.email?.trim())
@@ -383,33 +405,49 @@ export async function dispatchNotificationEmails(options?: { notificationIds?: s
     }
 
     const recipientProfileId = await resolveRecipientProfileId(notification as NotificationRow);
-    if (!recipientProfileId) {
-      await admin
-        .from('notification_email_queue')
-        .update({ status: 'failed', last_error: 'No recipient profile', attempt_count: queueRow.attempt_count + 1, last_attempted_at: nowIso, updated_at: nowIso })
-        .eq('id', queueRow.id);
-      processed += 1;
-      continue;
+
+    let effectivePrefs: PreferencesRow;
+    if (recipientProfileId) {
+      const { data: prefs } = await admin
+        .from('notification_email_preferences')
+        .select('email_enabled,notify_messages,notify_quotes,notify_invoices,notify_requests,notify_reports,notify_recommendations,notify_system,notify_job_updates,notify_payouts')
+        .eq('profile_id', recipientProfileId)
+        .maybeSingle();
+
+      effectivePrefs = {
+        email_enabled: prefs?.email_enabled ?? true,
+        notify_messages: prefs?.notify_messages ?? true,
+        notify_quotes: prefs?.notify_quotes ?? true,
+        notify_invoices: prefs?.notify_invoices ?? true,
+        notify_requests: prefs?.notify_requests ?? true,
+        notify_reports: prefs?.notify_reports ?? true,
+        notify_recommendations: prefs?.notify_recommendations ?? true,
+        notify_system: prefs?.notify_system ?? true,
+        notify_job_updates: prefs?.notify_job_updates ?? true,
+        notify_payouts: prefs?.notify_payouts ?? true
+      };
+    } else {
+      const { data: unlinkedPrefs } = (notification as NotificationRow).to_customer_account_id
+        ? await admin
+            .from('customer_notification_email_settings')
+            .select('email_enabled,notify_quotes,notify_invoices,notify_reports,notify_system')
+            .eq('customer_account_id', (notification as NotificationRow).to_customer_account_id)
+            .maybeSingle()
+        : { data: null };
+
+      effectivePrefs = {
+        email_enabled: unlinkedPrefs?.email_enabled ?? true,
+        notify_messages: false,
+        notify_quotes: unlinkedPrefs?.notify_quotes ?? true,
+        notify_invoices: unlinkedPrefs?.notify_invoices ?? true,
+        notify_requests: false,
+        notify_reports: unlinkedPrefs?.notify_reports ?? true,
+        notify_recommendations: false,
+        notify_system: unlinkedPrefs?.notify_system ?? true,
+        notify_job_updates: false,
+        notify_payouts: false
+      };
     }
-
-    const { data: prefs } = await admin
-      .from('notification_email_preferences')
-      .select('email_enabled,notify_messages,notify_quotes,notify_invoices,notify_requests,notify_reports,notify_recommendations,notify_system,notify_job_updates,notify_payouts')
-      .eq('profile_id', recipientProfileId)
-      .maybeSingle();
-
-    const effectivePrefs: PreferencesRow = {
-      email_enabled: prefs?.email_enabled ?? true,
-      notify_messages: prefs?.notify_messages ?? true,
-      notify_quotes: prefs?.notify_quotes ?? true,
-      notify_invoices: prefs?.notify_invoices ?? true,
-      notify_requests: prefs?.notify_requests ?? true,
-      notify_reports: prefs?.notify_reports ?? true,
-      notify_recommendations: prefs?.notify_recommendations ?? true,
-      notify_system: prefs?.notify_system ?? true,
-      notify_job_updates: prefs?.notify_job_updates ?? true,
-      notify_payouts: prefs?.notify_payouts ?? true
-    };
 
     if (!notificationMatchesPreferences((notification as NotificationRow).kind, effectivePrefs)) {
       await admin
@@ -420,13 +458,15 @@ export async function dispatchNotificationEmails(options?: { notificationIds?: s
       continue;
     }
 
-    const { data: recipients } = await admin
-      .from('notification_email_recipients')
-      .select('email,is_active,position')
-      .eq('profile_id', recipientProfileId)
-      .eq('is_active', true)
-      .order('position', { ascending: true })
-      .limit(2);
+    const { data: recipients } = recipientProfileId
+      ? await admin
+          .from('notification_email_recipients')
+          .select('email,is_active,position')
+          .eq('profile_id', recipientProfileId)
+          .eq('is_active', true)
+          .order('position', { ascending: true })
+          .limit(2)
+      : { data: [] };
 
     const configuredRecipientEmails = (recipients as RecipientRow[] | null | undefined)
       ?.filter((row) => row.email?.trim())

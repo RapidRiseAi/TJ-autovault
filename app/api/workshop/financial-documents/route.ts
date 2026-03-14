@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { sendEmail } from '@/lib/email/resend';
 import {
   dispatchNotificationEmailsNow,
   dispatchRecentCustomerNotifications
@@ -233,6 +234,7 @@ export async function POST(request: NextRequest) {
     }
 
     const payload = payloadParsed.data;
+    const oneTimeClient = payload.oneTimeClient;
     const supabase = await createClient();
     const admin = createAdminClient();
     const user = (await supabase.auth.getUser()).data.user;
@@ -442,16 +444,27 @@ export async function POST(request: NextRequest) {
       invoice_footer: workshop.invoice_footer
     };
 
-    const customerSnapshot = {
-      id: customer.id,
-      name: customer.name,
-      billing_name: customer.billing_name,
-      billing_company: customer.billing_company,
-      billing_address: customer.billing_address,
-      billing_email: customer.billing_email,
-      billing_phone: customer.billing_phone,
-      billing_tax_number: customer.billing_tax_number
-    };
+    const customerSnapshot = oneTimeClient
+      ? {
+          id: null,
+          name: oneTimeClient.customerName,
+          billing_name: oneTimeClient.billingName ?? oneTimeClient.customerName,
+          billing_company: oneTimeClient.billingCompany ?? null,
+          billing_address: oneTimeClient.billingAddress ?? null,
+          billing_email: oneTimeClient.billingEmail ?? oneTimeClient.notificationEmail ?? null,
+          billing_phone: oneTimeClient.billingPhone ?? null,
+          billing_tax_number: null
+        }
+      : {
+          id: customer.id,
+          name: customer.name,
+          billing_name: customer.billing_name,
+          billing_company: customer.billing_company,
+          billing_address: customer.billing_address,
+          billing_email: customer.billing_email,
+          billing_phone: customer.billing_phone,
+          billing_tax_number: customer.billing_tax_number
+        };
 
     let linkedId: string;
 
@@ -680,19 +693,19 @@ export async function POST(request: NextRequest) {
         footer: workshop.invoice_footer
       },
       customer: {
-        name: customer.name,
-        billingName: customer.billing_name,
-        billingCompany: customer.billing_company,
-        billingAddress: customer.billing_address,
-        billingEmail: customer.billing_email,
-        billingPhone: customer.billing_phone,
+        name: oneTimeClient?.customerName ?? customer.name,
+        billingName: oneTimeClient?.billingName ?? customer.billing_name,
+        billingCompany: oneTimeClient?.billingCompany ?? customer.billing_company,
+        billingAddress: oneTimeClient?.billingAddress ?? customer.billing_address,
+        billingEmail: oneTimeClient?.billingEmail ?? oneTimeClient?.notificationEmail ?? customer.billing_email,
+        billingPhone: oneTimeClient?.billingPhone ?? customer.billing_phone,
         billingTaxNumber: customer.billing_tax_number
       },
       vehicle: {
-        registrationNumber: vehicle.registration_number,
-        make: vehicle.make,
-        model: vehicle.model,
-        vin: vehicle.vin
+        registrationNumber: oneTimeClient?.registrationNumber ?? vehicle.registration_number,
+        make: oneTimeClient?.make ?? vehicle.make,
+        model: oneTimeClient?.model ?? vehicle.model,
+        vin: oneTimeClient?.vin ?? vehicle.vin
       },
       subject: payload.subject,
       referenceNumber,
@@ -805,8 +818,28 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    const customerHref = `/customer/vehicles/${vehicle.id}`;
-    await dispatchFinancialNotificationEmail({
+
+    if (payload.sendEmailTo) {
+      const safeTo = payload.sendEmailTo.trim().toLowerCase();
+      const referenceLabel = payload.kind === 'quote' ? 'Quote' : 'Invoice';
+      await sendEmail(
+        safeTo,
+        `${referenceLabel} ${referenceNumber}`,
+        `<p>${referenceLabel} ${referenceNumber} from ${workshop.name} is attached.</p>`,
+        {
+          attachments: [
+            {
+              filename: `${referenceNumber}.pdf`,
+              content: Buffer.from(pdfBytes)
+            }
+          ]
+        }
+      );
+    }
+
+    if (!oneTimeClient) {
+      const customerHref = `/customer/vehicles/${vehicle.id}`;
+      await dispatchFinancialNotificationEmail({
       supabase,
       workshopAccountId: profile.workshop_account_id,
       customerAccountId: customer.id,
@@ -823,7 +856,8 @@ export async function POST(request: NextRequest) {
         document_id: doc.id,
         document_type: payload.kind
       }
-    });
+      });
+    }
 
     return NextResponse.json({ ok: true, id: linkedId, documentId: doc.id });
   } catch (error) {

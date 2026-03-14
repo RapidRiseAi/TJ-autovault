@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { SegmentRing } from '@/components/ui/segment-ring';
+import { OneTimeUploadModal } from '@/components/workshop/one-time-upload-modal';
 import {
   addMonths,
   ensureStatementArchivesUpToLastMonth,
@@ -17,6 +18,158 @@ import {
   parseMoneyInputToCents,
   requireWorkshopContext
 } from '@/lib/workshop/management';
+
+type OneTimeUploadActionState = {
+  status: 'idle' | 'error';
+  message?: string;
+};
+
+function isMissingColumnError(error: { code?: string; message?: string } | null) {
+  if (!error) return false;
+  const message = `${error.code ?? ''} ${error.message ?? ''}`.toLowerCase();
+  return error.code === '42703' || error.code === 'PGRST204' || message.includes('column') || message.includes('does not exist');
+}
+
+async function createUnlinkedUploadCase(_prevState: OneTimeUploadActionState, formData: FormData): Promise<OneTimeUploadActionState> {
+  'use server';
+  const supabase = await createClient();
+  const ctx = await requireWorkshopContext(supabase);
+  if (!ctx || !ctx.profile.workshop_account_id) return { status: 'error', message: 'Unauthorized' };
+
+  const customerName = (formData.get('customerName')?.toString() ?? '').trim();
+  const uploadType = (formData.get('uploadType')?.toString() ?? 'quote').trim();
+  if (!customerName) return { status: 'error', message: 'Customer name is required.' };
+
+  const oneTimeAccountName = '__ONE_TIME_CLIENT__';
+  let oneTimeCustomerId: string | null = null;
+
+  const existingOneTimeCustomer = await supabase
+    .from('customer_accounts')
+    .select('id')
+    .eq('workshop_account_id', ctx.profile.workshop_account_id)
+    .eq('name', oneTimeAccountName)
+    .limit(1)
+    .maybeSingle();
+
+  if (existingOneTimeCustomer.data?.id) {
+    oneTimeCustomerId = existingOneTimeCustomer.data.id;
+  } else {
+    const inserted = await supabase
+      .from('customer_accounts')
+      .insert({
+        workshop_account_id: ctx.profile.workshop_account_id,
+        name: oneTimeAccountName,
+        onboarding_status: 'prospect_unpaid'
+      })
+      .select('id')
+      .single();
+
+    const fallbackInserted =
+      inserted.error && isMissingColumnError(inserted.error)
+        ? await supabase
+            .from('customer_accounts')
+            .insert({
+              workshop_account_id: ctx.profile.workshop_account_id,
+              name: oneTimeAccountName
+            })
+            .select('id')
+            .single()
+        : inserted;
+
+    oneTimeCustomerId = fallbackInserted.data?.id ?? null;
+  }
+
+  if (!oneTimeCustomerId) {
+    return { status: 'error', message: 'Could not initialize one-time client profile.' };
+  }
+
+  const oneTimeRegistration = `ONE-TIME-${ctx.profile.workshop_account_id.replace(/-/g, '').slice(0, 12).toUpperCase()}`;
+  const existingOneTimeVehicle = await supabase
+    .from('vehicles')
+    .select('id')
+    .eq('workshop_account_id', ctx.profile.workshop_account_id)
+    .eq('registration_number', oneTimeRegistration)
+    .limit(1)
+    .maybeSingle();
+
+  let oneTimeVehicleId = existingOneTimeVehicle.data?.id ?? null;
+
+  if (!oneTimeVehicleId) {
+    const primaryVehicleInsert = await supabase
+      .from('vehicles')
+      .insert({
+        workshop_account_id: ctx.profile.workshop_account_id,
+        registration_number: oneTimeRegistration,
+        make: 'One-time',
+        model: 'Client',
+        current_customer_account_id: oneTimeCustomerId,
+        created_by: ctx.profile.id
+      })
+      .select('id')
+      .single();
+
+    const fallbackVehicleInsert =
+      primaryVehicleInsert.error && isMissingColumnError(primaryVehicleInsert.error)
+        ? await supabase
+            .from('vehicles')
+            .insert({
+              workshop_account_id: ctx.profile.workshop_account_id,
+              registration_number: oneTimeRegistration,
+              make: 'One-time',
+              model: 'Client',
+              current_customer_account_id: oneTimeCustomerId
+            })
+            .select('id')
+            .single()
+        : primaryVehicleInsert;
+
+    oneTimeVehicleId = fallbackVehicleInsert.data?.id ?? null;
+
+    if (!oneTimeVehicleId) {
+      const emergencyRegistration = `${oneTimeRegistration}-${Date.now().toString().slice(-4)}`;
+      const emergencyInsert = await supabase
+        .from('vehicles')
+        .insert({
+          workshop_account_id: ctx.profile.workshop_account_id,
+          registration_number: emergencyRegistration,
+          make: 'One-time',
+          model: 'Client',
+          current_customer_account_id: oneTimeCustomerId
+        })
+        .select('id')
+        .single();
+      oneTimeVehicleId = emergencyInsert.data?.id ?? null;
+    }
+  }
+
+  if (!oneTimeVehicleId) {
+    return { status: 'error', message: 'Could not initialize one-time client vehicle.' };
+  }
+
+  const safeUploadType =
+    uploadType === 'invoice' || uploadType === 'inspection_report'
+      ? uploadType
+      : 'quote';
+
+  const params = new URLSearchParams({
+    upload: safeUploadType,
+    oneTime: '1',
+    oneTimeName: customerName,
+    oneTimeNotificationEmail: (formData.get('notificationEmail')?.toString() ?? '').trim(),
+    oneTimeBillingName: (formData.get('billingName')?.toString() ?? '').trim(),
+    oneTimeBillingCompany: (formData.get('billingCompany')?.toString() ?? '').trim(),
+    oneTimeBillingEmail: (formData.get('billingEmail')?.toString() ?? '').trim(),
+    oneTimeBillingPhone: (formData.get('billingPhone')?.toString() ?? '').trim(),
+    oneTimeBillingAddress: (formData.get('billingAddress')?.toString() ?? '').trim(),
+    oneTimeReg: (formData.get('registrationNumber')?.toString() ?? '').trim(),
+    oneTimeMake: (formData.get('make')?.toString() ?? '').trim(),
+    oneTimeModel: (formData.get('model')?.toString() ?? '').trim(),
+    oneTimeVin: (formData.get('vin')?.toString() ?? '').trim()
+  });
+
+  redirect(`/workshop/vehicles/${oneTimeVehicleId}?${params.toString()}`);
+  return { status: 'idle' };
+}
 
 type EntryRow = {
   id: string;
@@ -484,6 +637,16 @@ export default async function WorkshopManagementPage() {
           <p className="text-sm text-amber-900">Finance tables are not available yet in this environment, so this page is showing fallback totals from paid invoices and technician payouts. Run the latest Supabase migration to enable full finance logging, vendors, recurring expenses, and statement archives.</p>
         </Card>
       ) : null}
+
+      <Card className="rounded-3xl border-black/10 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold text-black">One-time customer document upload</h2>
+            <p className="mt-1 text-sm text-gray-600">Open the quick popup and continue into the normal upload workflow.</p>
+          </div>
+          <OneTimeUploadModal action={createUnlinkedUploadCase} />
+        </div>
+      </Card>
 
       <section className="grid gap-4 xl:grid-cols-4">
         <Card className="rounded-3xl border-black/10 p-5">
