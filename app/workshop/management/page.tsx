@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { SegmentRing } from '@/components/ui/segment-ring';
+import { OneTimeUploadModal } from '@/components/workshop/one-time-upload-modal';
 import {
   addMonths,
   ensureStatementArchivesUpToLastMonth,
@@ -541,29 +542,13 @@ export default async function WorkshopManagementPage() {
       ) : null}
 
       <Card className="rounded-3xl border-black/10 p-5">
-        <h2 className="text-base font-semibold text-black">One-time customer document upload</h2>
-        <p className="mt-1 text-sm text-gray-600">
-          Start the normal upload flow (quotes, invoices, and inspection reports) without linking to an existing customer/vehicle first.
-        </p>
-        <form action={createUnlinkedUploadCase} className="mt-4 grid gap-3 md:grid-cols-3">
-          <input name="customerName" required placeholder="Customer name" className="rounded-xl border border-black/15 px-3 py-2 text-sm" />
-          <input name="notificationEmail" type="email" placeholder="Email for document notifications" className="rounded-xl border border-black/15 px-3 py-2 text-sm" />
-          <select name="uploadType" className="rounded-xl border border-black/15 px-3 py-2 text-sm">
-            <option value="quote">Quote</option>
-            <option value="invoice">Invoice</option>
-            <option value="inspection_report">Inspection report</option>
-          </select>
-          <input name="registrationNumber" placeholder="Vehicle reg (optional)" className="rounded-xl border border-black/15 px-3 py-2 text-sm" />
-          <input name="make" placeholder="Make" className="rounded-xl border border-black/15 px-3 py-2 text-sm" />
-          <input name="model" placeholder="Model" className="rounded-xl border border-black/15 px-3 py-2 text-sm" />
-          <input name="vin" placeholder="VIN (optional)" className="rounded-xl border border-black/15 px-3 py-2 text-sm" />
-          <input name="billingName" placeholder="Billing name" className="rounded-xl border border-black/15 px-3 py-2 text-sm" />
-          <input name="billingCompany" placeholder="Billing company" className="rounded-xl border border-black/15 px-3 py-2 text-sm" />
-          <input name="billingEmail" type="email" placeholder="Billing email" className="rounded-xl border border-black/15 px-3 py-2 text-sm" />
-          <input name="billingPhone" placeholder="Billing phone" className="rounded-xl border border-black/15 px-3 py-2 text-sm" />
-          <input name="billingAddress" placeholder="Billing address" className="rounded-xl border border-black/15 px-3 py-2 text-sm md:col-span-2" />
-          <Button type="submit" className="md:col-span-3">Create and open upload</Button>
-        </form>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold text-black">One-time customer document upload</h2>
+            <p className="mt-1 text-sm text-gray-600">Open the quick popup and continue into the normal upload workflow.</p>
+          </div>
+          <OneTimeUploadModal action={createUnlinkedUploadCase} />
+        </div>
       </Card>
 
       <section className="grid gap-4 xl:grid-cols-4">

@@ -3,10 +3,12 @@ import { revalidatePath } from 'next/cache';
 import { PageHeader } from '@/components/layout/page-header';
 import { Card } from '@/components/ui/card';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { SendMessageModal } from '@/components/messages/send-message-modal';
 import { CustomerVehicleManager } from '@/components/workshop/customer-vehicle-manager';
 import { RemoveCustomerAccountButton } from '@/components/workshop/remove-customer-account-button';
 import { CustomerBillingDetailsForm, type CustomerBillingActionState } from '@/components/workshop/customer-billing-details-form';
+import { UnlinkedNotificationSettingsForm } from '@/components/workshop/unlinked-notification-settings-form';
 import { dispatchRecentCustomerNotifications } from '@/lib/email/dispatch-now';
 import { composeBillingAddress, splitBillingAddress } from '@/lib/customer/billing-address';
 
@@ -43,6 +45,8 @@ type CustomerDetail = {
     }>;
   }>;
 };
+
+type UnlinkedNotificationActionState = { status: 'idle' | 'success' | 'error'; message?: string };
 
 type CustomerOptionalColumn =
   | 'linked_email'
@@ -451,12 +455,12 @@ export default async function WorkshopCustomerPage({
   }
 
 
-  async function updateUnlinkedNotificationSettings(formData: FormData) {
+  async function updateUnlinkedNotificationSettings(_prevState: UnlinkedNotificationActionState, formData: FormData): Promise<UnlinkedNotificationActionState> {
     'use server';
 
     const supabase = await createClient();
     const user = (await supabase.auth.getUser()).data.user;
-    if (!user) return;
+    if (!user) return { status: 'error', message: 'Unauthorized' };
 
     const { data: currentProfile } = await supabase
       .from('profiles')
@@ -468,19 +472,23 @@ export default async function WorkshopCustomerPage({
       !currentProfile?.workshop_account_id ||
       (currentProfile.role !== 'admin' && currentProfile.role !== 'technician')
     ) {
-      return;
+      return { status: 'error', message: 'Access denied' };
     }
 
     const sendToEmail = (formData.get('send_to_email')?.toString() ?? '').trim().toLowerCase();
     const linkedEmail = (formData.get('linked_email')?.toString() ?? '').trim().toLowerCase();
 
-    await supabase
+    const accountUpdate = await admin
       .from('customer_accounts')
       .update({ linked_email: linkedEmail || null })
       .eq('id', customerAccountId)
       .eq('workshop_account_id', currentProfile.workshop_account_id);
 
-    await supabase
+    if (accountUpdate.error) {
+      return { status: 'error', message: accountUpdate.error.message };
+    }
+
+    const settingsUpsert = await admin
       .from('customer_notification_email_settings')
       .upsert({
         customer_account_id: customerAccountId,
@@ -493,8 +501,15 @@ export default async function WorkshopCustomerPage({
         notify_system: formData.get('notify_system') === 'on'
       }, { onConflict: 'customer_account_id' });
 
+    if (settingsUpsert.error) {
+      return { status: 'error', message: settingsUpsert.error.message };
+    }
+
     revalidatePath(`/workshop/customers/${customerAccountId}`);
+    return { status: 'success', message: 'Notification settings saved.' };
   }
+
+  const admin = createAdminClient();
 
   const [
     { vehicles, error: vehiclesError },
@@ -527,7 +542,7 @@ export default async function WorkshopCustomerPage({
         'quality_check',
         'ready'
       ]),
-    supabase
+    admin
       .from('customer_notification_email_settings')
       .select('email_enabled,send_to_email,notify_quotes,notify_invoices,notify_reports,notify_system')
       .eq('customer_account_id', customerAccountId)
@@ -599,20 +614,18 @@ export default async function WorkshopCustomerPage({
             <p className="mt-2 text-sm text-gray-600">
               Control notification emails for this unlinked customer and choose the recipient address.
             </p>
-            <form action={updateUnlinkedNotificationSettings} className="mt-4 grid gap-3 md:grid-cols-2">
-              <label className="text-sm">Linked email
-                <input name="linked_email" type="email" defaultValue={customer.linked_email ?? ''} className="mt-1 w-full rounded-xl border border-black/15 px-3 py-2 text-sm" />
-              </label>
-              <label className="text-sm">Send notifications to
-                <input name="send_to_email" type="email" defaultValue={(unlinkedNotificationSettings as { send_to_email?: string | null } | null)?.send_to_email ?? customer.linked_email ?? ''} className="mt-1 w-full rounded-xl border border-black/15 px-3 py-2 text-sm" />
-              </label>
-              <label className="flex items-center gap-2 text-sm"><input name="email_enabled" type="checkbox" defaultChecked={(unlinkedNotificationSettings as { email_enabled?: boolean } | null)?.email_enabled ?? true} /> Enable emails</label>
-              <label className="flex items-center gap-2 text-sm"><input name="notify_quotes" type="checkbox" defaultChecked={(unlinkedNotificationSettings as { notify_quotes?: boolean } | null)?.notify_quotes ?? true} /> Quotes</label>
-              <label className="flex items-center gap-2 text-sm"><input name="notify_invoices" type="checkbox" defaultChecked={(unlinkedNotificationSettings as { notify_invoices?: boolean } | null)?.notify_invoices ?? true} /> Invoices</label>
-              <label className="flex items-center gap-2 text-sm"><input name="notify_reports" type="checkbox" defaultChecked={(unlinkedNotificationSettings as { notify_reports?: boolean } | null)?.notify_reports ?? true} /> Reports</label>
-              <label className="flex items-center gap-2 text-sm"><input name="notify_system" type="checkbox" defaultChecked={(unlinkedNotificationSettings as { notify_system?: boolean } | null)?.notify_system ?? true} /> System updates</label>
-              <button type="submit" className="rounded-xl bg-black px-4 py-2 text-sm font-semibold text-white md:col-span-2">Save notification settings</button>
-            </form>
+            <UnlinkedNotificationSettingsForm
+              action={updateUnlinkedNotificationSettings}
+              defaults={{
+                linkedEmail: customer.linked_email ?? '',
+                sendToEmail: (unlinkedNotificationSettings as { send_to_email?: string | null } | null)?.send_to_email ?? customer.linked_email ?? '',
+                emailEnabled: (unlinkedNotificationSettings as { email_enabled?: boolean } | null)?.email_enabled ?? true,
+                notifyQuotes: (unlinkedNotificationSettings as { notify_quotes?: boolean } | null)?.notify_quotes ?? true,
+                notifyInvoices: (unlinkedNotificationSettings as { notify_invoices?: boolean } | null)?.notify_invoices ?? true,
+                notifyReports: (unlinkedNotificationSettings as { notify_reports?: boolean } | null)?.notify_reports ?? true,
+                notifySystem: (unlinkedNotificationSettings as { notify_system?: boolean } | null)?.notify_system ?? true
+              }}
+            />
           </details>
         </Card>
       ) : null}
