@@ -89,9 +89,6 @@ export function FinancialDocumentBuilder({
   const [selectedQuoteId, setSelectedQuoteId] = useState(linkedQuoteId ?? '');
   const [prefilledItemIndexes, setPrefilledItemIndexes] = useState<Set<number>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const [emailDocument, setEmailDocument] = useState(false);
-  const [emailAddress, setEmailAddress] = useState('');
   const [isReferenceManuallyEdited, setIsReferenceManuallyEdited] = useState(false);
   const [isDueDateManuallyEdited, setIsDueDateManuallyEdited] = useState(false);
   const [isExpiryDateManuallyEdited, setIsExpiryDateManuallyEdited] = useState(false);
@@ -109,8 +106,6 @@ export function FinancialDocumentBuilder({
     setIsReferenceManuallyEdited(false);
     setIsDueDateManuallyEdited(false);
     setIsExpiryDateManuallyEdited(false);
-    setEmailDocument(false);
-    setEmailAddress('');
   }, [kind, linkedQuoteId]);
 
   useEffect(() => {
@@ -255,8 +250,7 @@ export function FinancialDocumentBuilder({
           subject: subject.trim(),
           notes: notes.trim() || undefined,
           lineItems,
-          quoteId: kind === 'invoice' ? selectedQuoteId || undefined : undefined,
-          sendEmailTo: emailDocument ? emailAddress.trim().toLowerCase() || undefined : undefined
+          quoteId: kind === 'invoice' ? selectedQuoteId || undefined : undefined
         })
       });
 
@@ -516,27 +510,6 @@ export function FinancialDocumentBuilder({
         />
       </label>
 
-      <label className="block rounded border border-black/10 p-3">
-        <span className="flex items-center gap-2 text-sm font-medium">
-          <input
-            type="checkbox"
-            checked={emailDocument}
-            onChange={(event) => setEmailDocument(event.target.checked)}
-          />
-          Email this document after creation
-        </span>
-        {emailDocument ? (
-          <input
-            type="email"
-            className="mt-2 w-full rounded border p-2"
-            value={emailAddress}
-            onChange={(event) => setEmailAddress(event.target.value)}
-            placeholder="customer@email.com"
-            required
-          />
-        ) : null}
-      </label>
-
       {!customerAccountId ? (
         <p className="rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
           This vehicle has no linked customer account. Link a customer to the
@@ -547,7 +520,7 @@ export function FinancialDocumentBuilder({
       <button
         type="button"
         className="w-full rounded bg-black px-3 py-2 text-white disabled:opacity-50"
-        disabled={!canSubmit || isSubmitting || !customerAccountId || (emailDocument && !emailAddress.trim())}
+        disabled={!canSubmit || isSubmitting || !customerAccountId}
         onClick={() => void handleSubmit()}
       >
         {isSubmitting ? 'Saving...' : `Create ${kind}`}
