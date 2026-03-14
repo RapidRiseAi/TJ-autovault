@@ -59,7 +59,7 @@ async function createUnlinkedUploadCase(_prevState: OneTimeUploadActionState, fo
       .insert({
         workshop_account_id: ctx.profile.workshop_account_id,
         name: oneTimeAccountName,
-        onboarding_status: 'system_hidden'
+        onboarding_status: 'prospect_unpaid'
       })
       .select('id')
       .single();
