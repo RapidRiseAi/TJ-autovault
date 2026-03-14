@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { SegmentRing } from '@/components/ui/segment-ring';
+import { OneTimeUploadModal } from '@/components/workshop/one-time-upload-modal';
 import {
   addMonths,
   ensureStatementArchivesUpToLastMonth,
@@ -17,6 +18,61 @@ import {
   parseMoneyInputToCents,
   requireWorkshopContext
 } from '@/lib/workshop/management';
+
+async function createUnlinkedUploadCase(formData: FormData) {
+  'use server';
+  const supabase = await createClient();
+  const ctx = await requireWorkshopContext(supabase);
+  if (!ctx || !ctx.profile.workshop_account_id) return;
+
+  const customerName = (formData.get('customerName')?.toString() ?? '').trim();
+  const registrationNumber =
+    (formData.get('registrationNumber')?.toString() ?? '').trim() ||
+    `TEMP-${Date.now().toString().slice(-6)}`;
+  const uploadType = (formData.get('uploadType')?.toString() ?? 'quote').trim();
+
+  if (!customerName) return;
+
+  const { data: customer, error: customerError } = await supabase
+    .from('customer_accounts')
+    .insert({
+      workshop_account_id: ctx.profile.workshop_account_id,
+      name: customerName,
+      linked_email: (formData.get('notificationEmail')?.toString() ?? '').trim().toLowerCase() || null,
+      billing_name: (formData.get('billingName')?.toString() ?? '').trim() || customerName,
+      billing_company: (formData.get('billingCompany')?.toString() ?? '').trim() || null,
+      billing_address: (formData.get('billingAddress')?.toString() ?? '').trim() || null,
+      billing_email: (formData.get('billingEmail')?.toString() ?? '').trim().toLowerCase() || null,
+      billing_phone: (formData.get('billingPhone')?.toString() ?? '').trim() || null,
+      onboarding_status: 'prospect_unpaid'
+    })
+    .select('id')
+    .single();
+
+  if (customerError || !customer) return;
+
+  const { data: vehicle, error: vehicleError } = await supabase
+    .from('vehicles')
+    .insert({
+      workshop_account_id: ctx.profile.workshop_account_id,
+      registration_number: registrationNumber,
+      make: (formData.get('make')?.toString() ?? '').trim() || 'Unlinked',
+      model: (formData.get('model')?.toString() ?? '').trim() || 'Customer',
+      vin: (formData.get('vin')?.toString() ?? '').trim() || null,
+      current_customer_account_id: customer.id,
+      created_by: ctx.profile.id
+    })
+    .select('id')
+    .single();
+
+  if (vehicleError || !vehicle) return;
+
+  const safeUploadType =
+    uploadType === 'invoice' || uploadType === 'inspection_report'
+      ? uploadType
+      : 'quote';
+  redirect(`/workshop/vehicles/${vehicle.id}?upload=${safeUploadType}`);
+}
 
 type EntryRow = {
   id: string;
@@ -484,6 +540,16 @@ export default async function WorkshopManagementPage() {
           <p className="text-sm text-amber-900">Finance tables are not available yet in this environment, so this page is showing fallback totals from paid invoices and technician payouts. Run the latest Supabase migration to enable full finance logging, vendors, recurring expenses, and statement archives.</p>
         </Card>
       ) : null}
+
+      <Card className="rounded-3xl border-black/10 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold text-black">One-time customer document upload</h2>
+            <p className="mt-1 text-sm text-gray-600">Open the quick popup and continue into the normal upload workflow.</p>
+          </div>
+          <OneTimeUploadModal action={createUnlinkedUploadCase} />
+        </div>
+      </Card>
 
       <section className="grid gap-4 xl:grid-cols-4">
         <Card className="rounded-3xl border-black/10 p-5">
