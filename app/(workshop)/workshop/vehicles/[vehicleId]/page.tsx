@@ -72,10 +72,22 @@ export default async function WorkshopVehiclePage({
     upload?: string;
     closeJobId?: string;
     quoteId?: string;
+    oneTime?: string;
+    oneTimeName?: string;
+    oneTimeNotificationEmail?: string;
+    oneTimeBillingName?: string;
+    oneTimeBillingCompany?: string;
+    oneTimeBillingEmail?: string;
+    oneTimeBillingPhone?: string;
+    oneTimeBillingAddress?: string;
+    oneTimeReg?: string;
+    oneTimeMake?: string;
+    oneTimeModel?: string;
+    oneTimeVin?: string;
   }>;
 }) {
   const { vehicleId } = await params;
-  const { quoteRecommendationId, upload, closeJobId, quoteId } = await searchParams;
+  const { quoteRecommendationId, upload, closeJobId, quoteId, oneTime, oneTimeName, oneTimeNotificationEmail, oneTimeBillingName, oneTimeBillingCompany, oneTimeBillingEmail, oneTimeBillingPhone, oneTimeBillingAddress, oneTimeReg, oneTimeMake, oneTimeModel, oneTimeVin } = await searchParams;
   const supabase = await createClient();
   const user = (await supabase.auth.getUser()).data.user;
   if (!user) redirect('/login');
@@ -379,6 +391,23 @@ export default async function WorkshopVehiclePage({
       ? allApprovedQuotes.find((quote) => quote.id === activeJob.quoteId)
       : undefined;
   const selectedInvoiceQuoteId = quoteId || pendingCloseQuote?.id;
+  const oneTimeClientDetails =
+    oneTime === '1'
+      ? {
+          enabled: true,
+          customerName: (oneTimeName ?? '').trim() || 'One-time customer',
+          notificationEmail: (oneTimeNotificationEmail ?? '').trim() || undefined,
+          billingName: (oneTimeBillingName ?? '').trim() || undefined,
+          billingCompany: (oneTimeBillingCompany ?? '').trim() || undefined,
+          billingEmail: (oneTimeBillingEmail ?? '').trim() || undefined,
+          billingPhone: (oneTimeBillingPhone ?? '').trim() || undefined,
+          billingAddress: (oneTimeBillingAddress ?? '').trim() || undefined,
+          registrationNumber: (oneTimeReg ?? '').trim() || undefined,
+          make: (oneTimeMake ?? '').trim() || undefined,
+          model: (oneTimeModel ?? '').trim() || undefined,
+          vin: (oneTimeVin ?? '').trim() || undefined
+        }
+      : undefined;
 
   return (
     <main className="space-y-4">
@@ -627,6 +656,7 @@ export default async function WorkshopVehiclePage({
             technicians={technicians}
             currentProfileId={profile.id}
             customerAccountId={vehicle.current_customer_account_id}
+            oneTimeClientDetails={oneTimeClientDetails}
           />
         </div>
       </SectionCard>

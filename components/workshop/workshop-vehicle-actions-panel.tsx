@@ -23,6 +23,7 @@ export function WorkshopVehicleActionsPanel({
   technicians,
   currentProfileId,
   customerAccountId,
+  oneTimeClientDetails,
   prependTiles
 }: {
   vehicleId: string;
@@ -44,6 +45,20 @@ export function WorkshopVehicleActionsPanel({
   technicians: Array<{ id: string; name: string }>;
   currentProfileId?: string;
   customerAccountId?: string | null;
+  oneTimeClientDetails?: {
+    enabled: boolean;
+    customerName: string;
+    notificationEmail?: string;
+    billingName?: string;
+    billingCompany?: string;
+    billingEmail?: string;
+    billingPhone?: string;
+    billingAddress?: string;
+    registrationNumber?: string;
+    make?: string;
+    model?: string;
+    vin?: string;
+  };
   prependTiles?: ReactNode;
 }) {
   const router = useRouter();
@@ -103,6 +118,7 @@ export function WorkshopVehicleActionsPanel({
           technicians={technicians}
           currentProfileId={currentProfileId}
           customerAccountId={customerAccountId}
+          oneTimeClientDetails={oneTimeClientDetails}
         />
       </Modal>
     </>
