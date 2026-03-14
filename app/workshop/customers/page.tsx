@@ -50,7 +50,11 @@ function isMissingProspectColumnsError(
   );
 }
 
-export default async function WorkshopCustomersPage() {
+export default async function WorkshopCustomersPage({
+  searchParams
+}: {
+  searchParams?: Promise<{ sort?: string; onboarding?: string; linkage?: string }>;
+}) {
   const supabase = await createClient();
   const user = (await supabase.auth.getUser()).data.user;
   if (!user) redirect('/login');
@@ -87,6 +91,26 @@ export default async function WorkshopCustomersPage() {
 
   const normalizedCustomers = (customers ?? []) as CustomerRow[];
 
+  const params = (searchParams ? await searchParams : undefined) ?? {};
+  const onboardingFilter = (params.onboarding ?? 'all').toLowerCase();
+  const linkageFilter = (params.linkage ?? 'all').toLowerCase();
+  const sortMode = (params.sort ?? 'name_asc').toLowerCase();
+
+  const filteredCustomers = normalizedCustomers.filter((customer) => {
+    const onboarding = (customer.onboarding_status ?? 'prospect_unpaid').toLowerCase();
+    const linked = Boolean(customer.linked_email);
+
+    const onboardingMatch = onboardingFilter === 'all' || onboarding === onboardingFilter;
+    const linkageMatch = linkageFilter === 'all' || (linkageFilter === 'linked' ? linked : !linked);
+    return onboardingMatch && linkageMatch;
+  });
+
+  const sortedCustomers = [...filteredCustomers].sort((a, b) => {
+    if (sortMode === 'name_desc') return (b.name ?? '').localeCompare(a.name ?? '');
+    if (sortMode === 'status') return (a.onboarding_status ?? '').localeCompare(b.onboarding_status ?? '');
+    return (a.name ?? '').localeCompare(b.name ?? '');
+  });
+
   return (
     <main className="space-y-4">
       <PageHeader
@@ -95,8 +119,27 @@ export default async function WorkshopCustomersPage() {
         actions={<CreateCustomerAccountForm />}
       />
       <Card className="rounded-3xl">
+        <form className="mb-3 grid gap-2 rounded-2xl border border-black/10 p-3 md:grid-cols-3">
+          <select name="sort" defaultValue={sortMode} className="rounded-lg border p-2 text-sm">
+            <option value="name_asc">Sort: Name A-Z</option>
+            <option value="name_desc">Sort: Name Z-A</option>
+            <option value="status">Sort: Status</option>
+          </select>
+          <select name="onboarding" defaultValue={onboardingFilter} className="rounded-lg border p-2 text-sm">
+            <option value="all">Status: All</option>
+            <option value="active_paid">Paid</option>
+            <option value="registered_unpaid">Registered unpaid</option>
+            <option value="prospect_unpaid">Prospect unpaid</option>
+          </select>
+          <select name="linkage" defaultValue={linkageFilter} className="rounded-lg border p-2 text-sm">
+            <option value="all">Linkage: All</option>
+            <option value="linked">Linked</option>
+            <option value="unlinked">Unlinked</option>
+          </select>
+          <Button type="submit" size="sm" className="md:col-span-3">Apply filters</Button>
+        </form>
         <div className="space-y-2">
-          {normalizedCustomers.map((customer) => {
+          {sortedCustomers.map((customer) => {
             const customerProfile = selectBestCustomerProfile(customer.customer_users);
             const customerName = getCustomerDisplayName(
               customerProfile,
@@ -153,7 +196,7 @@ export default async function WorkshopCustomersPage() {
               </div>
             );
           })}
-          {!normalizedCustomers.length ? (
+          {!sortedCustomers.length ? (
             <p className="py-2 text-sm text-gray-500">No customers yet.</p>
           ) : null}
         </div>

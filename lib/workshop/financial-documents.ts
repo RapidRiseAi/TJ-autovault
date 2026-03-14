@@ -23,7 +23,8 @@ export const financialDocumentPayloadSchema = z.object({
   notes: z.string().trim().max(3000).optional(),
   currencyCode: z.string().trim().default('ZAR'),
   lineItems: z.array(financialLineItemSchema).min(1),
-  quoteId: z.string().uuid().optional()
+  quoteId: z.string().uuid().optional(),
+  sendEmailTo: z.string().trim().email().optional()
 });
 
 export type FinancialLineItemInput = z.infer<typeof financialLineItemSchema>;

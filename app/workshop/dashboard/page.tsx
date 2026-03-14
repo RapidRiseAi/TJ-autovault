@@ -29,6 +29,7 @@ type CustomerRow = {
 
 type InvoiceRow = {
   id: string;
+  vehicle_id: string | null;
   total_cents: number | null;
   payment_status: string | null;
   invoice_number?: string | null;
@@ -129,7 +130,7 @@ function CollapsibleDashboardPanel({
   );
 }
 
-export default async function WorkshopDashboardPage({ searchParams }: { searchParams?: Promise<{ clocked?: string }> }) {
+export default async function WorkshopDashboardPage({ searchParams }: { searchParams?: Promise<{ clocked?: string; customerSort?: string; customerLinkage?: string; vehicleSort?: string; vehicleLinkage?: string; vehiclePayment?: string }> }) {
   const supabase = await createClient();
   const user = (await supabase.auth.getUser()).data.user;
   if (!user) redirect('/login');
@@ -155,6 +156,11 @@ export default async function WorkshopDashboardPage({ searchParams }: { searchPa
         .maybeSingle()
     : { data: null };
   const params = searchParams ? await searchParams : undefined;
+  const customerSort = (params?.customerSort ?? 'newest').toLowerCase();
+  const customerLinkage = (params?.customerLinkage ?? 'all').toLowerCase();
+  const vehicleSort = (params?.vehicleSort ?? 'registration').toLowerCase();
+  const vehicleLinkage = (params?.vehicleLinkage ?? 'all').toLowerCase();
+  const vehiclePayment = (params?.vehiclePayment ?? 'all').toLowerCase();
   const [
     { count: vehicles },
     { count: openRequests },
@@ -171,7 +177,7 @@ export default async function WorkshopDashboardPage({ searchParams }: { searchPa
       .in('status', ['requested', 'waiting_for_deposit', 'waiting_for_parts', 'scheduled', 'in_progress']),
     supabase
       .from('invoices')
-      .select('id,total_cents,payment_status,invoice_number')
+      .select('id,vehicle_id,total_cents,payment_status,invoice_number')
       .eq('workshop_account_id', workshopId)
       .neq('payment_status', 'paid')
       .order('total_cents', { ascending: false })
@@ -219,6 +225,45 @@ export default async function WorkshopDashboardPage({ searchParams }: { searchPa
   const topOutstandingInvoices = [...invoiceBreakdown]
     .sort((a, b) => b.outstandingCents - a.outstandingCents)
     .slice(0, 3);
+
+  const linkedCustomerIds = new Set(
+    (customerVehicles ?? [])
+      .map((vehicle) => vehicle.current_customer_account_id)
+      .filter((value): value is string => Boolean(value))
+  );
+
+  const filteredCustomers = customerRows
+    .filter((customer) => {
+      if (customerLinkage === 'linked') return linkedCustomerIds.has(customer.id);
+      if (customerLinkage === 'unlinked') return !linkedCustomerIds.has(customer.id);
+      return true;
+    })
+    .sort((a, b) => {
+      if (customerSort === 'name') return (a.name ?? '').localeCompare(b.name ?? '');
+      if (customerSort === 'oldest') return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+
+  const unpaidVehicleIds = new Set(
+    unpaidInvoices
+      .filter((invoice) => invoice.payment_status !== 'paid' && invoice.vehicle_id)
+      .map((invoice) => invoice.vehicle_id as string)
+  );
+
+  const filteredVehicles = [...(customerVehicles ?? [])]
+    .filter((vehicle) => {
+      const hasLinkedCustomer = Boolean(vehicle.current_customer_account_id);
+      if (vehicleLinkage === 'linked' && !hasLinkedCustomer) return false;
+      if (vehicleLinkage === 'unlinked' && hasLinkedCustomer) return false;
+      if (vehiclePayment === 'paid') return !unpaidVehicleIds.has(vehicle.id);
+      if (vehiclePayment === 'unpaid') return unpaidVehicleIds.has(vehicle.id);
+      return true;
+    })
+    .sort((a, b) => {
+      if (vehicleSort === 'status') return (a.status ?? '').localeCompare(b.status ?? '');
+      return a.registration_number.localeCompare(b.registration_number);
+    });
+
   const customerNameById = new Map(
     customerRows.map((customer) => {
       const profileInfo = selectBestCustomerProfile(customer.customer_users);
@@ -412,8 +457,22 @@ export default async function WorkshopDashboardPage({ searchParams }: { searchPa
           />
         ) : null}
         {!customersError ? (
+          <>
+            <form className="mb-3 grid gap-2 md:grid-cols-2">
+              <select name="customerSort" defaultValue={customerSort} className="rounded border p-2 text-sm">
+                <option value="newest">Newest first</option>
+                <option value="oldest">Oldest first</option>
+                <option value="name">Name A-Z</option>
+              </select>
+              <select name="customerLinkage" defaultValue={customerLinkage} className="rounded border p-2 text-sm">
+                <option value="all">Linked + unlinked</option>
+                <option value="linked">Linked only</option>
+                <option value="unlinked">Unlinked only</option>
+              </select>
+              <Button type="submit" size="sm" variant="secondary" className="md:col-span-2">Apply customer filters</Button>
+            </form>
           <div className="grid gap-3 md:grid-cols-2">
-            {customerRows.map((customer) => {
+            {filteredCustomers.map((customer) => {
               const profileInfo = selectBestCustomerProfile(customer.customer_users);
               const customerName = getCustomerDisplayName(profileInfo, customer.name);
               const businessName = customer.name;
@@ -441,10 +500,11 @@ export default async function WorkshopDashboardPage({ searchParams }: { searchPa
                 </div>
               );
             })}
-            {!customerRows.length ? (
+            {!filteredCustomers.length ? (
               <EmptyState title="No customers yet" description="Customers linked to this workshop will appear here." className="xl:col-span-2" />
             ) : null}
           </div>
+          </>
         ) : null}
       </CollapsibleDashboardPanel>
 
@@ -457,11 +517,28 @@ export default async function WorkshopDashboardPage({ searchParams }: { searchPa
           </Button>
         }
       >
-        {!customerVehicles?.length ? (
+        <form className="mb-3 grid gap-2 md:grid-cols-3">
+          <select name="vehicleSort" defaultValue={vehicleSort} className="rounded border p-2 text-sm">
+            <option value="registration">Sort by registration</option>
+            <option value="status">Sort by status</option>
+          </select>
+          <select name="vehicleLinkage" defaultValue={vehicleLinkage} className="rounded border p-2 text-sm">
+            <option value="all">Linked + unlinked</option>
+            <option value="linked">Linked only</option>
+            <option value="unlinked">Unlinked only</option>
+          </select>
+          <select name="vehiclePayment" defaultValue={vehiclePayment} className="rounded border p-2 text-sm">
+            <option value="all">Paid + unpaid</option>
+            <option value="paid">Paid only</option>
+            <option value="unpaid">Unpaid only</option>
+          </select>
+          <Button type="submit" size="sm" variant="secondary" className="md:col-span-3">Apply vehicle filters</Button>
+        </form>
+        {!filteredVehicles.length ? (
           <EmptyState title="No vehicles yet" description="Vehicles linked to your customers will appear here." />
         ) : (
           <div className="grid gap-2 md:grid-cols-2">
-            {customerVehicles.map((vehicle) => (
+            {filteredVehicles.map((vehicle) => (
               <div key={vehicle.id} className="rounded-xl border border-neutral-200 p-3">
                 <div className="flex items-start justify-between gap-2 sm:flex-row sm:items-center">
                   <div className="min-w-0">

@@ -18,6 +18,61 @@ import {
   requireWorkshopContext
 } from '@/lib/workshop/management';
 
+async function createUnlinkedUploadCase(formData: FormData) {
+  'use server';
+  const supabase = await createClient();
+  const ctx = await requireWorkshopContext(supabase);
+  if (!ctx || !ctx.profile.workshop_account_id) return;
+
+  const customerName = (formData.get('customerName')?.toString() ?? '').trim();
+  const registrationNumber =
+    (formData.get('registrationNumber')?.toString() ?? '').trim() ||
+    `TEMP-${Date.now().toString().slice(-6)}`;
+  const uploadType = (formData.get('uploadType')?.toString() ?? 'quote').trim();
+
+  if (!customerName) return;
+
+  const { data: customer, error: customerError } = await supabase
+    .from('customer_accounts')
+    .insert({
+      workshop_account_id: ctx.profile.workshop_account_id,
+      name: customerName,
+      linked_email: (formData.get('notificationEmail')?.toString() ?? '').trim().toLowerCase() || null,
+      billing_name: (formData.get('billingName')?.toString() ?? '').trim() || customerName,
+      billing_company: (formData.get('billingCompany')?.toString() ?? '').trim() || null,
+      billing_address: (formData.get('billingAddress')?.toString() ?? '').trim() || null,
+      billing_email: (formData.get('billingEmail')?.toString() ?? '').trim().toLowerCase() || null,
+      billing_phone: (formData.get('billingPhone')?.toString() ?? '').trim() || null,
+      onboarding_status: 'prospect_unpaid'
+    })
+    .select('id')
+    .single();
+
+  if (customerError || !customer) return;
+
+  const { data: vehicle, error: vehicleError } = await supabase
+    .from('vehicles')
+    .insert({
+      workshop_account_id: ctx.profile.workshop_account_id,
+      registration_number: registrationNumber,
+      make: (formData.get('make')?.toString() ?? '').trim() || 'Unlinked',
+      model: (formData.get('model')?.toString() ?? '').trim() || 'Customer',
+      vin: (formData.get('vin')?.toString() ?? '').trim() || null,
+      current_customer_account_id: customer.id,
+      created_by: ctx.profile.id
+    })
+    .select('id')
+    .single();
+
+  if (vehicleError || !vehicle) return;
+
+  const safeUploadType =
+    uploadType === 'invoice' || uploadType === 'inspection_report'
+      ? uploadType
+      : 'quote';
+  redirect(`/workshop/vehicles/${vehicle.id}?upload=${safeUploadType}`);
+}
+
 type EntryRow = {
   id: string;
   entry_kind: 'income' | 'expense';
@@ -484,6 +539,32 @@ export default async function WorkshopManagementPage() {
           <p className="text-sm text-amber-900">Finance tables are not available yet in this environment, so this page is showing fallback totals from paid invoices and technician payouts. Run the latest Supabase migration to enable full finance logging, vendors, recurring expenses, and statement archives.</p>
         </Card>
       ) : null}
+
+      <Card className="rounded-3xl border-black/10 p-5">
+        <h2 className="text-base font-semibold text-black">One-time customer document upload</h2>
+        <p className="mt-1 text-sm text-gray-600">
+          Start the normal upload flow (quotes, invoices, and inspection reports) without linking to an existing customer/vehicle first.
+        </p>
+        <form action={createUnlinkedUploadCase} className="mt-4 grid gap-3 md:grid-cols-3">
+          <input name="customerName" required placeholder="Customer name" className="rounded-xl border border-black/15 px-3 py-2 text-sm" />
+          <input name="notificationEmail" type="email" placeholder="Email for document notifications" className="rounded-xl border border-black/15 px-3 py-2 text-sm" />
+          <select name="uploadType" className="rounded-xl border border-black/15 px-3 py-2 text-sm">
+            <option value="quote">Quote</option>
+            <option value="invoice">Invoice</option>
+            <option value="inspection_report">Inspection report</option>
+          </select>
+          <input name="registrationNumber" placeholder="Vehicle reg (optional)" className="rounded-xl border border-black/15 px-3 py-2 text-sm" />
+          <input name="make" placeholder="Make" className="rounded-xl border border-black/15 px-3 py-2 text-sm" />
+          <input name="model" placeholder="Model" className="rounded-xl border border-black/15 px-3 py-2 text-sm" />
+          <input name="vin" placeholder="VIN (optional)" className="rounded-xl border border-black/15 px-3 py-2 text-sm" />
+          <input name="billingName" placeholder="Billing name" className="rounded-xl border border-black/15 px-3 py-2 text-sm" />
+          <input name="billingCompany" placeholder="Billing company" className="rounded-xl border border-black/15 px-3 py-2 text-sm" />
+          <input name="billingEmail" type="email" placeholder="Billing email" className="rounded-xl border border-black/15 px-3 py-2 text-sm" />
+          <input name="billingPhone" placeholder="Billing phone" className="rounded-xl border border-black/15 px-3 py-2 text-sm" />
+          <input name="billingAddress" placeholder="Billing address" className="rounded-xl border border-black/15 px-3 py-2 text-sm md:col-span-2" />
+          <Button type="submit" className="md:col-span-3">Create and open upload</Button>
+        </form>
+      </Card>
 
       <section className="grid gap-4 xl:grid-cols-4">
         <Card className="rounded-3xl border-black/10 p-5">
