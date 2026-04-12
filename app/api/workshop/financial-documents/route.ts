@@ -536,6 +536,7 @@ export async function POST(request: NextRequest) {
     let linkedId: string;
     let invoiceAmountPaidCents = 0;
     let invoiceBalanceDueCents = totals.totalCents;
+    let invoiceNetTotalCents = totals.totalCents;
 
     if (payload.kind === 'quote') {
       const enhancedQuote = await supabase
@@ -734,24 +735,49 @@ export async function POST(request: NextRequest) {
       });
 
       invoiceAmountPaidCents = autoAppliedCredits;
-      invoiceBalanceDueCents = Math.max(totals.totalCents - autoAppliedCredits, 0);
+      invoiceNetTotalCents = Math.max(totals.totalCents - autoAppliedCredits, 0);
+      invoiceBalanceDueCents = invoiceNetTotalCents;
 
-      const paymentStatus =
-        invoiceBalanceDueCents <= 0
-          ? 'paid'
-          : autoAppliedCredits > 0
-            ? 'partial'
-            : 'unpaid';
+      const paymentStatus = invoiceBalanceDueCents <= 0 ? 'paid' : 'unpaid';
 
       await supabase
         .from('invoices')
         .update({
-          amount_paid_cents: invoiceAmountPaidCents,
+          subtotal_cents: Math.max(totals.subtotalCents - autoAppliedCredits, 0),
+          total_cents: invoiceNetTotalCents,
+          amount_paid_cents: 0,
           balance_due_cents: invoiceBalanceDueCents,
           payment_status: paymentStatus
         })
         .eq('id', linkedId)
         .eq('workshop_account_id', profile.workshop_account_id);
+
+      if (autoAppliedCredits > 0) {
+        const creditLineInsert = await supabase.from('invoice_items').insert({
+          invoice_id: linkedId,
+          sort_order: computed.length,
+          description: 'Credit carried forward applied',
+          qty: 1,
+          unit_price_cents: -autoAppliedCredits,
+          line_total_cents: -autoAppliedCredits,
+          discount_type: 'none',
+          discount_value: 0,
+          discount_cents: 0,
+          tax_rate: 0,
+          tax_cents: 0,
+          category: 'credit'
+        });
+
+        if (creditLineInsert.error && isMissingColumnError(creditLineInsert.error)) {
+          await supabase.from('invoice_items').insert({
+            invoice_id: linkedId,
+            description: 'Credit carried forward applied',
+            qty: 1,
+            unit_price_cents: -autoAppliedCredits,
+            line_total_cents: -autoAppliedCredits
+          });
+        }
+      }
     }
 
     let logoBytes: Uint8Array | undefined;
@@ -825,8 +851,8 @@ export async function POST(request: NextRequest) {
         subtotalCents: totals.subtotalCents,
         discountCents: totals.discountCents,
         taxCents: totals.taxCents,
-        totalCents: totals.totalCents,
-        amountPaidCents: payload.kind === 'invoice' ? invoiceAmountPaidCents : 0,
+        totalCents: payload.kind === 'invoice' ? invoiceNetTotalCents : totals.totalCents,
+        amountPaidCents: payload.kind === 'invoice' ? 0 : invoiceAmountPaidCents,
         balanceDueCents:
           payload.kind === 'invoice' ? invoiceBalanceDueCents : totals.totalCents
       }

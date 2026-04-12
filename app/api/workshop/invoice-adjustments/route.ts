@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { buildFinancialDocumentPdf, computeFinancialLineItems } from '@/lib/workshop/financial-documents';
 
 const lineItemSchema = z.object({
   description: z.string().trim().min(1),
@@ -305,45 +305,100 @@ export async function POST(req: Request) {
     }
   });
 
-  const pdf = await PDFDocument.create();
-  const page = pdf.addPage([595, 842]);
-  const font = await pdf.embedFont(StandardFonts.Helvetica);
-  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
   const nowDate = payload.issueDate ?? new Date().toISOString().slice(0, 10);
   const heading = `${payload.noteType === 'credit' ? 'Credit' : 'Debit'} Note ${referenceNumber}`;
-  const lines = [
-    `Date: ${nowDate}`,
-    `Invoice: ${invoice.invoice_number ?? invoice.id.slice(0, 8).toUpperCase()}`,
-    `Reason: ${payload.reason}`,
-    `Subtotal: ${(subtotalCents / 100).toFixed(2)}`,
-    `Tax: ${(taxCents / 100).toFixed(2)}`,
-    `Total: ${(totalCents / 100).toFixed(2)}`,
-    payload.noteType === 'credit' ? `Settlement: ${payload.settlementChoice}` : 'Settlement: n/a',
-    `Applied to invoice: ${(appliedToInvoiceCents / 100).toFixed(2)}`,
-    `Carried forward: ${(carriedForwardCents / 100).toFixed(2)}`,
-    `Refund: ${(refundCents / 100).toFixed(2)}`
-  ];
+  const [{ data: workshop }, { data: customer }, { data: vehicle }] = await Promise.all([
+    supabase
+      .from('workshop_accounts')
+      .select('name,contact_email,contact_phone,billing_address,tax_number,co_reg_number,bank_name,bank_account_name,bank_account_number,bank_account_type,bank_branch_code,invoice_footer')
+      .eq('id', profile.workshop_account_id)
+      .maybeSingle(),
+    supabase
+      .from('customer_accounts')
+      .select('name,billing_name,billing_company,billing_address,billing_email,billing_phone,billing_tax_number')
+      .eq('id', invoice.customer_account_id)
+      .maybeSingle(),
+    supabase
+      .from('vehicles')
+      .select('registration_number,make,model,vin,odometer_km')
+      .eq('id', invoice.vehicle_id)
+      .maybeSingle()
+  ]);
 
-  page.drawText(heading, { x: 48, y: 790, font: bold, size: 18, color: rgb(0.08, 0.08, 0.08) });
-  page.drawText(`Vehicle ID: ${invoice.vehicle_id}`, { x: 48, y: 768, font, size: 10, color: rgb(0.3, 0.3, 0.3) });
-  page.drawText(`Customer ID: ${invoice.customer_account_id}`, { x: 48, y: 754, font, size: 10, color: rgb(0.3, 0.3, 0.3) });
+  const adjustmentComputed = computeFinancialLineItems(
+    payload.lineItems.map((item) => ({
+      description: item.description,
+      qty: item.qty,
+      unitPriceCents: item.unitPriceCents,
+      discountType: 'none' as const,
+      discountValue: 0,
+      taxRate: item.taxRate,
+      category: undefined
+    }))
+  );
 
-  let y = 724;
-  lines.forEach((line) => {
-    page.drawText(line, { x: 48, y, font, size: 12, color: rgb(0.1, 0.1, 0.1) });
-    y -= 20;
+  const pdfBytes = await buildFinancialDocumentPdf({
+    kind: 'invoice',
+    workshop: {
+      name: workshop?.name ?? 'Workshop',
+      contactEmail: workshop?.contact_email ?? null,
+      contactPhone: workshop?.contact_phone ?? null,
+      billingAddress: workshop?.billing_address ?? null,
+      taxNumber: workshop?.tax_number ?? null,
+      bankName: workshop?.bank_name ?? null,
+      bankAccountName: workshop?.bank_account_name ?? null,
+      bankAccountNumber: workshop?.bank_account_number ?? null,
+      bankAccountType: workshop?.bank_account_type ?? null,
+      bankBranchCode: workshop?.bank_branch_code ?? null,
+      coRegNumber: workshop?.co_reg_number ?? null,
+      footer: workshop?.invoice_footer ?? null
+    },
+    customer: {
+      name: customer?.name ?? 'Customer',
+      billingName: customer?.billing_name ?? null,
+      billingCompany: customer?.billing_company ?? null,
+      billingAddress: customer?.billing_address ?? null,
+      billingEmail: customer?.billing_email ?? null,
+      billingPhone: customer?.billing_phone ?? null,
+      billingTaxNumber: customer?.billing_tax_number ?? null
+    },
+    vehicle: {
+      registrationNumber: vehicle?.registration_number ?? null,
+      make: vehicle?.make ?? null,
+      model: vehicle?.model ?? null,
+      vin: vehicle?.vin ?? null,
+      mileageKm: vehicle?.odometer_km ?? null
+    },
+    subject: heading,
+    referenceNumber,
+    issueDate: nowDate,
+    dueOrExpiryDate: null,
+    notes: [
+      `Credited invoice: ${invoice.invoice_number ?? invoice.id.slice(0, 8).toUpperCase()}`,
+      `Reason: ${payload.reason}`,
+      payload.noteType === 'credit'
+        ? `Settlement: ${payload.settlementChoice ?? 'apply_to_invoice'}`
+        : 'Settlement: debit adjustment',
+      `Applied to invoice: ${(appliedToInvoiceCents / 100).toFixed(2)}`,
+      `Carried forward: ${(carriedForwardCents / 100).toFixed(2)}`,
+      `Refund: ${(refundCents / 100).toFixed(2)}`,
+      payload.notes?.trim() ? `Notes: ${payload.notes.trim()}` : ''
+    ]
+      .filter(Boolean)
+      .join('\n'),
+    items: adjustmentComputed.computed,
+    totals: {
+      subtotalCents: adjustmentComputed.totals.subtotalCents,
+      discountCents: adjustmentComputed.totals.discountCents,
+      taxCents: adjustmentComputed.totals.taxCents,
+      totalCents: adjustmentComputed.totals.totalCents,
+      amountPaidCents: payload.noteType === 'credit' ? appliedToInvoiceCents : 0,
+      balanceDueCents:
+        payload.noteType === 'credit'
+          ? Math.max(adjustmentComputed.totals.totalCents - appliedToInvoiceCents, 0)
+          : adjustmentComputed.totals.totalCents
+    }
   });
-
-  y -= 8;
-  page.drawText('Items', { x: 48, y, font: bold, size: 12, color: rgb(0.08, 0.08, 0.08) });
-  y -= 18;
-  computedItems.forEach((item) => {
-    const itemLine = `${item.description} · qty ${item.qty} · ${(item.unitPriceCents / 100).toFixed(2)} · tax ${item.taxRate}% · ${(item.lineTotal / 100).toFixed(2)}`;
-    page.drawText(itemLine.slice(0, 110), { x: 48, y, font, size: 10, color: rgb(0.15, 0.15, 0.15) });
-    y -= 14;
-  });
-
-  const pdfBytes = await pdf.save();
   const pdfPath = `workshop/${profile.workshop_account_id}/vehicles/${invoice.vehicle_id}/adjustments/${adjustment.id}.pdf`;
 
   const { error: storageError } = await admin.storage
@@ -362,8 +417,8 @@ export async function POST(req: Request) {
       workshop_account_id: profile.workshop_account_id,
       customer_account_id: invoice.customer_account_id,
       vehicle_id: invoice.vehicle_id,
-      document_type: 'invoice',
-      doc_type: 'invoice',
+      document_type: payload.noteType === 'credit' ? 'credit_note' : 'debit_note',
+      doc_type: payload.noteType === 'credit' ? 'credit_note' : 'debit_note',
       storage_bucket: 'vehicle-files',
       storage_path: pdfPath,
       original_name: `${referenceNumber}.pdf`,
@@ -371,7 +426,7 @@ export async function POST(req: Request) {
       size_bytes: pdfBytes.length,
       subject: heading,
       importance: 'info',
-      invoice_id: invoice.id
+      invoice_id: null
     })
     .select('id')
     .single();

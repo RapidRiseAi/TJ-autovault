@@ -845,14 +845,16 @@ export async function createInvoice(input: {
     maxApplyCents: input.totalCents,
     actorProfileId: ctx.profile.id
   });
-  const balanceDueCents = Math.max(input.totalCents - appliedCredits, 0);
-  const paymentStatus =
-    balanceDueCents <= 0 ? 'paid' : appliedCredits > 0 ? 'partial' : 'unpaid';
+  const netTotalCents = Math.max(input.totalCents - appliedCredits, 0);
+  const balanceDueCents = netTotalCents;
+  const paymentStatus = balanceDueCents <= 0 ? 'paid' : 'unpaid';
 
   await ctx.supabase
     .from('invoices')
     .update({
-      amount_paid_cents: appliedCredits,
+      subtotal_cents: netTotalCents,
+      total_cents: netTotalCents,
+      amount_paid_cents: 0,
       balance_due_cents: balanceDueCents,
       payment_status: paymentStatus
     })
