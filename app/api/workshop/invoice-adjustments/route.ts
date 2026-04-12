@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { buildFinancialDocumentPdf, computeFinancialLineItems } from '@/lib/workshop/financial-documents';
+import {
+  buildFinancialDocumentPdf,
+  computeFinancialLineItems
+} from '@/lib/workshop/financial-documents';
 
 const lineItemSchema = z.object({
   description: z.string().trim().min(1),
@@ -14,10 +17,16 @@ const lineItemSchema = z.object({
 const payloadSchema = z.object({
   invoiceId: z.string().uuid(),
   noteType: z.enum(['credit', 'debit']),
-  settlementChoice: z.enum(['apply_to_invoice', 'carry_forward', 'refund']).optional(),
+  applyScope: z.enum(['customer', 'vehicle']).optional(),
+  settlementChoice: z
+    .enum(['apply_to_invoice', 'carry_forward', 'refund'])
+    .optional(),
   reason: z.string().trim().min(3).max(300),
   notes: z.string().trim().max(1000).optional(),
-  issueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  issueDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
   lineItems: z.array(lineItemSchema).min(1).max(50)
 });
 
@@ -51,6 +60,7 @@ export async function POST(req: Request) {
   }
 
   const payload = parsed.data;
+  const applyScope = payload.applyScope ?? 'customer';
 
   const { data: profile } = await supabase
     .from('profiles')
@@ -118,8 +128,7 @@ export async function POST(req: Request) {
   if (payload.noteType === 'credit' && totalCents > currentTotal) {
     return NextResponse.json(
       {
-        error:
-          'Credit note amount cannot exceed the current invoice total.'
+        error: 'Credit note amount cannot exceed the current invoice total.'
       },
       { status: 400 }
     );
@@ -158,7 +167,8 @@ export async function POST(req: Request) {
     payload.noteType === 'credit' ? totalCents - appliedToInvoiceCents : 0;
 
   const carriedForwardCents =
-    payload.noteType === 'credit' && payload.settlementChoice === 'carry_forward'
+    payload.noteType === 'credit' &&
+    payload.settlementChoice === 'carry_forward'
       ? remainingCreditCents
       : 0;
 
@@ -188,7 +198,9 @@ export async function POST(req: Request) {
   }
 
   const nextPaid =
-    payload.noteType === 'credit' ? Math.min(currentPaid, nextTotal) : currentPaid;
+    payload.noteType === 'credit'
+      ? Math.min(currentPaid, nextTotal)
+      : currentPaid;
   const nextBalance = Math.max(nextTotal - nextPaid, 0);
   const nextPaymentStatus = derivePaymentStatus(nextPaid, nextBalance);
 
@@ -211,9 +223,11 @@ export async function POST(req: Request) {
       subtotal_cents: subtotalCents,
       tax_cents: taxCents,
       total_cents: totalCents,
-      net_effect_cents: payload.noteType === 'credit' ? -totalCents : totalCents,
+      net_effect_cents:
+        payload.noteType === 'credit' ? -totalCents : totalCents,
       settlement_preference:
         payload.noteType === 'credit' ? payload.settlementChoice : null,
+      apply_scope: applyScope,
       applied_to_invoice_cents: appliedToInvoiceCents,
       carried_forward_cents: carriedForwardCents,
       refund_cents: refundCents,
@@ -279,6 +293,10 @@ export async function POST(req: Request) {
         description: `Carry-forward from ${referenceNumber}`,
         delta_cents: carriedForwardCents,
         remaining_cents: carriedForwardCents,
+        apply_scope: applyScope,
+        vehicle_id: applyScope === 'vehicle' ? invoice.vehicle_id : null,
+        apply_once: true,
+        note_reference: referenceNumber,
         created_by: profile.id
       });
 
@@ -305,29 +323,35 @@ export async function POST(req: Request) {
       total_cents: totalCents,
       applied_to_invoice_cents: appliedToInvoiceCents,
       carried_forward_cents: carriedForwardCents,
-      refund_cents: refundCents
+      refund_cents: refundCents,
+      apply_scope: applyScope
     }
   });
 
   const nowDate = payload.issueDate ?? new Date().toISOString().slice(0, 10);
   const heading = `${payload.noteType === 'credit' ? 'Credit' : 'Debit'} Note ${referenceNumber}`;
-  const [{ data: workshop }, { data: customer }, { data: vehicle }] = await Promise.all([
-    supabase
-      .from('workshop_accounts')
-      .select('name,contact_email,contact_phone,billing_address,tax_number,co_reg_number,bank_name,bank_account_name,bank_account_number,bank_account_type,bank_branch_code,invoice_footer')
-      .eq('id', profile.workshop_account_id)
-      .maybeSingle(),
-    supabase
-      .from('customer_accounts')
-      .select('name,billing_name,billing_company,billing_address,billing_email,billing_phone,billing_tax_number')
-      .eq('id', invoice.customer_account_id)
-      .maybeSingle(),
-    supabase
-      .from('vehicles')
-      .select('registration_number,make,model,vin,odometer_km')
-      .eq('id', invoice.vehicle_id)
-      .maybeSingle()
-  ]);
+  const [{ data: workshop }, { data: customer }, { data: vehicle }] =
+    await Promise.all([
+      supabase
+        .from('workshop_accounts')
+        .select(
+          'name,contact_email,contact_phone,billing_address,tax_number,co_reg_number,bank_name,bank_account_name,bank_account_number,bank_account_type,bank_branch_code,invoice_footer'
+        )
+        .eq('id', profile.workshop_account_id)
+        .maybeSingle(),
+      supabase
+        .from('customer_accounts')
+        .select(
+          'name,billing_name,billing_company,billing_address,billing_email,billing_phone,billing_tax_number'
+        )
+        .eq('id', invoice.customer_account_id)
+        .maybeSingle(),
+      supabase
+        .from('vehicles')
+        .select('registration_number,make,model,vin,odometer_km')
+        .eq('id', invoice.vehicle_id)
+        .maybeSingle()
+    ]);
 
   const adjustmentComputed = computeFinancialLineItems(
     payload.lineItems.map((item) => ({
@@ -397,10 +421,14 @@ export async function POST(req: Request) {
       discountCents: adjustmentComputed.totals.discountCents,
       taxCents: adjustmentComputed.totals.taxCents,
       totalCents: adjustmentComputed.totals.totalCents,
-      amountPaidCents: payload.noteType === 'credit' ? appliedToInvoiceCents : 0,
+      amountPaidCents:
+        payload.noteType === 'credit' ? appliedToInvoiceCents : 0,
       balanceDueCents:
         payload.noteType === 'credit'
-          ? Math.max(adjustmentComputed.totals.totalCents - appliedToInvoiceCents, 0)
+          ? Math.max(
+              adjustmentComputed.totals.totalCents - appliedToInvoiceCents,
+              0
+            )
           : adjustmentComputed.totals.totalCents
     }
   });
@@ -422,7 +450,8 @@ export async function POST(req: Request) {
       workshop_account_id: profile.workshop_account_id,
       customer_account_id: invoice.customer_account_id,
       vehicle_id: invoice.vehicle_id,
-      document_type: payload.noteType === 'credit' ? 'credit_note' : 'debit_note',
+      document_type:
+        payload.noteType === 'credit' ? 'credit_note' : 'debit_note',
       doc_type: 'invoice',
       storage_bucket: 'vehicle-files',
       storage_path: pdfPath,

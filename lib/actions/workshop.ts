@@ -12,7 +12,12 @@ import { addVehicleSchema } from '@/lib/validation/vehicle';
 import { z } from 'zod';
 
 type Result =
-  | { ok: true; message?: string; vehicleId?: string; customerAccountId?: string }
+  | {
+      ok: true;
+      message?: string;
+      vehicleId?: string;
+      customerAccountId?: string;
+    }
   | { ok: false; error: string };
 
 function isMissingNotesColumnError(
@@ -32,7 +37,6 @@ function isMissingNotesColumnError(
     combined.includes("could not find the 'notes' column")
   );
 }
-
 
 function isMissingProspectColumnsError(
   error: { code?: string; message?: string } | null
@@ -57,7 +61,6 @@ function isMissingProspectColumnsError(
   );
 }
 
-
 type InvoiceFinanceSyncInput = {
   workshopAccountId: string;
   invoiceId: string;
@@ -72,7 +75,10 @@ async function syncInvoiceIncomeEntry(
   supabase: Awaited<ReturnType<typeof createClient>>,
   input: InvoiceFinanceSyncInput
 ) {
-  const occurredOn = (input.occurredOnIso ?? new Date().toISOString()).slice(0, 10);
+  const occurredOn = (input.occurredOnIso ?? new Date().toISOString()).slice(
+    0,
+    10
+  );
 
   if (input.paymentStatus === 'paid') {
     const { error } = await supabase.from('workshop_finance_entries').upsert(
@@ -92,12 +98,19 @@ async function syncInvoiceIncomeEntry(
         },
         created_by: input.actorId ?? null
       },
-      { onConflict: 'workshop_account_id,source_type,external_ref_type,external_ref_id' }
+      {
+        onConflict:
+          'workshop_account_id,source_type,external_ref_type,external_ref_id'
+      }
     );
 
     if (!error) return;
-    const combined = `${error.message} ${error.details ?? ''} ${error.hint ?? ''}`.toLowerCase();
-    if (!combined.includes('workshop_finance_entries') && !combined.includes('does not exist')) {
+    const combined =
+      `${error.message} ${error.details ?? ''} ${error.hint ?? ''}`.toLowerCase();
+    if (
+      !combined.includes('workshop_finance_entries') &&
+      !combined.includes('does not exist')
+    ) {
       throw error;
     }
     return;
@@ -112,8 +125,12 @@ async function syncInvoiceIncomeEntry(
     .eq('external_ref_id', input.invoiceId);
 
   if (!error) return;
-  const combined = `${error.message} ${error.details ?? ''} ${error.hint ?? ''}`.toLowerCase();
-  if (!combined.includes('workshop_finance_entries') && !combined.includes('does not exist')) {
+  const combined =
+    `${error.message} ${error.details ?? ''} ${error.hint ?? ''}`.toLowerCase();
+  if (
+    !combined.includes('workshop_finance_entries') &&
+    !combined.includes('does not exist')
+  ) {
     throw error;
   }
 }
@@ -122,6 +139,7 @@ async function applyWorkshopCustomerCreditsToInvoice(input: {
   supabase: Awaited<ReturnType<typeof createClient>>;
   workshopAccountId: string;
   customerAccountId: string;
+  vehicleId: string;
   invoiceId: string;
   maxApplyCents: number;
   actorProfileId: string;
@@ -130,10 +148,11 @@ async function applyWorkshopCustomerCreditsToInvoice(input: {
 
   const { data: ledgerRows, error } = await input.supabase
     .from('customer_credit_ledger')
-    .select('id,remaining_cents')
+    .select('id,remaining_cents,apply_scope,vehicle_id,apply_once')
     .eq('workshop_account_id', input.workshopAccountId)
     .eq('customer_account_id', input.customerAccountId)
     .gt('remaining_cents', 0)
+    .is('consumed_at', null)
     .order('created_at', { ascending: true })
     .limit(200);
   if (error || !ledgerRows?.length) return 0;
@@ -143,13 +162,22 @@ async function applyWorkshopCustomerCreditsToInvoice(input: {
 
   for (const row of ledgerRows) {
     if (remaining <= 0) break;
+    const applyScope = row.apply_scope === 'vehicle' ? 'vehicle' : 'customer';
+    const rowVehicleId =
+      typeof row.vehicle_id === 'string' ? row.vehicle_id : null;
+    if (applyScope === 'vehicle' && rowVehicleId !== input.vehicleId) continue;
     const available = Number(row.remaining_cents ?? 0);
     const consume = Math.min(available, remaining);
     if (consume <= 0) continue;
+    const applyOnce = Boolean(row.apply_once);
+    const nextRemaining = applyOnce ? 0 : available - consume;
 
     const { error: updateError } = await input.supabase
       .from('customer_credit_ledger')
-      .update({ remaining_cents: available - consume })
+      .update({
+        remaining_cents: nextRemaining,
+        consumed_at: applyOnce ? new Date().toISOString() : null
+      })
       .eq('id', row.id)
       .eq('workshop_account_id', input.workshopAccountId);
     if (updateError) continue;
@@ -214,20 +242,32 @@ async function getVehicleContext(
     .maybeSingle();
 }
 
-
 const createWorkshopCustomerSchema = z.object({
   name: z.string().trim().min(2, 'Customer name is required').max(120),
-  linkedEmail: z.string().trim().email('Enter a valid email').max(255).optional().or(z.literal('')),
-  onboardingStatus: z.enum(['prospect_unpaid', 'registered_unpaid', 'active_paid']).default('prospect_unpaid')
+  linkedEmail: z
+    .string()
+    .trim()
+    .email('Enter a valid email')
+    .max(255)
+    .optional()
+    .or(z.literal('')),
+  onboardingStatus: z
+    .enum(['prospect_unpaid', 'registered_unpaid', 'active_paid'])
+    .default('prospect_unpaid')
 });
 
-export async function createWorkshopCustomerAccount(input: unknown): Promise<Result> {
+export async function createWorkshopCustomerAccount(
+  input: unknown
+): Promise<Result> {
   const ctx = await getWorkshopContext();
   if (!ctx) return { ok: false, error: 'Unauthorized' };
 
   const parsed = createWorkshopCustomerSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid customer data' };
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? 'Invalid customer data'
+    };
   }
 
   const payload = parsed.data;
@@ -244,7 +284,10 @@ export async function createWorkshopCustomerAccount(input: unknown): Promise<Res
       .limit(1)
       .maybeSingle();
 
-    if (existingEmailError && !isMissingProspectColumnsError(existingEmailError)) {
+    if (
+      existingEmailError &&
+      !isMissingProspectColumnsError(existingEmailError)
+    ) {
       return { ok: false, error: existingEmailError.message };
     }
 
@@ -265,11 +308,19 @@ export async function createWorkshopCustomerAccount(input: unknown): Promise<Res
           revalidatePath('/workshop/dashboard');
           revalidatePath('/workshop/customers');
           revalidatePath(`/workshop/customers/${reused.id}`);
-          return { ok: true, message: 'Customer account updated.', customerAccountId: reused.id };
+          return {
+            ok: true,
+            message: 'Customer account updated.',
+            customerAccountId: reused.id
+          };
         }
       }
 
-      return { ok: false, error: 'A customer with that linked email already exists in your workshop.' };
+      return {
+        ok: false,
+        error:
+          'A customer with that linked email already exists in your workshop.'
+      };
     }
 
     const { data: matchingNameUnlinked, error: matchingNameError } = await admin
@@ -283,7 +334,10 @@ export async function createWorkshopCustomerAccount(input: unknown): Promise<Res
       .limit(1)
       .maybeSingle();
 
-    if (matchingNameError && !isMissingProspectColumnsError(matchingNameError)) {
+    if (
+      matchingNameError &&
+      !isMissingProspectColumnsError(matchingNameError)
+    ) {
       return { ok: false, error: matchingNameError.message };
     }
 
@@ -303,7 +357,11 @@ export async function createWorkshopCustomerAccount(input: unknown): Promise<Res
         revalidatePath('/workshop/dashboard');
         revalidatePath('/workshop/customers');
         revalidatePath(`/workshop/customers/${linkedExisting.id}`);
-        return { ok: true, message: 'Existing customer linked to email.', customerAccountId: linkedExisting.id };
+        return {
+          ok: true,
+          message: 'Existing customer linked to email.',
+          customerAccountId: linkedExisting.id
+        };
       }
     }
   }
@@ -331,14 +389,21 @@ export async function createWorkshopCustomerAccount(input: unknown): Promise<Res
   }
 
   if (error || !customer) {
-    return { ok: false, error: error?.message ?? 'Could not create customer account' };
+    return {
+      ok: false,
+      error: error?.message ?? 'Could not create customer account'
+    };
   }
 
   revalidatePath('/workshop/dashboard');
   revalidatePath('/workshop/customers');
   revalidatePath(`/workshop/customers/${customer.id}`);
 
-  return { ok: true, message: 'Customer account created.', customerAccountId: customer.id };
+  return {
+    ok: true,
+    message: 'Customer account created.',
+    customerAccountId: customer.id
+  };
 }
 
 const workshopVehicleSchema = addVehicleSchema.extend({
@@ -841,6 +906,7 @@ export async function createInvoice(input: {
     supabase: ctx.supabase,
     workshopAccountId: vehicle.workshop_account_id,
     customerAccountId: vehicle.current_customer_account_id,
+    vehicleId: vehicle.id,
     invoiceId: invoice.id,
     maxApplyCents: input.totalCents,
     actorProfileId: ctx.profile.id
@@ -871,7 +937,10 @@ export async function createInvoice(input: {
     title: input.subject?.trim() || 'Invoice issued',
     description: input.notes || null,
     importance: 'warning',
-    metadata: { invoice_id: invoice.id, credits_auto_applied_cents: appliedCredits }
+    metadata: {
+      invoice_id: invoice.id,
+      credits_auto_applied_cents: appliedCredits
+    }
   });
 
   revalidatePath(`/workshop/vehicles/${vehicle.id}`);
@@ -901,7 +970,9 @@ export async function updateInvoicePaymentStatus(input: {
     })
     .eq('id', input.invoiceId)
     .eq('workshop_account_id', ctx.profile.workshop_account_id)
-    .select('vehicle_id,customer_account_id,workshop_account_id,total_cents,updated_at')
+    .select(
+      'vehicle_id,customer_account_id,workshop_account_id,total_cents,updated_at'
+    )
     .maybeSingle();
 
   if (error || !data)
