@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
   const [{ data: workshop }, { data: customer }] = await Promise.all([
     supabase
       .from('workshop_accounts')
-      .select('name')
+      .select('name,bank_name,bank_account_name,bank_account_number,bank_branch_code')
       .eq('id', profile.workshop_account_id)
       .maybeSingle(),
     supabase
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
     ? Promise.resolve({ data: [] as Array<Record<string, unknown>> })
     : supabase
         .from('quotes')
-        .select('id,quote_number,status,total_cents,created_at,vehicle_id,vehicles(registration_number)')
+        .select('id,quote_number,order_number,status,total_cents,created_at,vehicle_id,vehicles(registration_number)')
         .eq('workshop_account_id', profile.workshop_account_id)
         .eq('customer_account_id', customerId)
         .gte('created_at', `${from}T00:00:00.000Z`)
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
     ? Promise.resolve({ data: [] as Array<Record<string, unknown>> })
     : supabase
         .from('invoices')
-        .select('id,invoice_number,status,payment_status,payment_method,total_cents,amount_paid_cents,balance_due_cents,created_at,vehicle_id,vehicles(registration_number)')
+        .select('id,invoice_number,order_number,status,payment_status,payment_method,total_cents,amount_paid_cents,balance_due_cents,created_at,vehicle_id,vehicles(registration_number)')
         .eq('workshop_account_id', profile.workshop_account_id)
         .eq('customer_account_id', customerId)
         .gte('created_at', `${from}T00:00:00.000Z`)
@@ -79,6 +79,7 @@ export async function GET(request: NextRequest) {
       date: String(quote.created_at ?? '').slice(0, 10),
       kind: 'quote' as const,
       number: String(quote.quote_number ?? quote.id ?? ''),
+      orderNumber: String(quote.order_number ?? ''),
       status: String(quote.status ?? 'sent'),
       amountCents: Number(quote.total_cents ?? 0),
       balanceCents: 0,
@@ -88,6 +89,7 @@ export async function GET(request: NextRequest) {
       date: String(invoice.created_at ?? '').slice(0, 10),
       kind: 'invoice' as const,
       number: String(invoice.invoice_number ?? invoice.id ?? ''),
+      orderNumber: String(invoice.order_number ?? ''),
       status: String(invoice.payment_status ?? invoice.status ?? 'unpaid'),
       amountCents: Number(invoice.total_cents ?? 0),
       paidCents: Number(invoice.amount_paid_cents ?? 0),
@@ -98,11 +100,12 @@ export async function GET(request: NextRequest) {
   ].sort((a, b) => a.date.localeCompare(b.date));
 
   if (format === 'csv') {
-    const header = ['Date', 'Type', 'Number', 'Status', 'Payment method', 'Vehicle', 'Amount', 'Paid', 'Balance'];
+    const header = ['Date', 'Type', 'Number', 'Order Number', 'Status', 'Payment method', 'Vehicle', 'Amount', 'Paid', 'Balance'];
     const body = rows.map((row) => [
       csvEscape(row.date),
       csvEscape(row.kind),
       csvEscape(row.number),
+      csvEscape(row.orderNumber ?? ''),
       csvEscape(row.status),
       csvEscape('paymentMethod' in row ? (row.paymentMethod ?? '') : ''),
       csvEscape(row.vehicle),
@@ -122,6 +125,12 @@ export async function GET(request: NextRequest) {
 
   const pdfBytes = await buildCustomerStatementPdf({
     workshopName: workshop?.name || 'Workshop',
+    workshopBank: {
+      bankName: workshop?.bank_name,
+      accountName: workshop?.bank_account_name,
+      accountNumber: workshop?.bank_account_number,
+      branchCode: workshop?.bank_branch_code
+    },
     customerName: customer.name,
     from,
     to,

@@ -21,6 +21,8 @@ export const financialDocumentPayloadSchema = z.object({
   referenceNumber: z.string().trim().min(1).max(60).optional(),
   subject: z.string().trim().min(1).max(120),
   notes: z.string().trim().max(3000).optional(),
+  orderNumber: z.string().trim().max(80).optional(),
+  updatedMileageKm: z.number().int().min(0).optional(),
   currencyCode: z.string().trim().default('ZAR'),
   lineItems: z.array(financialLineItemSchema).min(1),
   quoteId: z.string().uuid().optional(),
@@ -182,10 +184,12 @@ export async function buildFinancialDocumentPdf(params: {
     make?: string | null;
     model?: string | null;
     vin?: string | null;
+    mileageKm?: number | null;
   };
   subject: string;
   referenceNumber: string;
   quoteNumber?: string | null;
+  orderNumber?: string | null;
   issueDate: string;
   dueOrExpiryDate?: string | null;
   notes?: string | null;
@@ -311,11 +315,24 @@ export async function buildFinancialDocumentPdf(params: {
       size: 9.5,
       font: regular
     });
+
+    page.drawText('Order number', {
+      x: middleX,
+      y: blockTop - 116,
+      size: 9.5,
+      font: bold
+    });
+    page.drawText(params.orderNumber || '-', {
+      x: middleX + 4,
+      y: blockTop - 130,
+      size: 9.5,
+      font: regular
+    });
   }
 
   page.drawLine({
     start: { x: 372, y: blockTop + 8 },
-    end: { x: 372, y: params.kind === 'invoice' ? blockTop - 110 : blockTop - 86 },
+    end: { x: 372, y: params.kind === 'invoice' ? blockTop - 138 : blockTop - 86 },
     thickness: thin,
     color: rgb(0.2, 0.2, 0.2)
   });
@@ -332,6 +349,7 @@ export async function buildFinancialDocumentPdf(params: {
 
   const subjectLine = [params.vehicle.make, params.vehicle.model, params.vehicle.registrationNumber].filter(Boolean).join(' ');
   page.drawText(clampText(subjectLine || params.subject || '-', 80), { x: left, y: 550, size: 11, font: bold });
+  page.drawText(`Mileage: ${params.vehicle.mileageKm != null ? `${params.vehicle.mileageKm.toLocaleString()} km` : '-'}`, { x: left, y: 536, size: 9.5, font: regular });
 
   const tableLeft = left;
   const tableRight = right - 24;
@@ -467,6 +485,10 @@ export async function buildFinancialDocumentPdf(params: {
 
   const summaryBottom = summaryTop - summaryRowHeight * summaryRows.length;
   const bankY = summaryBottom - 34;
+  if (params.notes?.trim()) {
+    page.drawText('Notes', { x: left, y: bankY + 22, size: 9.5, font: bold });
+    page.drawText(clampText(params.notes, 110), { x: left, y: bankY + 10, size: 9, font: regular });
+  }
   page.drawText(`BANK NAME: ${params.workshop.bankName || '-'}`, { x: left, y: bankY, size: 10, font: regular });
   page.drawText(`ACC NAME: ${params.workshop.bankAccountName || params.workshop.name || '-'}`, { x: left, y: bankY - 15, size: 10, font: regular });
   page.drawText(`ACC TYPE: ${params.workshop.bankAccountType || '-'}`, { x: left, y: bankY - 30, size: 10, font: regular });

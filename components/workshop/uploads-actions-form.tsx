@@ -275,6 +275,7 @@ export function UploadsActionsForm({
           key={documentType}
           vehicleId={vehicleId}
           kind={documentType === 'quote' ? 'quote' : 'invoice'}
+          currentMileage={currentMileage}
           linkedQuoteId={linkedQuoteId}
           customerAccountId={customerAccountId ?? undefined}
           oneTimeClientDetails={oneTimeClientDetails}
