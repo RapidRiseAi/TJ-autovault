@@ -118,6 +118,67 @@ async function syncInvoiceIncomeEntry(
   }
 }
 
+async function applyWorkshopCustomerCreditsToInvoice(input: {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  workshopAccountId: string;
+  customerAccountId: string;
+  invoiceId: string;
+  maxApplyCents: number;
+  actorProfileId: string;
+}) {
+  if (input.maxApplyCents <= 0) return 0;
+
+  const { data: ledgerRows, error } = await input.supabase
+    .from('customer_credit_ledger')
+    .select('id,remaining_cents')
+    .eq('workshop_account_id', input.workshopAccountId)
+    .eq('customer_account_id', input.customerAccountId)
+    .gt('remaining_cents', 0)
+    .order('created_at', { ascending: true })
+    .limit(200);
+  if (error || !ledgerRows?.length) return 0;
+
+  let remaining = input.maxApplyCents;
+  let applied = 0;
+
+  for (const row of ledgerRows) {
+    if (remaining <= 0) break;
+    const available = Number(row.remaining_cents ?? 0);
+    const consume = Math.min(available, remaining);
+    if (consume <= 0) continue;
+
+    const { error: updateError } = await input.supabase
+      .from('customer_credit_ledger')
+      .update({ remaining_cents: available - consume })
+      .eq('id', row.id)
+      .eq('workshop_account_id', input.workshopAccountId);
+    if (updateError) continue;
+
+    await input.supabase.from('invoice_credit_applications').insert({
+      workshop_account_id: input.workshopAccountId,
+      customer_account_id: input.customerAccountId,
+      invoice_id: input.invoiceId,
+      ledger_entry_id: row.id,
+      amount_cents: consume
+    });
+    await input.supabase.from('customer_credit_ledger').insert({
+      workshop_account_id: input.workshopAccountId,
+      customer_account_id: input.customerAccountId,
+      source_type: 'credit_application',
+      source_id: input.invoiceId,
+      description: `Applied to invoice ${input.invoiceId.slice(0, 8).toUpperCase()}`,
+      delta_cents: -consume,
+      remaining_cents: 0,
+      created_by: input.actorProfileId
+    });
+
+    remaining -= consume;
+    applied += consume;
+  }
+
+  return applied;
+}
+
 async function getWorkshopContext() {
   const supabase = await createClient();
   const {
@@ -776,6 +837,28 @@ export async function createInvoice(input: {
   if (error || !invoice)
     return { ok: false, error: error?.message ?? 'Unable to create invoice' };
 
+  const appliedCredits = await applyWorkshopCustomerCreditsToInvoice({
+    supabase: ctx.supabase,
+    workshopAccountId: vehicle.workshop_account_id,
+    customerAccountId: vehicle.current_customer_account_id,
+    invoiceId: invoice.id,
+    maxApplyCents: input.totalCents,
+    actorProfileId: ctx.profile.id
+  });
+  const balanceDueCents = Math.max(input.totalCents - appliedCredits, 0);
+  const paymentStatus =
+    balanceDueCents <= 0 ? 'paid' : appliedCredits > 0 ? 'partial' : 'unpaid';
+
+  await ctx.supabase
+    .from('invoices')
+    .update({
+      amount_paid_cents: appliedCredits,
+      balance_due_cents: balanceDueCents,
+      payment_status: paymentStatus
+    })
+    .eq('id', invoice.id)
+    .eq('workshop_account_id', vehicle.workshop_account_id);
+
   await ctx.supabase.from('vehicle_timeline_events').insert({
     workshop_account_id: vehicle.workshop_account_id,
     customer_account_id: vehicle.current_customer_account_id,
@@ -786,7 +869,7 @@ export async function createInvoice(input: {
     title: input.subject?.trim() || 'Invoice issued',
     description: input.notes || null,
     importance: 'warning',
-    metadata: { invoice_id: invoice.id }
+    metadata: { invoice_id: invoice.id, credits_auto_applied_cents: appliedCredits }
   });
 
   revalidatePath(`/workshop/vehicles/${vehicle.id}`);
