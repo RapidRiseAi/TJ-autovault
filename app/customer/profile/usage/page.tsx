@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { PageHeader } from '@/components/layout/page-header';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { getTemporaryVehicleLimitByTier } from '@/lib/customer/temporary-vehicles';
 
 const GB_IN_BYTES = 1024 * 1024 * 1024;
 
@@ -29,7 +30,7 @@ export default async function CustomerUsagePage() {
     ? await Promise.all([
         supabase
           .from('customer_accounts')
-          .select('vehicle_limit,included_storage_bytes,extra_storage_gb')
+          .select('vehicle_limit,included_storage_bytes,extra_storage_gb,tier,temporary_vehicle_limit')
           .eq('id', customerAccountId)
           .maybeSingle(),
         supabase
@@ -44,9 +45,21 @@ export default async function CustomerUsagePage() {
       ])
     : [{ data: null }, { count: 0 }, { data: [] }];
 
+  const { count: activeTemporaryVehicleCount } = customerAccountId
+    ? await supabase
+        .from('vehicles')
+        .select('id', { count: 'exact', head: true })
+        .eq('current_customer_account_id', customerAccountId)
+        .eq('is_temporary', true)
+        .is('archived_at', null)
+    : { count: 0 };
+
   const storageUsedBytes = (storageDocs ?? []).reduce((sum, item) => sum + Number(item.size_bytes ?? 0), 0);
   const storageLimitBytes = Number(account?.included_storage_bytes ?? 0) + (Number(account?.extra_storage_gb ?? 0) * GB_IN_BYTES);
   const usagePercent = storageLimitBytes > 0 ? (storageUsedBytes / storageLimitBytes) * 100 : 0;
+  const temporaryVehicleLimit = Number(
+    account?.temporary_vehicle_limit ?? getTemporaryVehicleLimitByTier(account?.tier)
+  );
 
   return (
     <main className="space-y-4">
@@ -58,6 +71,8 @@ export default async function CustomerUsagePage() {
       <Card className="space-y-3 rounded-3xl p-5">
         <p className="text-sm text-gray-600">Vehicles used</p>
         <p className="text-lg font-semibold">{vehicleCount ?? 0} / {account?.vehicle_limit ?? 1}</p>
+        <p className="text-sm text-gray-600">Active temporary vehicles</p>
+        <p className="text-lg font-semibold">{activeTemporaryVehicleCount ?? 0} / {temporaryVehicleLimit}</p>
         <p className="text-sm text-gray-600">Storage used</p>
         <p className="text-lg font-semibold">{formatStorage(storageUsedBytes)} / {formatStorage(storageLimitBytes)}</p>
         <p className="text-sm text-gray-600">Usage percentage</p>

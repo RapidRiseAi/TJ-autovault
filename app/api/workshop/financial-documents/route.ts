@@ -100,6 +100,71 @@ async function dispatchFinancialNotificationEmail(input: {
   await dispatchNotificationEmailsNow([existingNotification.id]);
 }
 
+async function applyAvailableCustomerCredits(params: {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  workshopAccountId: string;
+  customerAccountId: string;
+  invoiceId: string;
+  maxApplyCents: number;
+  actorProfileId: string;
+}) {
+  if (params.maxApplyCents <= 0) return 0;
+
+  const { data: creditRows, error: creditsError } = await params.supabase
+    .from('customer_credit_ledger')
+    .select('id,remaining_cents')
+    .eq('workshop_account_id', params.workshopAccountId)
+    .eq('customer_account_id', params.customerAccountId)
+    .gt('remaining_cents', 0)
+    .order('created_at', { ascending: true })
+    .limit(200);
+
+  if (creditsError || !creditRows?.length) return 0;
+
+  let remainingToApply = params.maxApplyCents;
+  let appliedTotal = 0;
+
+  for (const row of creditRows) {
+    if (remainingToApply <= 0) break;
+
+    const available = Number(row.remaining_cents ?? 0);
+    const applyNow = Math.min(available, remainingToApply);
+    if (applyNow <= 0) continue;
+
+    const { error: updateLedgerError } = await params.supabase
+      .from('customer_credit_ledger')
+      .update({ remaining_cents: available - applyNow })
+      .eq('id', row.id)
+      .eq('workshop_account_id', params.workshopAccountId);
+
+    if (updateLedgerError) continue;
+
+    await params.supabase.from('invoice_credit_applications').insert({
+      workshop_account_id: params.workshopAccountId,
+      customer_account_id: params.customerAccountId,
+      invoice_id: params.invoiceId,
+      ledger_entry_id: row.id,
+      amount_cents: applyNow
+    });
+
+    await params.supabase.from('customer_credit_ledger').insert({
+      workshop_account_id: params.workshopAccountId,
+      customer_account_id: params.customerAccountId,
+      source_type: 'credit_application',
+      source_id: params.invoiceId,
+      description: `Applied to invoice ${params.invoiceId.slice(0, 8).toUpperCase()}`,
+      delta_cents: -applyNow,
+      remaining_cents: 0,
+      created_by: params.actorProfileId
+    });
+
+    remainingToApply -= applyNow;
+    appliedTotal += applyNow;
+  }
+
+  return appliedTotal;
+}
+
 
 export async function GET(request: NextRequest) {
   const kind = request.nextUrl.searchParams.get('kind');
@@ -469,6 +534,8 @@ export async function POST(request: NextRequest) {
         };
 
     let linkedId: string;
+    let invoiceAmountPaidCents = 0;
+    let invoiceBalanceDueCents = totals.totalCents;
 
     if (payload.kind === 'quote') {
       const enhancedQuote = await supabase
@@ -656,6 +723,35 @@ export async function POST(request: NextRequest) {
       }
 
       linkedId = invoice.data.id;
+
+      const autoAppliedCredits = await applyAvailableCustomerCredits({
+        supabase,
+        workshopAccountId: profile.workshop_account_id,
+        customerAccountId: customer.id,
+        invoiceId: linkedId,
+        maxApplyCents: totals.totalCents,
+        actorProfileId: profile.id
+      });
+
+      invoiceAmountPaidCents = autoAppliedCredits;
+      invoiceBalanceDueCents = Math.max(totals.totalCents - autoAppliedCredits, 0);
+
+      const paymentStatus =
+        invoiceBalanceDueCents <= 0
+          ? 'paid'
+          : autoAppliedCredits > 0
+            ? 'partial'
+            : 'unpaid';
+
+      await supabase
+        .from('invoices')
+        .update({
+          amount_paid_cents: invoiceAmountPaidCents,
+          balance_due_cents: invoiceBalanceDueCents,
+          payment_status: paymentStatus
+        })
+        .eq('id', linkedId)
+        .eq('workshop_account_id', profile.workshop_account_id);
     }
 
     let logoBytes: Uint8Array | undefined;
@@ -730,8 +826,9 @@ export async function POST(request: NextRequest) {
         discountCents: totals.discountCents,
         taxCents: totals.taxCents,
         totalCents: totals.totalCents,
-        amountPaidCents: 0,
-        balanceDueCents: totals.totalCents
+        amountPaidCents: payload.kind === 'invoice' ? invoiceAmountPaidCents : 0,
+        balanceDueCents:
+          payload.kind === 'invoice' ? invoiceBalanceDueCents : totals.totalCents
       }
     });
 

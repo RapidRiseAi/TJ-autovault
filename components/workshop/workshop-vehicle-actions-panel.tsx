@@ -32,6 +32,7 @@ export function WorkshopVehicleActionsPanel({
     invoiceNumber?: string | null;
     paymentStatus?: string | null;
     totalCents?: number | null;
+    balanceDueCents?: number | null;
   }>;
   jobs: Array<{ id: string }>;
   workRequests: Array<{ id: string; status: string }>;
