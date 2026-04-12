@@ -27,19 +27,21 @@ export const financialDocumentPayloadSchema = z.object({
   lineItems: z.array(financialLineItemSchema).min(1),
   quoteId: z.string().uuid().optional(),
   sendEmailTo: z.string().trim().email().optional(),
-  oneTimeClient: z.object({
-    customerName: z.string().trim().min(1).max(120),
-    notificationEmail: z.string().trim().email().optional(),
-    billingName: z.string().trim().max(120).optional(),
-    billingCompany: z.string().trim().max(120).optional(),
-    billingEmail: z.string().trim().email().optional(),
-    billingPhone: z.string().trim().max(60).optional(),
-    billingAddress: z.string().trim().max(500).optional(),
-    registrationNumber: z.string().trim().max(60).optional(),
-    make: z.string().trim().max(80).optional(),
-    model: z.string().trim().max(80).optional(),
-    vin: z.string().trim().max(80).optional()
-  }).optional()
+  oneTimeClient: z
+    .object({
+      customerName: z.string().trim().min(1).max(120),
+      notificationEmail: z.string().trim().email().optional(),
+      billingName: z.string().trim().max(120).optional(),
+      billingCompany: z.string().trim().max(120).optional(),
+      billingEmail: z.string().trim().email().optional(),
+      billingPhone: z.string().trim().max(60).optional(),
+      billingAddress: z.string().trim().max(500).optional(),
+      registrationNumber: z.string().trim().max(60).optional(),
+      make: z.string().trim().max(80).optional(),
+      model: z.string().trim().max(80).optional(),
+      vin: z.string().trim().max(80).optional()
+    })
+    .optional()
 });
 
 export type FinancialLineItemInput = z.infer<typeof financialLineItemSchema>;
@@ -72,7 +74,10 @@ export function computeFinancialLineItems(items: FinancialLineItemInput[]) {
         : item.discountType === 'fixed'
           ? toCentsFromCurrency(item.discountValue)
           : 0;
-    const boundedDiscountCents = Math.min(Math.max(discountCents, 0), lineSubtotalCents);
+    const boundedDiscountCents = Math.min(
+      Math.max(discountCents, 0),
+      lineSubtotalCents
+    );
     const taxableCents = Math.max(lineSubtotalCents - boundedDiscountCents, 0);
     const taxCents = Math.round(taxableCents * (item.taxRate / 100));
     const lineTotalCents = taxableCents + taxCents;
@@ -87,8 +92,14 @@ export function computeFinancialLineItems(items: FinancialLineItemInput[]) {
     };
   });
 
-  const subtotalCents = computed.reduce((sum, row) => sum + row.lineSubtotalCents, 0);
-  const discountCents = computed.reduce((sum, row) => sum + row.discountCents, 0);
+  const subtotalCents = computed.reduce(
+    (sum, row) => sum + row.lineSubtotalCents,
+    0
+  );
+  const discountCents = computed.reduce(
+    (sum, row) => sum + row.discountCents,
+    0
+  );
   const taxCents = computed.reduce((sum, row) => sum + row.taxCents, 0);
   const totalCents = computed.reduce((sum, row) => sum + row.lineTotalCents, 0);
 
@@ -179,7 +190,15 @@ export async function buildFinancialDocumentPdf(params: {
     bankAccountType?: string | null;
     footer?: string | null;
   };
-  customer: { name: string; billingName?: string | null; billingCompany?: string | null; billingAddress?: string | null; billingEmail?: string | null; billingPhone?: string | null; billingTaxNumber?: string | null };
+  customer: {
+    name: string;
+    billingName?: string | null;
+    billingCompany?: string | null;
+    billingAddress?: string | null;
+    billingEmail?: string | null;
+    billingPhone?: string | null;
+    billingTaxNumber?: string | null;
+  };
   vehicle: {
     registrationNumber?: string | null;
     make?: string | null;
@@ -216,21 +235,27 @@ export async function buildFinancialDocumentPdf(params: {
   const thin = 0.9;
 
   const money = (cents: number) => {
-    const value = (Math.max(0, cents) / 100).toFixed(2).replace('.', ',');
-    return `${params.currencyCode === 'ZAR' || !params.currencyCode ? 'R' : params.currencyCode} ${value}`;
+    const sign = cents < 0 ? '-' : '';
+    const value = (Math.abs(cents) / 100).toFixed(2).replace('.', ',');
+    return `${sign}${params.currencyCode === 'ZAR' || !params.currencyCode ? 'R' : params.currencyCode} ${value}`;
   };
 
-  page.drawText(params.headingLabel ?? (params.kind === 'quote' ? 'QUOTE' : 'Invoice'), {
-    x: left,
-    y: 782,
-    size: 40,
-    font: bold,
-    color: params.kind === 'quote' ? brand : rgb(0.1, 0.1, 0.1)
-  });
+  page.drawText(
+    params.headingLabel ?? (params.kind === 'quote' ? 'QUOTE' : 'Invoice'),
+    {
+      x: left,
+      y: 782,
+      size: 40,
+      font: bold,
+      color: params.kind === 'quote' ? brand : rgb(0.1, 0.1, 0.1)
+    }
+  );
 
   if (params.logoBytes) {
     try {
-      const logo = await pdf.embedPng(params.logoBytes).catch(async () => pdf.embedJpg(params.logoBytes));
+      const logo = await pdf
+        .embedPng(params.logoBytes)
+        .catch(async () => pdf.embedJpg(params.logoBytes));
       const scale = Math.min(0.35, 92 / logo.width);
       const scaled = logo.scale(scale);
       page.drawImage(logo, {
@@ -248,13 +273,20 @@ export async function buildFinancialDocumentPdf(params: {
   const middleX = 270;
   const rightStart = 392;
 
-  const customerHeading = params.customer.billingName || params.customer.name || '-';
+  const customerHeading =
+    params.customer.billingName || params.customer.name || '-';
   const customerCompany = params.customer.billingCompany?.trim();
   const shouldShowCompanyLine = Boolean(
-    customerCompany && customerCompany.toLowerCase() !== customerHeading.toLowerCase()
+    customerCompany &&
+    customerCompany.toLowerCase() !== customerHeading.toLowerCase()
   );
 
-  page.drawText(clampText(customerHeading, 40), { x: left, y: blockTop, size: 10.5, font: regular });
+  page.drawText(clampText(customerHeading, 40), {
+    x: left,
+    y: blockTop,
+    size: 10.5,
+    font: regular
+  });
 
   const companyYOffset = shouldShowCompanyLine ? 14 : 0;
   if (shouldShowCompanyLine) {
@@ -266,7 +298,9 @@ export async function buildFinancialDocumentPdf(params: {
     });
   }
 
-  const customerLines = formatCustomerBillingAddressLines(params.customer.billingAddress);
+  const customerLines = formatCustomerBillingAddressLines(
+    params.customer.billingAddress
+  );
   for (const [i, line] of customerLines.entries()) {
     page.drawText(line.trim() || '-', {
       x: left,
@@ -275,9 +309,24 @@ export async function buildFinancialDocumentPdf(params: {
       font: regular
     });
   }
-  page.drawText(`Email: ${params.customer.billingEmail || '-'}`, { x: left, y: blockTop - 50, size: 9.5, font: regular });
-  page.drawText(`Phone: ${params.customer.billingPhone || '-'}`, { x: left, y: blockTop - 62, size: 9.5, font: regular });
-  page.drawText(`Vat: ${params.customer.billingTaxNumber || '-'}`, { x: left, y: blockTop - 74, size: 9.5, font: regular });
+  page.drawText(`Email: ${params.customer.billingEmail || '-'}`, {
+    x: left,
+    y: blockTop - 50,
+    size: 9.5,
+    font: regular
+  });
+  page.drawText(`Phone: ${params.customer.billingPhone || '-'}`, {
+    x: left,
+    y: blockTop - 62,
+    size: 9.5,
+    font: regular
+  });
+  page.drawText(`Vat: ${params.customer.billingTaxNumber || '-'}`, {
+    x: left,
+    y: blockTop - 74,
+    size: 9.5,
+    font: regular
+  });
 
   page.drawText(params.kind === 'quote' ? 'Quote date' : 'Invoice date', {
     x: middleX,
@@ -285,7 +334,12 @@ export async function buildFinancialDocumentPdf(params: {
     size: 9.5,
     font: bold
   });
-  page.drawText(params.issueDate, { x: middleX + 4, y: blockTop - 14, size: 9.5, font: regular });
+  page.drawText(params.issueDate, {
+    x: middleX + 4,
+    y: blockTop - 14,
+    size: 9.5,
+    font: regular
+  });
 
   page.drawText(params.kind === 'quote' ? 'Valid date' : 'Due date', {
     x: middleX,
@@ -293,7 +347,12 @@ export async function buildFinancialDocumentPdf(params: {
     size: 9.5,
     font: bold
   });
-  page.drawText(params.dueOrExpiryDate || '-', { x: middleX + 4, y: blockTop - 44, size: 9.5, font: regular });
+  page.drawText(params.dueOrExpiryDate || '-', {
+    x: middleX + 4,
+    y: blockTop - 44,
+    size: 9.5,
+    font: regular
+  });
 
   page.drawText(params.kind === 'quote' ? 'Quote number' : 'Invoice number', {
     x: middleX,
@@ -301,7 +360,12 @@ export async function buildFinancialDocumentPdf(params: {
     size: 9.5,
     font: bold
   });
-  page.drawText(params.referenceNumber, { x: middleX + 4, y: blockTop - 74, size: 9.5, font: regular });
+  page.drawText(params.referenceNumber, {
+    x: middleX + 4,
+    y: blockTop - 74,
+    size: 9.5,
+    font: regular
+  });
 
   if (params.kind === 'invoice') {
     page.drawText('Quote number', {
@@ -333,24 +397,69 @@ export async function buildFinancialDocumentPdf(params: {
 
   page.drawLine({
     start: { x: 372, y: blockTop + 8 },
-    end: { x: 372, y: params.kind === 'invoice' ? blockTop - 138 : blockTop - 86 },
+    end: {
+      x: 372,
+      y: params.kind === 'invoice' ? blockTop - 138 : blockTop - 86
+    },
     thickness: thin,
     color: rgb(0.2, 0.2, 0.2)
   });
 
-  page.drawText(clampText(params.workshop.name || '-', 33), { x: rightStart, y: blockTop, size: 10.5, font: bold });
-  page.drawText(`Co Reg: ${params.workshop.coRegNumber || params.workshop.taxNumber || '-'}`, { x: rightStart, y: blockTop - 14, size: 9.5, font: regular });
-  page.drawText(`Tel: ${params.workshop.contactPhone || '-'}`, { x: rightStart, y: blockTop - 27, size: 9.5, font: regular });
-  page.drawText(`Email: ${params.workshop.contactEmail || '-'}`, { x: rightStart, y: blockTop - 40, size: 9.5, font: regular });
+  page.drawText(clampText(params.workshop.name || '-', 33), {
+    x: rightStart,
+    y: blockTop,
+    size: 10.5,
+    font: bold
+  });
+  page.drawText(
+    `Co Reg: ${params.workshop.coRegNumber || params.workshop.taxNumber || '-'}`,
+    { x: rightStart, y: blockTop - 14, size: 9.5, font: regular }
+  );
+  page.drawText(`Tel: ${params.workshop.contactPhone || '-'}`, {
+    x: rightStart,
+    y: blockTop - 27,
+    size: 9.5,
+    font: regular
+  });
+  page.drawText(`Email: ${params.workshop.contactEmail || '-'}`, {
+    x: rightStart,
+    y: blockTop - 40,
+    size: 9.5,
+    font: regular
+  });
 
-  const workshopAddressLines = clampText(params.workshop.billingAddress || '-', 80).split(/\n|,/).slice(0, 3);
+  const workshopAddressLines = clampText(
+    params.workshop.billingAddress || '-',
+    80
+  )
+    .split(/\n|,/)
+    .slice(0, 3);
   for (const [i, line] of workshopAddressLines.entries()) {
-    page.drawText(line.trim() || '-', { x: rightStart, y: blockTop - 53 - i * 11, size: 9.5, font: regular });
+    page.drawText(line.trim() || '-', {
+      x: rightStart,
+      y: blockTop - 53 - i * 11,
+      size: 9.5,
+      font: regular
+    });
   }
 
-  const subjectLine = [params.vehicle.make, params.vehicle.model, params.vehicle.registrationNumber].filter(Boolean).join(' ');
-  page.drawText(clampText(subjectLine || params.subject || '-', 80), { x: left, y: 550, size: 11, font: bold });
-  page.drawText(`Mileage: ${params.vehicle.mileageKm != null ? `${params.vehicle.mileageKm.toLocaleString()} km` : '-'}`, { x: left, y: 536, size: 9.5, font: regular });
+  const subjectLine = [
+    params.vehicle.make,
+    params.vehicle.model,
+    params.vehicle.registrationNumber
+  ]
+    .filter(Boolean)
+    .join(' ');
+  page.drawText(clampText(subjectLine || params.subject || '-', 80), {
+    x: left,
+    y: 550,
+    size: 11,
+    font: bold
+  });
+  page.drawText(
+    `Mileage: ${params.vehicle.mileageKm != null ? `${params.vehicle.mileageKm.toLocaleString()} km` : '-'}`,
+    { x: left, y: 536, size: 9.5, font: regular }
+  );
 
   const tableLeft = left;
   const tableRight = right - 24;
@@ -365,14 +474,26 @@ export async function buildFinancialDocumentPdf(params: {
   const discountTexts = rowItems.map((item) => money(item.discountCents));
 
   const maxTextWidth = (texts: string[], size = 10, font = regular) =>
-    texts.reduce((max, text) => Math.max(max, font.widthOfTextAtSize(text, size)), 0);
+    texts.reduce(
+      (max, text) => Math.max(max, font.widthOfTextAtSize(text, size)),
+      0
+    );
 
-  const qtyWidth = Math.max(62, maxTextWidth(['Qty', ...qtyTexts], 10, bold) + 22);
-  const unitWidth = Math.max(86, maxTextWidth(['Unit price', ...unitTexts], 10, bold) + 24);
+  const qtyWidth = Math.max(
+    62,
+    maxTextWidth(['Qty', ...qtyTexts], 10, bold) + 22
+  );
+  const unitWidth = Math.max(
+    86,
+    maxTextWidth(['Unit price', ...unitTexts], 10, bold) + 24
+  );
   const discountWidth = showDiscount
     ? Math.max(88, maxTextWidth(['Discount', ...discountTexts], 10, bold) + 24)
     : 0;
-  const totalWidth = Math.max(96, maxTextWidth(['Total', ...totalTexts], 10, bold) + 24);
+  const totalWidth = Math.max(
+    96,
+    maxTextWidth(['Total', ...totalTexts], 10, bold) + 24
+  );
   const reservedRight = qtyWidth + unitWidth + discountWidth + totalWidth;
   const descriptionWidth = Math.max(170, tableWidth - reservedRight);
 
@@ -381,23 +502,71 @@ export async function buildFinancialDocumentPdf(params: {
     descRight: tableLeft + descriptionWidth,
     qtyRight: tableLeft + descriptionWidth + qtyWidth,
     unitRight: tableLeft + descriptionWidth + qtyWidth + unitWidth,
-    discountRight: tableLeft + descriptionWidth + qtyWidth + unitWidth + discountWidth,
+    discountRight:
+      tableLeft + descriptionWidth + qtyWidth + unitWidth + discountWidth,
     totalRight: tableRight
   };
 
-  page.drawRectangle({ x: tableLeft, y: tableTop - 28, width: tableWidth, height: 28, borderWidth: thin, borderColor: rgb(0, 0, 0) });
-  page.drawLine({ start: { x: cols.descRight, y: tableTop }, end: { x: cols.descRight, y: tableTop - 28 }, thickness: thin, color: rgb(0, 0, 0) });
-  page.drawLine({ start: { x: cols.qtyRight, y: tableTop }, end: { x: cols.qtyRight, y: tableTop - 28 }, thickness: thin, color: rgb(0, 0, 0) });
-  page.drawLine({ start: { x: cols.unitRight, y: tableTop }, end: { x: cols.unitRight, y: tableTop - 28 }, thickness: thin, color: rgb(0, 0, 0) });
+  page.drawRectangle({
+    x: tableLeft,
+    y: tableTop - 28,
+    width: tableWidth,
+    height: 28,
+    borderWidth: thin,
+    borderColor: rgb(0, 0, 0)
+  });
+  page.drawLine({
+    start: { x: cols.descRight, y: tableTop },
+    end: { x: cols.descRight, y: tableTop - 28 },
+    thickness: thin,
+    color: rgb(0, 0, 0)
+  });
+  page.drawLine({
+    start: { x: cols.qtyRight, y: tableTop },
+    end: { x: cols.qtyRight, y: tableTop - 28 },
+    thickness: thin,
+    color: rgb(0, 0, 0)
+  });
+  page.drawLine({
+    start: { x: cols.unitRight, y: tableTop },
+    end: { x: cols.unitRight, y: tableTop - 28 },
+    thickness: thin,
+    color: rgb(0, 0, 0)
+  });
   if (showDiscount) {
-    page.drawLine({ start: { x: cols.discountRight, y: tableTop }, end: { x: cols.discountRight, y: tableTop - 28 }, thickness: thin, color: rgb(0, 0, 0) });
+    page.drawLine({
+      start: { x: cols.discountRight, y: tableTop },
+      end: { x: cols.discountRight, y: tableTop - 28 },
+      thickness: thin,
+      color: rgb(0, 0, 0)
+    });
   }
 
-  page.drawText('Description', { x: cols.descLeft + 10, y: tableTop - 18, size: 10, font: bold });
-  page.drawText('Qty', { x: cols.descRight + 10, y: tableTop - 18, size: 10, font: bold });
-  page.drawText('Unit price', { x: cols.qtyRight + 8, y: tableTop - 18, size: 10, font: bold });
+  page.drawText('Description', {
+    x: cols.descLeft + 10,
+    y: tableTop - 18,
+    size: 10,
+    font: bold
+  });
+  page.drawText('Qty', {
+    x: cols.descRight + 10,
+    y: tableTop - 18,
+    size: 10,
+    font: bold
+  });
+  page.drawText('Unit price', {
+    x: cols.qtyRight + 8,
+    y: tableTop - 18,
+    size: 10,
+    font: bold
+  });
   if (showDiscount) {
-    page.drawText('Discount', { x: cols.unitRight + 8, y: tableTop - 18, size: 10, font: bold });
+    page.drawText('Discount', {
+      x: cols.unitRight + 8,
+      y: tableTop - 18,
+      size: 10,
+      font: bold
+    });
   }
   page.drawText('Total', {
     x: (showDiscount ? cols.discountRight : cols.unitRight) + 8,
@@ -410,15 +579,47 @@ export async function buildFinancialDocumentPdf(params: {
   for (const item of rowItems) {
     const rowHeight = 34;
     const rowBottom = rowTop - rowHeight;
-    page.drawRectangle({ x: tableLeft, y: rowBottom, width: tableWidth, height: rowHeight, borderWidth: thin, borderColor: rgb(0, 0, 0) });
-    page.drawLine({ start: { x: cols.descRight, y: rowTop }, end: { x: cols.descRight, y: rowBottom }, thickness: thin, color: rgb(0, 0, 0) });
-    page.drawLine({ start: { x: cols.qtyRight, y: rowTop }, end: { x: cols.qtyRight, y: rowBottom }, thickness: thin, color: rgb(0, 0, 0) });
-    page.drawLine({ start: { x: cols.unitRight, y: rowTop }, end: { x: cols.unitRight, y: rowBottom }, thickness: thin, color: rgb(0, 0, 0) });
+    page.drawRectangle({
+      x: tableLeft,
+      y: rowBottom,
+      width: tableWidth,
+      height: rowHeight,
+      borderWidth: thin,
+      borderColor: rgb(0, 0, 0)
+    });
+    page.drawLine({
+      start: { x: cols.descRight, y: rowTop },
+      end: { x: cols.descRight, y: rowBottom },
+      thickness: thin,
+      color: rgb(0, 0, 0)
+    });
+    page.drawLine({
+      start: { x: cols.qtyRight, y: rowTop },
+      end: { x: cols.qtyRight, y: rowBottom },
+      thickness: thin,
+      color: rgb(0, 0, 0)
+    });
+    page.drawLine({
+      start: { x: cols.unitRight, y: rowTop },
+      end: { x: cols.unitRight, y: rowBottom },
+      thickness: thin,
+      color: rgb(0, 0, 0)
+    });
     if (showDiscount) {
-      page.drawLine({ start: { x: cols.discountRight, y: rowTop }, end: { x: cols.discountRight, y: rowBottom }, thickness: thin, color: rgb(0, 0, 0) });
+      page.drawLine({
+        start: { x: cols.discountRight, y: rowTop },
+        end: { x: cols.discountRight, y: rowBottom },
+        thickness: thin,
+        color: rgb(0, 0, 0)
+      });
     }
 
-    page.drawText(clampText(item.description, 58), { x: cols.descLeft + 10, y: rowTop - 21, size: 10, font: regular });
+    page.drawText(clampText(item.description, 58), {
+      x: cols.descLeft + 10,
+      y: rowTop - 21,
+      size: 10,
+      font: regular
+    });
 
     const qtyText = String(item.qty);
     page.drawText(qtyText, {
@@ -447,7 +648,10 @@ export async function buildFinancialDocumentPdf(params: {
     if (showDiscount) {
       const discountValue = money(item.discountCents);
       page.drawText(discountValue, {
-        x: cols.discountRight - 10 - regular.widthOfTextAtSize(discountValue, 10),
+        x:
+          cols.discountRight -
+          10 -
+          regular.widthOfTextAtSize(discountValue, 10),
         y: rowTop - 21,
         size: 10,
         font: regular
@@ -464,20 +668,39 @@ export async function buildFinancialDocumentPdf(params: {
 
   const summaryRows: Array<{ label: string; value: string; bold?: boolean }> = [
     { label: 'Subtotal', value: money(params.totals.subtotalCents) },
-    ...(showDiscount ? [{ label: 'Discount', value: money(params.totals.discountCents) }] : []),
+    ...(showDiscount
+      ? [{ label: 'Discount', value: money(params.totals.discountCents) }]
+      : []),
     { label: 'Tax', value: money(params.totals.taxCents) },
     { label: 'Total', value: money(params.totals.totalCents), bold: true }
   ];
 
   summaryRows.forEach((row, index) => {
     const y = summaryTop - summaryRowHeight * (index + 1);
-    page.drawRectangle({ x: summaryLeft, y, width: summaryWidth, height: summaryRowHeight, color: rgb(1, 1, 1) });
-    page.drawRectangle({ x: summaryLeft, y, width: summaryWidth, height: summaryRowHeight, borderWidth: thin, borderColor: rgb(0, 0, 0) });
+    page.drawRectangle({
+      x: summaryLeft,
+      y,
+      width: summaryWidth,
+      height: summaryRowHeight,
+      color: rgb(1, 1, 1)
+    });
+    page.drawRectangle({
+      x: summaryLeft,
+      y,
+      width: summaryWidth,
+      height: summaryRowHeight,
+      borderWidth: thin,
+      borderColor: rgb(0, 0, 0)
+    });
     const font = row.bold ? bold : regular;
     const size = row.bold ? 10.5 : 10;
     page.drawText(row.label, { x: summaryLeft + 12, y: y + 7, size, font });
     page.drawText(row.value, {
-      x: summaryLeft + summaryWidth - 10 - font.widthOfTextAtSize(row.value, size),
+      x:
+        summaryLeft +
+        summaryWidth -
+        10 -
+        font.widthOfTextAtSize(row.value, size),
       y: y + 7,
       size,
       font
@@ -527,14 +750,41 @@ export async function buildFinancialDocumentPdf(params: {
     notesBottomY = notesStartY - 14 - notesLines.length * 11;
   }
   const bankY = notesBottomY - 12;
-  page.drawText(`BANK NAME: ${params.workshop.bankName || '-'}`, { x: left, y: bankY, size: 10, font: regular });
-  page.drawText(`ACC NAME: ${params.workshop.bankAccountName || params.workshop.name || '-'}`, { x: left, y: bankY - 15, size: 10, font: regular });
-  page.drawText(`ACC TYPE: ${params.workshop.bankAccountType || '-'}`, { x: left, y: bankY - 30, size: 10, font: regular });
-  page.drawText(`ACC NO: ${params.workshop.bankAccountNumber || '-'}`, { x: left, y: bankY - 45, size: 10, font: regular });
-  page.drawText(`BRANCH: ${params.workshop.bankBranchCode || '-'}`, { x: left, y: bankY - 60, size: 10, font: regular });
+  page.drawText(`BANK NAME: ${params.workshop.bankName || '-'}`, {
+    x: left,
+    y: bankY,
+    size: 10,
+    font: regular
+  });
+  page.drawText(
+    `ACC NAME: ${params.workshop.bankAccountName || params.workshop.name || '-'}`,
+    { x: left, y: bankY - 15, size: 10, font: regular }
+  );
+  page.drawText(`ACC TYPE: ${params.workshop.bankAccountType || '-'}`, {
+    x: left,
+    y: bankY - 30,
+    size: 10,
+    font: regular
+  });
+  page.drawText(`ACC NO: ${params.workshop.bankAccountNumber || '-'}`, {
+    x: left,
+    y: bankY - 45,
+    size: 10,
+    font: regular
+  });
+  page.drawText(`BRANCH: ${params.workshop.bankBranchCode || '-'}`, {
+    x: left,
+    y: bankY - 60,
+    size: 10,
+    font: regular
+  });
 
   const balanceDue = params.totals.balanceDueCents ?? params.totals.totalCents;
-  if (params.kind === 'invoice' && balanceDue > 0 && isPastDate(params.dueOrExpiryDate)) {
+  if (
+    params.kind === 'invoice' &&
+    balanceDue > 0 &&
+    isPastDate(params.dueOrExpiryDate)
+  ) {
     const badge = 'OVERDUE';
     const badgeWidth = 102;
     const badgeHeight = 34;
