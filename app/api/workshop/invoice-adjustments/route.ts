@@ -134,7 +134,11 @@ export async function POST(req: Request) {
 
   const maxInvoiceOffset = Math.min(currentBalance, totalCents);
   const appliedToInvoiceCents =
-    payload.noteType === 'credit' ? maxInvoiceOffset : totalCents;
+    payload.noteType === 'credit'
+      ? payload.settlementChoice === 'apply_to_invoice'
+        ? maxInvoiceOffset
+        : 0
+      : totalCents;
 
   if (
     payload.noteType === 'credit' &&
@@ -339,6 +343,7 @@ export async function POST(req: Request) {
 
   const pdfBytes = await buildFinancialDocumentPdf({
     kind: 'invoice',
+    headingLabel: `${payload.noteType === 'credit' ? 'Credit' : 'Debit'} note`,
     workshop: {
       name: workshop?.name ?? 'Workshop',
       contactEmail: workshop?.contact_email ?? null,
@@ -417,7 +422,7 @@ export async function POST(req: Request) {
       workshop_account_id: profile.workshop_account_id,
       customer_account_id: invoice.customer_account_id,
       vehicle_id: invoice.vehicle_id,
-      document_type: 'invoice',
+      document_type: payload.noteType === 'credit' ? 'credit_note' : 'debit_note',
       doc_type: 'invoice',
       storage_bucket: 'vehicle-files',
       storage_path: pdfPath,
