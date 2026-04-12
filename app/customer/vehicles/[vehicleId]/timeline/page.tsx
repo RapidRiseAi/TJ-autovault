@@ -8,7 +8,6 @@ import { customerVehicle } from '@/lib/routes';
 import { WorldTimeline } from '@/components/customer/vehicle-activity';
 import { buildActivityStream } from '@/lib/activity-stream';
 import { PageHeader } from '@/components/layout/page-header';
-import { getTemporaryVehicleLimitByTier, isVehicleVisibleForCustomer } from '@/lib/customer/temporary-vehicles';
 
 export default async function VehicleTimelinePage({ params, searchParams }: { params: Promise<{ vehicleId: string }>; searchParams: Promise<{ deletionRequest?: string }> }) {
   const { vehicleId } = await params;
@@ -28,38 +27,14 @@ export default async function VehicleTimelinePage({ params, searchParams }: { pa
   }
 
   const customerAccountId = context.customer_account.id;
-  const [{ data: vehicle }, { data: account }, { data: allVehicles }] = await Promise.all([
-    supabase
-      .from('vehicles')
-      .select('id,registration_number,make,model,is_temporary,archived_at')
-      .eq('id', vehicleId)
-      .eq('current_customer_account_id', customerAccountId)
-      .maybeSingle(),
-    supabase
-      .from('customer_accounts')
-      .select('tier,temporary_vehicle_limit')
-      .eq('id', customerAccountId)
-      .maybeSingle(),
-    supabase
-      .from('vehicles')
-      .select('id,is_temporary,archived_at')
-      .eq('current_customer_account_id', customerAccountId)
-  ]);
+  const { data: vehicle } = await supabase
+    .from('vehicles')
+    .select('id,registration_number,make,model')
+    .eq('id', vehicleId)
+    .eq('current_customer_account_id', customerAccountId)
+    .maybeSingle();
 
   if (!vehicle) {
-    return (
-      <main className="space-y-4">
-        <Card>
-          <h1 className="text-xl font-semibold">Vehicle unavailable</h1>
-          <p className="text-sm text-gray-700">Vehicle not found or you don&apos;t have access.</p>
-        </Card>
-      </main>
-    );
-  }
-  const temporaryLimit = Number(
-    account?.temporary_vehicle_limit ?? getTemporaryVehicleLimitByTier(account?.tier)
-  );
-  if (!isVehicleVisibleForCustomer(vehicle, allVehicles ?? [], temporaryLimit)) {
     return (
       <main className="space-y-4">
         <Card>

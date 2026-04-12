@@ -10,7 +10,6 @@ import {
 import { createClient } from '@/lib/supabase/server';
 import { formatJobCardStatus, jobProgressIndex } from '@/lib/job-cards';
 import { getCustomerContextOrCreate } from '@/lib/customer/get-customer-context-or-create';
-import { filterVisibleCustomerVehicles, getTemporaryVehicleLimitByTier, isVehicleVisibleForCustomer } from '@/lib/customer/temporary-vehicles';
 
 function VehicleAccessErrorPanel() {
   return (
@@ -39,34 +38,16 @@ export default async function VehicleDetailPage({
   if (!context) return <VehicleAccessErrorPanel />;
 
   const customerAccountId = context.customer_account.id;
-  const [{ data: vehicle }, { data: account }, { data: allVehicles }] = await Promise.all([
-    supabase
+  const { data: vehicle } = await supabase
     .from('vehicles')
     .select(
-      'id,registration_number,make,model,year,odometer_km,status,next_service_km,next_service_date,primary_image_path,is_temporary,archived_at'
+      'id,registration_number,make,model,year,odometer_km,status,next_service_km,next_service_date,primary_image_path'
     )
     .eq('id', vehicleId)
     .eq('current_customer_account_id', customerAccountId)
-    .maybeSingle(),
-    supabase
-      .from('customer_accounts')
-      .select('tier,temporary_vehicle_limit')
-      .eq('id', customerAccountId)
-      .maybeSingle(),
-    supabase
-      .from('vehicles')
-      .select('id,registration_number,is_temporary,archived_at')
-      .eq('current_customer_account_id', customerAccountId)
-      .order('registration_number', { ascending: true })
-  ]);
+    .maybeSingle();
 
   if (!vehicle) return <VehicleAccessErrorPanel />;
-  const temporaryLimit = Number(
-    account?.temporary_vehicle_limit ?? getTemporaryVehicleLimitByTier(account?.tier)
-  );
-  if (!isVehicleVisibleForCustomer(vehicle, allVehicles ?? [], temporaryLimit)) {
-    return <VehicleAccessErrorPanel />;
-  }
 
   const [
     { data: quotes },
@@ -112,7 +93,7 @@ export default async function VehicleDetailPage({
       .order('created_at', { ascending: false }),
     supabase
       .from('vehicles')
-      .select('id,registration_number,is_temporary,archived_at')
+      .select('id,registration_number')
       .eq('current_customer_account_id', customerAccountId)
       .order('registration_number', { ascending: true }),
     supabase
@@ -143,14 +124,6 @@ export default async function VehicleDetailPage({
     subject: d.subject,
     importance: d.importance
   }));
-  const visibleCustomerVehiclesForMessage = filterVisibleCustomerVehicles(
-    (customerVehiclesForMessage ?? []).map((entry) => ({
-      ...entry,
-      is_temporary: entry.is_temporary ?? false,
-      archived_at: entry.archived_at ?? null
-    })),
-    temporaryLimit
-  ).map((entry) => ({ id: entry.id, registration_number: entry.registration_number }));
 
   return (
     <main className="space-y-4">
@@ -187,7 +160,7 @@ export default async function VehicleDetailPage({
         documentsHref={customerVehicleDocuments(vehicle.id)}
         editHref={`/customer/vehicles/${vehicle.id}/edit`}
         dashboardHref={customerDashboard()}
-        customerVehiclesForMessage={visibleCustomerVehiclesForMessage}
+        customerVehiclesForMessage={customerVehiclesForMessage ?? []}
       />
     </main>
   );

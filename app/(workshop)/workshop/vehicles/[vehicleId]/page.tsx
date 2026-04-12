@@ -141,7 +141,7 @@ export default async function WorkshopVehiclePage({
       ]),
     supabase
       .from('invoices')
-      .select('id,payment_status,total_cents,balance_due_cents,invoice_number')
+      .select('id,payment_status,total_cents,invoice_number')
       .eq('vehicle_id', vehicleId)
       .eq('workshop_account_id', workshopId),
     supabase
@@ -637,8 +637,7 @@ export default async function WorkshopVehiclePage({
               id: invoice.id,
               invoiceNumber: invoice.invoice_number,
               paymentStatus: invoice.payment_status,
-              totalCents: invoice.total_cents,
-              balanceDueCents: invoice.balance_due_cents
+              totalCents: invoice.total_cents
             }))}
             jobs={(jobsResult.data ?? []).map((job) => ({ id: job.id }))}
             workRequests={(workRequestsResult.data ?? []).map((request) => ({

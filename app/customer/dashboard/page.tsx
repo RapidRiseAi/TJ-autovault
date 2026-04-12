@@ -11,7 +11,6 @@ import { createClient } from '@/lib/supabase/server';
 import { SendMessageModal } from '@/components/messages/send-message-modal';
 import { CustomerOnboardingHub } from '@/components/customer/customer-onboarding-hub';
 import { getCustomerOnboardingChecklist } from '@/lib/customer/onboarding-checklist';
-import { filterVisibleCustomerVehicles, getTemporaryVehicleLimitByTier } from '@/lib/customer/temporary-vehicles';
 
 function formatMoney(cents: number) {
   return new Intl.NumberFormat('en-ZA', {
@@ -87,13 +86,13 @@ export default async function CustomerDashboardPage() {
   ] = await Promise.all([
     supabase
       .from('customer_accounts')
-      .select('vehicle_limit,tier,temporary_vehicle_limit')
+      .select('vehicle_limit')
       .eq('id', customerAccountId)
       .single(),
     supabase
       .from('vehicles')
       .select(
-        'id,registration_number,make,model,year,status,primary_image_path,odometer_km,is_temporary,archived_at'
+        'id,registration_number,make,model,year,status,primary_image_path,odometer_km'
       )
       .eq('current_customer_account_id', customerAccountId)
       .order('created_at', { ascending: false }),
@@ -127,20 +126,10 @@ export default async function CustomerDashboardPage() {
       .is('deleted_at', null)
   ]);
 
-  const temporaryLimit = Number(
-    account?.temporary_vehicle_limit ?? getTemporaryVehicleLimitByTier(account?.tier)
-  );
-  const visibleVehicles = filterVisibleCustomerVehicles(vehicles ?? [], temporaryLimit);
-  const activeTemporaryVehiclesCount = (vehicles ?? []).filter(
-    (vehicle) => vehicle.is_temporary && !vehicle.archived_at
-  ).length;
-  const visibleVehicleIds = new Set(visibleVehicles.map((vehicle) => vehicle.id));
-  const usedVehicles = visibleVehicles.length;
+  const usedVehicles = vehicles?.length ?? 0;
   const allowedVehicles = account?.vehicle_limit ?? 1;
 
-  const allInvoices = (invoices ?? []).filter((invoice) =>
-    invoice.vehicle_id ? visibleVehicleIds.has(invoice.vehicle_id) : true
-  );
+  const allInvoices = invoices ?? [];
   const outstandingInvoices = allInvoices.filter(
     (invoice) => invoice.payment_status !== 'paid'
   );
@@ -156,20 +145,13 @@ export default async function CustomerDashboardPage() {
     0
   );
 
-  const visibleRequests = (openRequests ?? []).filter((request) =>
-    request.vehicle_id ? visibleVehicleIds.has(request.vehicle_id) : true
-  );
-  const visiblePendingQuotes = (pendingQuotes ?? []).filter((quote) =>
-    quote.vehicle_id ? visibleVehicleIds.has(quote.vehicle_id) : true
-  );
-
-  const openRequestCount = visibleRequests.length;
-  const urgentRequestCount = visibleRequests.filter((request) =>
+  const openRequestCount = openRequests?.length ?? 0;
+  const urgentRequestCount = (openRequests ?? []).filter((request) =>
     ['high', 'urgent'].includes((request.priority ?? '').toLowerCase())
   ).length;
 
-  const pendingQuoteCount = visiblePendingQuotes.length;
-  const pendingQuoteTotalCents = visiblePendingQuotes.reduce(
+  const pendingQuoteCount = pendingQuotes?.length ?? 0;
+  const pendingQuoteTotalCents = (pendingQuotes ?? []).reduce(
     (sum, quote) => sum + (quote.total_cents ?? 0),
     0
   );
@@ -194,7 +176,7 @@ export default async function CustomerDashboardPage() {
     );
   });
 
-  visibleRequests.forEach((request) => {
+  (openRequests ?? []).forEach((request) => {
     if (!request.vehicle_id) return;
     requestByVehicle.set(
       request.vehicle_id,
@@ -221,7 +203,7 @@ export default async function CustomerDashboardPage() {
         actions={
           <div className="flex flex-wrap gap-2">
             <SendMessageModal
-              vehicles={visibleVehicles.map((vehicle) => ({ id: vehicle.id, registration_number: vehicle.registration_number }))}
+              vehicles={(vehicles ?? []).map((vehicle) => ({ id: vehicle.id, registration_number: vehicle.registration_number }))}
             />
             <Button asChild>
               <Link href={customerVehicleNew()}>Add vehicle</Link>
@@ -243,7 +225,6 @@ export default async function CustomerDashboardPage() {
           title="Vehicle slots"
           value={`${usedVehicles}/${allowedVehicles} used`}
           detail={`${Math.max(allowedVehicles - usedVehicles, 0)} available`}
-          secondary={`Temporary active ${activeTemporaryVehiclesCount}/${temporaryLimit}`}
           ring={
             <>
               <div className="sm:hidden">
@@ -301,14 +282,14 @@ export default async function CustomerDashboardPage() {
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <section className="hidden gap-3 sm:grid md:grid-cols-2 2xl:grid-cols-3">
-          {visibleVehicles.length === 0 ? (
+          {(vehicles ?? []).length === 0 ? (
             <Card className="rounded-3xl border-dashed">
               <p className="text-sm text-gray-600">
                 No vehicles yet. Add your first vehicle to start tracking service history.
               </p>
             </Card>
           ) : null}
-          {visibleVehicles.map((vehicle) => (
+          {(vehicles ?? []).map((vehicle) => (
             <Card key={vehicle.id} className="rounded-2xl border border-black/10 p-3 shadow-[0_8px_26px_rgba(17,17,17,0.06)]">
               <div className="sm:hidden">
                 <div className="grid grid-cols-[112px_minmax(0,1fr)] gap-3">
