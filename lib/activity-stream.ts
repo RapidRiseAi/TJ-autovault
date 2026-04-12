@@ -26,7 +26,7 @@ export type ActivityItem = {
   id: string;
   kind: 'timeline' | 'document';
   targetId: string;
-  category: 'requests' | 'quotes' | 'invoices' | 'uploads' | 'recommendations' | 'system';
+  category: 'requests' | 'quotes' | 'invoices' | 'credit_notes' | 'uploads' | 'recommendations' | 'system';
   createdAt: string | null;
   title: string;
   description: string | null;
@@ -59,6 +59,7 @@ function mapCategory(eventType?: string | null, metadata?: Record<string, unknow
   if (value.includes('job')) return 'system';
   if (value.includes('request')) return 'requests';
   if (value.includes('quote') || docType === 'quote') return 'quotes';
+  if (value.includes('credit_note') || value.includes('credit note') || docType === 'credit_note' || docType === 'debit_note') return 'credit_notes';
   if (value.includes('invoice') || docType === 'invoice') return 'invoices';
   if (value.includes('doc') || value.includes('upload')) return 'uploads';
   if (value.includes('recommend')) return 'recommendations';
@@ -130,7 +131,14 @@ export function buildActivityStream(timelineRows: TimelineEventItem[], docs: Doc
     id: `doc-${doc.id}`,
     kind: 'document',
     targetId: doc.id,
-    category: doc.document_type === 'invoice' ? 'invoices' : doc.document_type === 'quote' ? 'quotes' : 'uploads',
+    category:
+      doc.document_type === 'invoice'
+        ? 'invoices'
+        : doc.document_type === 'quote'
+          ? 'quotes'
+          : doc.document_type === 'credit_note' || doc.document_type === 'debit_note'
+            ? 'credit_notes'
+            : 'uploads',
     createdAt: doc.created_at,
     title: doc.subject ?? doc.original_name ?? 'Document uploaded',
     subtitle: `Uploaded ${labelDocumentType(doc.document_type)}`,

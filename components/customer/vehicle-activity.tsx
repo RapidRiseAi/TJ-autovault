@@ -14,6 +14,7 @@ function iconForCategory(category: ActivityItem['category']) {
   if (category === 'requests') return Wrench;
   if (category === 'quotes') return CircleDollarSign;
   if (category === 'invoices') return ReceiptText;
+  if (category === 'credit_notes') return ReceiptText;
   if (category === 'uploads') return FileText;
   if (category === 'recommendations') return Sparkles;
   return ShieldCheck;
@@ -44,7 +45,10 @@ export function WorldTimeline({ activities, vehicleId, viewerRole, deletionReque
       ? activities
       : filter === 'uploads'
         ? activities.filter((item) =>
-            item.category === 'uploads' || item.category === 'quotes' || item.category === 'invoices'
+            item.category === 'uploads' ||
+            item.category === 'quotes' ||
+            item.category === 'invoices' ||
+            item.category === 'credit_notes'
           )
         : activities.filter((item) => item.category === filter);
     const actorFiltered = actorFilter === 'all'
@@ -103,6 +107,7 @@ export function WorldTimeline({ activities, vehicleId, viewerRole, deletionReque
     { key: 'requests', label: 'Requests' },
     { key: 'quotes', label: 'Quotes' },
     { key: 'invoices', label: 'Invoices' },
+    { key: 'credit_notes', label: 'Credit notes' },
     { key: 'uploads', label: 'Uploads' },
     { key: 'recommendations', label: 'Recommendations' },
     { key: 'system', label: 'System' }

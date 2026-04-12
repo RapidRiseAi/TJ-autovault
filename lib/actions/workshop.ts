@@ -118,6 +118,67 @@ async function syncInvoiceIncomeEntry(
   }
 }
 
+async function applyWorkshopCustomerCreditsToInvoice(input: {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  workshopAccountId: string;
+  customerAccountId: string;
+  invoiceId: string;
+  maxApplyCents: number;
+  actorProfileId: string;
+}) {
+  if (input.maxApplyCents <= 0) return 0;
+
+  const { data: ledgerRows, error } = await input.supabase
+    .from('customer_credit_ledger')
+    .select('id,remaining_cents')
+    .eq('workshop_account_id', input.workshopAccountId)
+    .eq('customer_account_id', input.customerAccountId)
+    .gt('remaining_cents', 0)
+    .order('created_at', { ascending: true })
+    .limit(200);
+  if (error || !ledgerRows?.length) return 0;
+
+  let remaining = input.maxApplyCents;
+  let applied = 0;
+
+  for (const row of ledgerRows) {
+    if (remaining <= 0) break;
+    const available = Number(row.remaining_cents ?? 0);
+    const consume = Math.min(available, remaining);
+    if (consume <= 0) continue;
+
+    const { error: updateError } = await input.supabase
+      .from('customer_credit_ledger')
+      .update({ remaining_cents: available - consume })
+      .eq('id', row.id)
+      .eq('workshop_account_id', input.workshopAccountId);
+    if (updateError) continue;
+
+    await input.supabase.from('invoice_credit_applications').insert({
+      workshop_account_id: input.workshopAccountId,
+      customer_account_id: input.customerAccountId,
+      invoice_id: input.invoiceId,
+      ledger_entry_id: row.id,
+      amount_cents: consume
+    });
+    await input.supabase.from('customer_credit_ledger').insert({
+      workshop_account_id: input.workshopAccountId,
+      customer_account_id: input.customerAccountId,
+      source_type: 'credit_application',
+      source_id: input.invoiceId,
+      description: `Applied to invoice ${input.invoiceId.slice(0, 8).toUpperCase()}`,
+      delta_cents: -consume,
+      remaining_cents: 0,
+      created_by: input.actorProfileId
+    });
+
+    remaining -= consume;
+    applied += consume;
+  }
+
+  return applied;
+}
+
 async function getWorkshopContext() {
   const supabase = await createClient();
   const {
@@ -281,11 +342,13 @@ export async function createWorkshopCustomerAccount(input: unknown): Promise<Res
 }
 
 const workshopVehicleSchema = addVehicleSchema.extend({
-  customerAccountId: z.string().uuid()
+  customerAccountId: z.string().uuid(),
+  isTemporary: z.boolean().optional().default(false)
 });
 
 const workshopVehicleUpdateSchema = addVehicleSchema.extend({
-  vehicleId: z.string().uuid()
+  vehicleId: z.string().uuid(),
+  isTemporary: z.boolean().optional().default(false)
 });
 
 export async function createWorkshopCustomerVehicle(
@@ -324,7 +387,8 @@ export async function createWorkshopCustomerVehicle(
       vin: payload.vin || null,
       engine_number: payload.engineNumber || null,
       odometer_km: payload.currentMileage,
-      notes: payload.notes || null
+      notes: payload.notes || null,
+      is_temporary: payload.isTemporary
     })
     .select('id,current_customer_account_id')
     .single();
@@ -341,7 +405,8 @@ export async function createWorkshopCustomerVehicle(
         year: payload.year,
         vin: payload.vin || null,
         engine_number: payload.engineNumber || null,
-        odometer_km: payload.currentMileage
+        odometer_km: payload.currentMileage,
+        is_temporary: payload.isTemporary
       })
       .select('id,current_customer_account_id')
       .single());
@@ -441,6 +506,70 @@ export async function deleteWorkshopVehicle(input: {
   return { ok: true, message: 'Vehicle deleted.' };
 }
 
+export async function archiveWorkshopTemporaryVehicle(input: {
+  vehicleId: string;
+  customerAccountId?: string;
+}): Promise<Result> {
+  const ctx = await getWorkshopContext();
+  if (!ctx) return { ok: false, error: 'Unauthorized' };
+
+  const parsed = z
+    .object({
+      vehicleId: z.string().uuid(),
+      customerAccountId: z.string().uuid().optional()
+    })
+    .safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? 'Invalid vehicle id'
+    };
+  }
+
+  const payload = parsed.data;
+  const admin = createAdminClient();
+  const now = new Date().toISOString();
+
+  const { data: vehicle, error: vehicleError } = await admin
+    .from('vehicles')
+    .select('id,current_customer_account_id,is_temporary,workshop_account_id')
+    .eq('id', payload.vehicleId)
+    .eq('workshop_account_id', ctx.profile.workshop_account_id)
+    .maybeSingle();
+
+  if (vehicleError || !vehicle) {
+    return { ok: false, error: vehicleError?.message ?? 'Vehicle not found' };
+  }
+
+  if (!vehicle.is_temporary) {
+    return { ok: false, error: 'Only temporary vehicles can be archived.' };
+  }
+
+  const { error: archiveError } = await admin
+    .from('vehicles')
+    .update({ archived_at: now, status: 'completed' })
+    .eq('id', payload.vehicleId)
+    .eq('workshop_account_id', ctx.profile.workshop_account_id);
+  if (archiveError) {
+    return { ok: false, error: archiveError.message };
+  }
+
+  revalidatePath('/workshop/dashboard');
+  revalidatePath('/workshop/customers');
+  revalidatePath(`/workshop/vehicles/${payload.vehicleId}`);
+  if (payload.customerAccountId) {
+    revalidatePath(`/workshop/customers/${payload.customerAccountId}`);
+  }
+  if (vehicle.current_customer_account_id) {
+    revalidatePath(`/customer/vehicles/${payload.vehicleId}`);
+    revalidatePath('/customer/vehicles');
+  }
+  revalidatePath('/customer/dashboard');
+  revalidatePath('/customer/profile/usage');
+
+  return { ok: true, message: 'Temporary vehicle archived.' };
+}
+
 export async function updateWorkshopVehicleInfo(
   input: unknown
 ): Promise<Result> {
@@ -467,7 +596,8 @@ export async function updateWorkshopVehicleInfo(
       vin: payload.vin || null,
       engine_number: payload.engineNumber || null,
       odometer_km: payload.currentMileage,
-      notes: payload.notes || null
+      notes: payload.notes || null,
+      is_temporary: payload.isTemporary
     })
     .eq('id', payload.vehicleId)
     .eq('workshop_account_id', ctx.profile.workshop_account_id)
@@ -484,7 +614,8 @@ export async function updateWorkshopVehicleInfo(
         year: payload.year,
         vin: payload.vin || null,
         engine_number: payload.engineNumber || null,
-        odometer_km: payload.currentMileage
+        odometer_km: payload.currentMileage,
+        is_temporary: payload.isTemporary
       })
       .eq('id', payload.vehicleId)
       .eq('workshop_account_id', ctx.profile.workshop_account_id)
@@ -706,6 +837,30 @@ export async function createInvoice(input: {
   if (error || !invoice)
     return { ok: false, error: error?.message ?? 'Unable to create invoice' };
 
+  const appliedCredits = await applyWorkshopCustomerCreditsToInvoice({
+    supabase: ctx.supabase,
+    workshopAccountId: vehicle.workshop_account_id,
+    customerAccountId: vehicle.current_customer_account_id,
+    invoiceId: invoice.id,
+    maxApplyCents: input.totalCents,
+    actorProfileId: ctx.profile.id
+  });
+  const netTotalCents = Math.max(input.totalCents - appliedCredits, 0);
+  const balanceDueCents = netTotalCents;
+  const paymentStatus = balanceDueCents <= 0 ? 'paid' : 'unpaid';
+
+  await ctx.supabase
+    .from('invoices')
+    .update({
+      subtotal_cents: netTotalCents,
+      total_cents: netTotalCents,
+      amount_paid_cents: 0,
+      balance_due_cents: balanceDueCents,
+      payment_status: paymentStatus
+    })
+    .eq('id', invoice.id)
+    .eq('workshop_account_id', vehicle.workshop_account_id);
+
   await ctx.supabase.from('vehicle_timeline_events').insert({
     workshop_account_id: vehicle.workshop_account_id,
     customer_account_id: vehicle.current_customer_account_id,
@@ -716,7 +871,7 @@ export async function createInvoice(input: {
     title: input.subject?.trim() || 'Invoice issued',
     description: input.notes || null,
     importance: 'warning',
-    metadata: { invoice_id: invoice.id }
+    metadata: { invoice_id: invoice.id, credits_auto_applied_cents: appliedCredits }
   });
 
   revalidatePath(`/workshop/vehicles/${vehicle.id}`);

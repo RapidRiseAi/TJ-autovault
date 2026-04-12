@@ -61,6 +61,8 @@ export function VehicleDocumentsGroups({ groups, customerMode = false, workshopM
   const sections = useMemo(() => [
     { key: 'quotes', title: 'Quotes', items: groups.quotes },
     { key: 'invoices', title: 'Invoices', items: groups.invoices },
+    { key: 'credit-notes', title: 'Credit notes', items: groups.creditNotes },
+    { key: 'adjustments', title: 'Adjustments', items: groups.adjustments },
     { key: 'reports', title: 'Reports', items: groups.inspectionReports },
     { key: 'photos', title: 'Photos', items: groups.photos },
     { key: 'other', title: 'Other', items: groups.other }

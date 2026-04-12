@@ -162,6 +162,7 @@ function formatCustomerBillingAddressLines(address?: string | null) {
 
 export async function buildFinancialDocumentPdf(params: {
   kind: 'quote' | 'invoice';
+  headingLabel?: string;
   brandColor?: string;
   logoBytes?: Uint8Array;
   workshop: {
@@ -219,7 +220,7 @@ export async function buildFinancialDocumentPdf(params: {
     return `${params.currencyCode === 'ZAR' || !params.currencyCode ? 'R' : params.currencyCode} ${value}`;
   };
 
-  page.drawText(params.kind === 'quote' ? 'QUOTE' : 'Invoice', {
+  page.drawText(params.headingLabel ?? (params.kind === 'quote' ? 'QUOTE' : 'Invoice'), {
     x: left,
     y: 782,
     size: 40,
@@ -484,11 +485,48 @@ export async function buildFinancialDocumentPdf(params: {
   });
 
   const summaryBottom = summaryTop - summaryRowHeight * summaryRows.length;
-  const bankY = summaryBottom - 34;
+  const notesStartY = summaryBottom - 18;
+  const notesWrapWidth = summaryLeft - left - 18;
+  const notesLines: string[] = [];
+
   if (params.notes?.trim()) {
-    page.drawText('Notes', { x: left, y: bankY + 22, size: 9.5, font: bold });
-    page.drawText(clampText(params.notes, 110), { x: left, y: bankY + 10, size: 9, font: regular });
+    const noteParts = params.notes
+      .split('\n')
+      .map((part) => part.trim())
+      .filter(Boolean);
+    const breakLongLine = (value: string) => {
+      const words = value.split(/\s+/).filter(Boolean);
+      if (!words.length) return;
+      let current = '';
+      for (const word of words) {
+        const candidate = current ? `${current} ${word}` : word;
+        if (regular.widthOfTextAtSize(candidate, 9) <= notesWrapWidth) {
+          current = candidate;
+          continue;
+        }
+        if (current) notesLines.push(current);
+        current = word;
+      }
+      if (current) notesLines.push(current);
+    };
+
+    noteParts.forEach((part) => breakLongLine(part));
   }
+
+  let notesBottomY = notesStartY;
+  if (params.notes?.trim()) {
+    page.drawText('Notes', { x: left, y: notesStartY, size: 9.5, font: bold });
+    notesLines.forEach((line, index) => {
+      page.drawText(line, {
+        x: left,
+        y: notesStartY - 14 - index * 11,
+        size: 9,
+        font: regular
+      });
+    });
+    notesBottomY = notesStartY - 14 - notesLines.length * 11;
+  }
+  const bankY = notesBottomY - 12;
   page.drawText(`BANK NAME: ${params.workshop.bankName || '-'}`, { x: left, y: bankY, size: 10, font: regular });
   page.drawText(`ACC NAME: ${params.workshop.bankAccountName || params.workshop.name || '-'}`, { x: left, y: bankY - 15, size: 10, font: regular });
   page.drawText(`ACC TYPE: ${params.workshop.bankAccountType || '-'}`, { x: left, y: bankY - 30, size: 10, font: regular });

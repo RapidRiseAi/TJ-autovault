@@ -17,6 +17,7 @@ const PLAN_OPTIONS: Array<{
   priceLabel: string;
   basePriceCents: number;
   vehicleLimit: number;
+  temporaryVehicleLimit: number;
   limitLabel: string;
   includedStorageBytes: number;
 }> = [
@@ -26,7 +27,8 @@ const PLAN_OPTIONS: Array<{
     priceLabel: 'R200 / month',
     basePriceCents: 20000,
     vehicleLimit: 3,
-    limitLabel: '1 to 3 cars · 250MB storage',
+    temporaryVehicleLimit: 0,
+    limitLabel: '1 to 3 cars · 0 temporary cars · 250MB storage',
     includedStorageBytes: 250 * 1024 * 1024
   },
   {
@@ -35,7 +37,8 @@ const PLAN_OPTIONS: Array<{
     priceLabel: 'R500 / month',
     basePriceCents: 50000,
     vehicleLimit: 10,
-    limitLabel: 'Up to 10 cars · 1GB storage',
+    temporaryVehicleLimit: 1,
+    limitLabel: 'Up to 10 cars · 1 active temporary car · 1GB storage',
     includedStorageBytes: 1 * GB_IN_BYTES
   },
   {
@@ -44,7 +47,8 @@ const PLAN_OPTIONS: Array<{
     priceLabel: 'R1000 / month',
     basePriceCents: 100000,
     vehicleLimit: 9999,
-    limitLabel: 'Unlimited cars · 10GB storage',
+    temporaryVehicleLimit: 3,
+    limitLabel: 'Unlimited cars · 3 active temporary cars · 10GB storage',
     includedStorageBytes: 10 * GB_IN_BYTES
   }
 ];
@@ -86,6 +90,7 @@ async function changePlan(formData: FormData) {
     .update({
       tier: nextPlan.tier,
       vehicle_limit: nextPlan.vehicleLimit,
+      temporary_vehicle_limit: nextPlan.temporaryVehicleLimit,
       included_storage_bytes: nextPlan.includedStorageBytes,
       plan_price_cents:
         nextPlan.basePriceCents + extraStorageGb * EXTRA_STORAGE_PRICE_CENTS_PER_GB
@@ -151,7 +156,7 @@ export default async function CustomerPlanPage() {
     ? (
         await supabase
           .from('customer_accounts')
-          .select('tier,onboarding_status,plan_price_cents')
+          .select('tier,onboarding_status,plan_price_cents,temporary_vehicle_limit')
           .eq('id', customerUser.customer_account_id)
           .maybeSingle()
       ).data
@@ -176,6 +181,10 @@ export default async function CustomerPlanPage() {
         </p>
         <p className="text-sm text-gray-600">
           Current monthly amount: <span className="font-semibold text-black">R{((account?.plan_price_cents ?? 0) / 100).toFixed(2)}</span>
+        </p>
+        <p className="text-sm text-gray-600">
+          Active temporary vehicle allowance:{' '}
+          <span className="font-semibold text-black">{account?.temporary_vehicle_limit ?? 0}</span>
         </p>
         <form action={markPaidNow} className="mt-3">
           <Button type="submit">Pay now (test)</Button>
