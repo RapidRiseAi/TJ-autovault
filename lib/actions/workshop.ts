@@ -281,11 +281,13 @@ export async function createWorkshopCustomerAccount(input: unknown): Promise<Res
 }
 
 const workshopVehicleSchema = addVehicleSchema.extend({
-  customerAccountId: z.string().uuid()
+  customerAccountId: z.string().uuid(),
+  isTemporary: z.boolean().optional().default(false)
 });
 
 const workshopVehicleUpdateSchema = addVehicleSchema.extend({
-  vehicleId: z.string().uuid()
+  vehicleId: z.string().uuid(),
+  isTemporary: z.boolean().optional().default(false)
 });
 
 export async function createWorkshopCustomerVehicle(
@@ -324,7 +326,8 @@ export async function createWorkshopCustomerVehicle(
       vin: payload.vin || null,
       engine_number: payload.engineNumber || null,
       odometer_km: payload.currentMileage,
-      notes: payload.notes || null
+      notes: payload.notes || null,
+      is_temporary: payload.isTemporary
     })
     .select('id,current_customer_account_id')
     .single();
@@ -341,7 +344,8 @@ export async function createWorkshopCustomerVehicle(
         year: payload.year,
         vin: payload.vin || null,
         engine_number: payload.engineNumber || null,
-        odometer_km: payload.currentMileage
+        odometer_km: payload.currentMileage,
+        is_temporary: payload.isTemporary
       })
       .select('id,current_customer_account_id')
       .single());
@@ -441,6 +445,70 @@ export async function deleteWorkshopVehicle(input: {
   return { ok: true, message: 'Vehicle deleted.' };
 }
 
+export async function archiveWorkshopTemporaryVehicle(input: {
+  vehicleId: string;
+  customerAccountId?: string;
+}): Promise<Result> {
+  const ctx = await getWorkshopContext();
+  if (!ctx) return { ok: false, error: 'Unauthorized' };
+
+  const parsed = z
+    .object({
+      vehicleId: z.string().uuid(),
+      customerAccountId: z.string().uuid().optional()
+    })
+    .safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? 'Invalid vehicle id'
+    };
+  }
+
+  const payload = parsed.data;
+  const admin = createAdminClient();
+  const now = new Date().toISOString();
+
+  const { data: vehicle, error: vehicleError } = await admin
+    .from('vehicles')
+    .select('id,current_customer_account_id,is_temporary,workshop_account_id')
+    .eq('id', payload.vehicleId)
+    .eq('workshop_account_id', ctx.profile.workshop_account_id)
+    .maybeSingle();
+
+  if (vehicleError || !vehicle) {
+    return { ok: false, error: vehicleError?.message ?? 'Vehicle not found' };
+  }
+
+  if (!vehicle.is_temporary) {
+    return { ok: false, error: 'Only temporary vehicles can be archived.' };
+  }
+
+  const { error: archiveError } = await admin
+    .from('vehicles')
+    .update({ archived_at: now, status: 'completed' })
+    .eq('id', payload.vehicleId)
+    .eq('workshop_account_id', ctx.profile.workshop_account_id);
+  if (archiveError) {
+    return { ok: false, error: archiveError.message };
+  }
+
+  revalidatePath('/workshop/dashboard');
+  revalidatePath('/workshop/customers');
+  revalidatePath(`/workshop/vehicles/${payload.vehicleId}`);
+  if (payload.customerAccountId) {
+    revalidatePath(`/workshop/customers/${payload.customerAccountId}`);
+  }
+  if (vehicle.current_customer_account_id) {
+    revalidatePath(`/customer/vehicles/${payload.vehicleId}`);
+    revalidatePath('/customer/vehicles');
+  }
+  revalidatePath('/customer/dashboard');
+  revalidatePath('/customer/profile/usage');
+
+  return { ok: true, message: 'Temporary vehicle archived.' };
+}
+
 export async function updateWorkshopVehicleInfo(
   input: unknown
 ): Promise<Result> {
@@ -467,7 +535,8 @@ export async function updateWorkshopVehicleInfo(
       vin: payload.vin || null,
       engine_number: payload.engineNumber || null,
       odometer_km: payload.currentMileage,
-      notes: payload.notes || null
+      notes: payload.notes || null,
+      is_temporary: payload.isTemporary
     })
     .eq('id', payload.vehicleId)
     .eq('workshop_account_id', ctx.profile.workshop_account_id)
@@ -484,7 +553,8 @@ export async function updateWorkshopVehicleInfo(
         year: payload.year,
         vin: payload.vin || null,
         engine_number: payload.engineNumber || null,
-        odometer_km: payload.currentMileage
+        odometer_km: payload.currentMileage,
+        is_temporary: payload.isTemporary
       })
       .eq('id', payload.vehicleId)
       .eq('workshop_account_id', ctx.profile.workshop_account_id)
