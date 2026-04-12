@@ -17,6 +17,7 @@ type Vehicle = {
   model: string | null;
   year: number | null;
   vin: string | null;
+  engine_number: string | null;
   odometer_km: number | null;
   status: string | null;
   notes: string | null;
@@ -31,6 +32,7 @@ const INITIAL_FORM = {
   manualModel: '',
   year: '',
   vin: '',
+  engineNumber: '',
   currentMileage: '',
   notes: ''
 };
@@ -83,6 +85,7 @@ export function CustomerVehicleManager({ customerAccountId, vehicles }: { custom
       manualModel: '',
       year: vehicle.year ? String(vehicle.year) : '',
       vin: vehicle.vin ?? '',
+      engineNumber: vehicle.engine_number ?? '',
       currentMileage: vehicle.odometer_km != null ? String(vehicle.odometer_km) : '',
       notes: vehicle.notes ?? ''
     });
@@ -99,6 +102,7 @@ export function CustomerVehicleManager({ customerAccountId, vehicles }: { custom
       model,
       year: formValues.year ? Number(formValues.year) : null,
       vin: formValues.vin,
+      engineNumber: formValues.engineNumber,
       currentMileage: formValues.currentMileage ? Number(formValues.currentMileage) : null,
       notes: formValues.notes
     });
@@ -149,6 +153,7 @@ export function CustomerVehicleManager({ customerAccountId, vehicles }: { custom
       model,
       year: formValues.year ? Number(formValues.year) : null,
       vin: formValues.vin,
+      engineNumber: formValues.engineNumber,
       currentMileage: formValues.currentMileage ? Number(formValues.currentMileage) : null,
       notes: formValues.notes
     });
@@ -286,19 +291,23 @@ function VehicleForm({ values, setValues, onSubmit, isLoading, cta, vehiclePhoto
 
   return (
     <form
-      className="space-y-2"
+      className="space-y-3"
       onSubmit={(event) => {
         event.preventDefault();
         void onSubmit();
       }}
     >
-      <input className="w-full rounded border p-2 uppercase" placeholder="Registration / Plate number" required minLength={4} maxLength={12} value={values.registrationNumber} onChange={(event) => setValues({ ...values, registrationNumber: event.target.value })} />
-      <div className="grid grid-cols-2 gap-2">
+      <label className="block text-xs font-semibold uppercase tracking-wide text-gray-700">
+        Registration / plate number
+        <input className="mt-1 w-full rounded-xl border border-black/15 px-3 py-2 text-sm uppercase placeholder:text-xs" placeholder="e.g. CA 123-456" required minLength={4} maxLength={12} value={values.registrationNumber} onChange={(event) => setValues({ ...values, registrationNumber: event.target.value })} />
+      </label>
+      <div className="grid gap-3 sm:grid-cols-2">
         <div>
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-700">Vehicle make</p>
           <input
             list="workshop-vehicle-makes"
-            className="w-full rounded border p-2"
-            placeholder="Search and select make"
+            className="w-full rounded-xl border border-black/15 px-3 py-2 text-sm placeholder:text-xs"
+            placeholder="Select make"
             required
             value={values.make}
             onChange={(event) => setValues({ ...values, make: event.target.value, model: '', manualMake: '', manualModel: '' })}
@@ -309,14 +318,15 @@ function VehicleForm({ values, setValues, onSubmit, isLoading, cta, vehiclePhoto
             ))}
           </datalist>
           {normalizedMake === 'Other' ? (
-            <input className="mt-2 w-full rounded border p-2" placeholder="Enter make" required value={values.manualMake} onChange={(event) => setValues({ ...values, manualMake: event.target.value })} />
+            <input className="mt-2 w-full rounded-xl border border-black/15 px-3 py-2 text-sm placeholder:text-xs" placeholder="Type make name" required value={values.manualMake} onChange={(event) => setValues({ ...values, manualMake: event.target.value })} />
           ) : null}
         </div>
         <div>
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-700">Vehicle model</p>
           <input
             list="workshop-vehicle-models"
-            className="w-full rounded border p-2"
-            placeholder={hasMake ? 'Search and select model' : 'Select make first'}
+            className="w-full rounded-xl border border-black/15 px-3 py-2 text-sm placeholder:text-xs"
+            placeholder={hasMake ? 'Select model' : 'Select make first'}
             required
             disabled={!hasMake}
             value={values.model}
@@ -328,16 +338,34 @@ function VehicleForm({ values, setValues, onSubmit, isLoading, cta, vehiclePhoto
             ))}
           </datalist>
           {values.model.trim() === 'Other' || normalizedMake === 'Other' ? (
-            <input className="mt-2 w-full rounded border p-2" placeholder="Enter model" required value={values.manualModel} onChange={(event) => setValues({ ...values, manualModel: event.target.value })} />
+            <input className="mt-2 w-full rounded-xl border border-black/15 px-3 py-2 text-sm placeholder:text-xs" placeholder="Type model name" required value={values.manualModel} onChange={(event) => setValues({ ...values, manualModel: event.target.value })} />
           ) : null}
         </div>
       </div>
-      <div className="grid grid-cols-3 gap-2">
-        <input className="w-full rounded border p-2" type="number" placeholder="Year" min={1900} max={new Date().getFullYear() + 1} value={values.year} onChange={(event) => setValues({ ...values, year: event.target.value })} />
-        <input className="w-full rounded border p-2 uppercase" placeholder="VIN" spellCheck={false} autoCorrect="off" autoCapitalize="characters" maxLength={17} value={values.vin} onChange={(event) => setValues({ ...values, vin: event.target.value })} />
-        <input className="w-full rounded border p-2" type="number" placeholder="Mileage km" min={0} value={values.currentMileage} onChange={(event) => setValues({ ...values, currentMileage: event.target.value })} />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="block text-xs font-semibold uppercase tracking-wide text-gray-700">
+          Year
+          <input className="mt-1 w-full rounded-xl border border-black/15 px-3 py-2 text-sm" type="number" placeholder="Year" min={1900} max={new Date().getFullYear() + 1} value={values.year} onChange={(event) => setValues({ ...values, year: event.target.value })} />
+        </label>
+        <label className="block text-xs font-semibold uppercase tracking-wide text-gray-700">
+          Mileage (km)
+          <input className="mt-1 w-full rounded-xl border border-black/15 px-3 py-2 text-sm" type="number" placeholder="Current km" min={0} value={values.currentMileage} onChange={(event) => setValues({ ...values, currentMileage: event.target.value })} />
+        </label>
       </div>
-      <textarea spellCheck autoCorrect="on" autoCapitalize="sentences" className="w-full rounded border p-2" placeholder="Notes" maxLength={500} value={values.notes} onChange={(event) => setValues({ ...values, notes: event.target.value })} />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="block text-xs font-semibold uppercase tracking-wide text-gray-700">
+          VIN
+          <input className="mt-1 w-full rounded-xl border border-black/15 px-3 py-2 text-sm uppercase placeholder:text-xs" placeholder="Vehicle identification number" spellCheck={false} autoCorrect="off" autoCapitalize="characters" maxLength={17} value={values.vin} onChange={(event) => setValues({ ...values, vin: event.target.value })} />
+        </label>
+        <label className="block text-xs font-semibold uppercase tracking-wide text-gray-700">
+          Engine number
+          <input className="mt-1 w-full rounded-xl border border-black/15 px-3 py-2 text-sm uppercase placeholder:text-xs" placeholder="Engine serial number" spellCheck={false} autoCorrect="off" autoCapitalize="characters" maxLength={80} value={values.engineNumber} onChange={(event) => setValues({ ...values, engineNumber: event.target.value })} />
+        </label>
+      </div>
+      <label className="block text-xs font-semibold uppercase tracking-wide text-gray-700">
+        Notes
+        <textarea spellCheck autoCorrect="on" autoCapitalize="sentences" className="mt-1 w-full rounded-xl border border-black/15 px-3 py-2 text-sm placeholder:text-xs" placeholder="Optional notes about this vehicle" maxLength={500} rows={3} value={values.notes} onChange={(event) => setValues({ ...values, notes: event.target.value })} />
+      </label>
       {setVehiclePhoto && photoRef ? (
         <div>
           <label className="mb-1 block text-sm font-medium">Vehicle photo (optional)</label>

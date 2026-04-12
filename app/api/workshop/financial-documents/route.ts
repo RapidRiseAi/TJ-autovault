@@ -143,6 +143,7 @@ export async function GET(request: NextRequest) {
     quote_number: string | null;
     subject: string | null;
     notes: string | null;
+    order_number: string | null;
     lineItems: Array<{
       description: string;
       qty: number;
@@ -157,7 +158,7 @@ export async function GET(request: NextRequest) {
   if (quoteId) {
     const { data: quote, error: quoteError } = await supabase
       .from('quotes')
-      .select('id,quote_number,subject,notes')
+      .select('id,quote_number,subject,notes,order_number')
       .eq('id', quoteId)
       .eq('workshop_account_id', profile.workshop_account_id)
       .eq('vehicle_id', vehicleId)
@@ -192,6 +193,7 @@ export async function GET(request: NextRequest) {
         quote_number: quote.quote_number,
         subject: quote.subject,
         notes: quote.notes,
+        order_number: quote.order_number ?? null,
         lineItems: (quoteItems ?? []).map((item) => ({
           description: item.description,
           qty: item.qty,
@@ -256,7 +258,7 @@ export async function POST(request: NextRequest) {
     const { data: vehicle } = await supabase
       .from('vehicles')
       .select(
-        'id,registration_number,make,model,vin,current_customer_account_id,workshop_account_id'
+        'id,registration_number,make,model,vin,odometer_km,current_customer_account_id,workshop_account_id'
       )
       .eq('id', payload.vehicleId)
       .eq('workshop_account_id', profile.workshop_account_id)
@@ -480,6 +482,7 @@ export async function POST(request: NextRequest) {
           issue_date: issueDate,
           expiry_date: expiryDate,
           notes: payload.notes || null,
+          order_number: payload.orderNumber || null,
           subject: payload.subject,
           currency_code: payload.currencyCode,
           subtotal_cents: totals.subtotalCents,
@@ -503,6 +506,7 @@ export async function POST(request: NextRequest) {
                 status: 'sent',
                 quote_number: referenceNumber,
                 notes: payload.notes || null,
+                order_number: payload.orderNumber || null,
                 total_cents: totals.totalCents,
                 subtotal_cents: totals.subtotalCents,
                 tax_cents: totals.taxCents
@@ -568,6 +572,7 @@ export async function POST(request: NextRequest) {
           issue_date: issueDate,
           due_date: dueDate,
           notes: payload.notes || null,
+          order_number: payload.orderNumber || null,
           subject: payload.subject,
           currency_code: payload.currencyCode,
           subtotal_cents: totals.subtotalCents,
@@ -596,6 +601,7 @@ export async function POST(request: NextRequest) {
                 invoice_number: referenceNumber,
                 due_date: dueDate,
                 notes: payload.notes || null,
+                order_number: payload.orderNumber || null,
                 total_cents: totals.totalCents,
                 quote_id: linkedQuoteId
               })
@@ -705,11 +711,15 @@ export async function POST(request: NextRequest) {
         registrationNumber: oneTimeClient?.registrationNumber ?? vehicle.registration_number,
         make: oneTimeClient?.make ?? vehicle.make,
         model: oneTimeClient?.model ?? vehicle.model,
-        vin: oneTimeClient?.vin ?? vehicle.vin
+        vin: oneTimeClient?.vin ?? vehicle.vin,
+        mileageKm: payload.kind === 'invoice' && payload.updatedMileageKm != null
+          ? payload.updatedMileageKm
+          : vehicle.odometer_km
       },
       subject: payload.subject,
       referenceNumber,
       quoteNumber: linkedQuoteNumber,
+      orderNumber: payload.orderNumber,
       issueDate,
       dueOrExpiryDate: payload.kind === 'quote' ? expiryDate : dueDate,
       notes: payload.notes,
@@ -794,6 +804,14 @@ export async function POST(request: NextRequest) {
         .from('vehicle_documents')
         .update({ invoice_id: linkedId })
         .eq('id', doc.id);
+
+      if (payload.updatedMileageKm != null) {
+        await supabase
+          .from('vehicles')
+          .update({ odometer_km: payload.updatedMileageKm })
+          .eq('id', vehicle.id)
+          .eq('workshop_account_id', profile.workshop_account_id);
+      }
     }
 
     await supabase.from('vehicle_timeline_events').insert({

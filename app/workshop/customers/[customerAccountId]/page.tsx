@@ -19,6 +19,7 @@ type CustomerVehicleRow = {
   model: string | null;
   year: number | null;
   vin: string | null;
+  engine_number: string | null;
   odometer_km: number | null;
   status: string | null;
   notes: string | null;
@@ -150,7 +151,7 @@ async function loadCustomerVehicles({
   const withNotes = await supabase
     .from('vehicles')
     .select(
-      'id,registration_number,make,model,year,vin,odometer_km,status,notes,primary_image_path'
+      'id,registration_number,make,model,year,vin,engine_number,odometer_km,status,notes,primary_image_path'
     )
     .eq('current_customer_account_id', customerAccountId)
     .eq('workshop_account_id', workshopId);
@@ -162,14 +163,21 @@ async function loadCustomerVehicles({
     };
   }
 
+  const lowerMessage = withNotes.error.message.toLowerCase();
   const missingNotesColumn =
     withNotes.error.code === 'PGRST204' ||
     withNotes.error.code === '42703' ||
     withNotes.error.message.includes("'notes' column") ||
     withNotes.error.message.includes('vehicles.notes') ||
-    withNotes.error.message.toLowerCase().includes('notes does not exist');
+    lowerMessage.includes('notes does not exist');
+  const missingEngineColumn =
+    withNotes.error.code === 'PGRST204' ||
+    withNotes.error.code === '42703' ||
+    withNotes.error.message.includes("'engine_number' column") ||
+    withNotes.error.message.includes('vehicles.engine_number') ||
+    lowerMessage.includes('engine_number does not exist');
 
-  if (missingNotesColumn) {
+  if (missingNotesColumn || missingEngineColumn) {
     const withoutNotes = await supabase
       .from('vehicles')
       .select(
@@ -182,6 +190,7 @@ async function loadCustomerVehicles({
       return {
         vehicles: (withoutNotes.data ?? []).map((vehicle) => ({
           ...vehicle,
+          engine_number: null,
           notes: null
         })) as CustomerVehicleRow[],
         error: null

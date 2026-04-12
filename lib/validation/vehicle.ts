@@ -25,6 +25,7 @@ export const addVehicleSchema = z.object({
   model: z.string().trim().min(1),
   year: yearValidator,
   vin: vinValidator,
+  engineNumber: z.string().trim().max(80).optional().or(z.literal('')),
   currentMileage: odometerValidator,
   notes: z.string().trim().max(500).optional().or(z.literal(''))
 });

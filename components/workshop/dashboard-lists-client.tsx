@@ -144,7 +144,7 @@ export function DashboardListsClient({
                 const customerName = getCustomerDisplayName(profileInfo, customer.name);
                 const avatar = getAvatarSrc(profileInfo?.avatar_url);
                 return (
-                  <div key={customer.id} className="flex h-full items-center justify-between gap-2 rounded-xl border border-neutral-200/80 bg-white px-3 py-2">
+                  <div key={customer.id} className="flex h-full flex-col gap-2 rounded-xl border border-neutral-200/80 bg-white px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex min-w-0 items-center gap-2.5">
                       {avatar ? <img src={avatar} alt={customerName} className="h-8 w-8 rounded-full border border-black/10 object-cover" /> : <div className="flex h-8 w-8 items-center justify-center rounded-full bg-neutral-100 text-[10px] font-semibold text-black/80">{getInitials(customerName)}</div>}
                       <div className="min-w-0">
@@ -155,8 +155,8 @@ export function DashboardListsClient({
                         </p>
                       </div>
                     </div>
-                    <div className="flex shrink-0 flex-col items-end gap-1.5">
-                      <p className="text-xs text-gray-500">{formatDate(customer.created_at)}</p>
+                    <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:flex-col sm:items-end sm:justify-start">
+                      <p className="text-xs text-gray-500 sm:text-right">{formatDate(customer.created_at)}</p>
                       <Button asChild size="sm" className="min-h-0 min-w-12 border border-brand-red/30 px-2.5 py-0.5 text-[11px] shadow-none"><Link href={`/workshop/customers/${customer.id}`}>Open</Link></Button>
                     </div>
                   </div>

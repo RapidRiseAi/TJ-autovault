@@ -322,6 +322,7 @@ export async function createWorkshopCustomerVehicle(
       model: payload.model,
       year: payload.year,
       vin: payload.vin || null,
+      engine_number: payload.engineNumber || null,
       odometer_km: payload.currentMileage,
       notes: payload.notes || null
     })
@@ -339,6 +340,7 @@ export async function createWorkshopCustomerVehicle(
         model: payload.model,
         year: payload.year,
         vin: payload.vin || null,
+        engine_number: payload.engineNumber || null,
         odometer_km: payload.currentMileage
       })
       .select('id,current_customer_account_id')
@@ -463,6 +465,7 @@ export async function updateWorkshopVehicleInfo(
       model: payload.model,
       year: payload.year,
       vin: payload.vin || null,
+      engine_number: payload.engineNumber || null,
       odometer_km: payload.currentMileage,
       notes: payload.notes || null
     })
@@ -480,6 +483,7 @@ export async function updateWorkshopVehicleInfo(
         model: payload.model,
         year: payload.year,
         vin: payload.vin || null,
+        engine_number: payload.engineNumber || null,
         odometer_km: payload.currentMileage
       })
       .eq('id', payload.vehicleId)

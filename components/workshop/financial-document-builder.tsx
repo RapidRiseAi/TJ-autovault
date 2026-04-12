@@ -17,6 +17,7 @@ type QuoteTemplate = {
   quote_number: string | null;
   subject: string | null;
   notes: string | null;
+  order_number: string | null;
   lineItems: Array<{
     description: string;
     qty: number;
@@ -66,6 +67,7 @@ function toCents(value: string) {
 export function FinancialDocumentBuilder({
   vehicleId,
   kind,
+  currentMileage,
   linkedQuoteId,
   customerAccountId,
   oneTimeClientDetails,
@@ -73,6 +75,7 @@ export function FinancialDocumentBuilder({
 }: {
   vehicleId: string;
   kind: 'quote' | 'invoice';
+  currentMileage: number;
   linkedQuoteId?: string;
   customerAccountId?: string;
   oneTimeClientDetails?: {
@@ -95,6 +98,7 @@ export function FinancialDocumentBuilder({
   const { pushToast } = useToast();
   const [subject, setSubject] = useState(kind === 'quote' ? 'Quote' : 'Invoice');
   const [referenceNumber, setReferenceNumber] = useState('');
+  const [orderNumber, setOrderNumber] = useState('');
   const [issueDate, setIssueDate] = useState(new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState(addDaysIso(new Date().toISOString().slice(0, 10)));
   const [expiryDate, setExpiryDate] = useState(addDaysIso(new Date().toISOString().slice(0, 10)));
@@ -104,6 +108,7 @@ export function FinancialDocumentBuilder({
   const [selectedQuoteId, setSelectedQuoteId] = useState(linkedQuoteId ?? '');
   const [prefilledItemIndexes, setPrefilledItemIndexes] = useState<Set<number>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [invoiceMileage, setInvoiceMileage] = useState(String(currentMileage || ''));
 
   const [emailDocument, setEmailDocument] = useState(false);
   const [emailAddress, setEmailAddress] = useState('');
@@ -118,6 +123,7 @@ export function FinancialDocumentBuilder({
     setDueDate(addDaysIso(today));
     setExpiryDate(addDaysIso(today));
     setNotes('');
+    setOrderNumber('');
     setItems([{ ...EMPTY_ITEM }]);
     setSelectedQuoteId(linkedQuoteId ?? '');
     setPrefilledItemIndexes(new Set());
@@ -126,7 +132,8 @@ export function FinancialDocumentBuilder({
     setIsExpiryDateManuallyEdited(false);
     setEmailDocument(false);
     setEmailAddress(oneTimeClientDetails?.notificationEmail ?? oneTimeClientDetails?.billingEmail ?? '');
-  }, [kind, linkedQuoteId, oneTimeClientDetails]);
+    setInvoiceMileage(String(currentMileage || ''));
+  }, [kind, linkedQuoteId, oneTimeClientDetails, currentMileage]);
 
   useEffect(() => {
     let active = true;
@@ -178,6 +185,7 @@ export function FinancialDocumentBuilder({
 
             if (template.subject?.trim()) setSubject(template.subject.trim());
             if (template.notes?.trim()) setNotes(template.notes.trim());
+            if (template.order_number?.trim()) setOrderNumber(template.order_number.trim());
           } else if (!selectedQuoteId) {
             setPrefilledItemIndexes(new Set());
           }
@@ -269,7 +277,9 @@ export function FinancialDocumentBuilder({
           referenceNumber: referenceNumber.trim() || undefined,
           subject: subject.trim(),
           notes: notes.trim() || undefined,
+          orderNumber: orderNumber.trim() || undefined,
           lineItems,
+          updatedMileageKm: kind === 'invoice' && invoiceMileage.trim() ? Number(invoiceMileage) : undefined,
           quoteId: kind === 'invoice' ? selectedQuoteId || undefined : undefined,
           sendEmailTo: oneTimeClientDetails?.enabled && emailDocument ? emailAddress.trim().toLowerCase() || undefined : undefined,
           oneTimeClient: oneTimeClientDetails?.enabled
@@ -326,6 +336,16 @@ export function FinancialDocumentBuilder({
           />
         </label>
         <label>
+          Order number
+          <p className="mt-1 text-xs text-gray-500">Optional customer PO/work order reference.</p>
+          <input
+            value={orderNumber}
+            onChange={(event) => setOrderNumber(event.target.value)}
+            className="mt-1 w-full rounded border p-2"
+            placeholder="Order number (optional)"
+          />
+        </label>
+        <label>
           Reference number
           <p className="mt-1 text-xs text-gray-500">Auto-generated reference number.</p>
           <input
@@ -339,6 +359,20 @@ export function FinancialDocumentBuilder({
           />
         </label>
       </div>
+
+      {kind === 'invoice' ? (
+        <label className="block">
+          Vehicle mileage (km)
+          <p className="mt-1 text-xs text-gray-500">Printed on invoice and saved to the vehicle when changed.</p>
+          <input
+            type="number"
+            min={0}
+            value={invoiceMileage}
+            onChange={(event) => setInvoiceMileage(event.target.value)}
+            className="mt-1 w-full rounded border p-2 md:max-w-xs"
+          />
+        </label>
+      ) : null}
 
       {kind === 'invoice' ? (
         <label className="block">
