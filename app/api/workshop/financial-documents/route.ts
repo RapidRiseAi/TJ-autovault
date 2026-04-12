@@ -100,71 +100,6 @@ async function dispatchFinancialNotificationEmail(input: {
   await dispatchNotificationEmailsNow([existingNotification.id]);
 }
 
-async function applyAvailableCustomerCredits(params: {
-  supabase: Awaited<ReturnType<typeof createClient>>;
-  workshopAccountId: string;
-  customerAccountId: string;
-  invoiceId: string;
-  maxApplyCents: number;
-  actorProfileId: string;
-}) {
-  if (params.maxApplyCents <= 0) return 0;
-
-  const { data: creditRows, error: creditsError } = await params.supabase
-    .from('customer_credit_ledger')
-    .select('id,remaining_cents')
-    .eq('workshop_account_id', params.workshopAccountId)
-    .eq('customer_account_id', params.customerAccountId)
-    .gt('remaining_cents', 0)
-    .order('created_at', { ascending: true })
-    .limit(200);
-
-  if (creditsError || !creditRows?.length) return 0;
-
-  let remainingToApply = params.maxApplyCents;
-  let appliedTotal = 0;
-
-  for (const row of creditRows) {
-    if (remainingToApply <= 0) break;
-
-    const available = Number(row.remaining_cents ?? 0);
-    const applyNow = Math.min(available, remainingToApply);
-    if (applyNow <= 0) continue;
-
-    const { error: updateLedgerError } = await params.supabase
-      .from('customer_credit_ledger')
-      .update({ remaining_cents: available - applyNow })
-      .eq('id', row.id)
-      .eq('workshop_account_id', params.workshopAccountId);
-
-    if (updateLedgerError) continue;
-
-    await params.supabase.from('invoice_credit_applications').insert({
-      workshop_account_id: params.workshopAccountId,
-      customer_account_id: params.customerAccountId,
-      invoice_id: params.invoiceId,
-      ledger_entry_id: row.id,
-      amount_cents: applyNow
-    });
-
-    await params.supabase.from('customer_credit_ledger').insert({
-      workshop_account_id: params.workshopAccountId,
-      customer_account_id: params.customerAccountId,
-      source_type: 'credit_application',
-      source_id: params.invoiceId,
-      description: `Applied to invoice ${params.invoiceId.slice(0, 8).toUpperCase()}`,
-      delta_cents: -applyNow,
-      remaining_cents: 0,
-      created_by: params.actorProfileId
-    });
-
-    remainingToApply -= applyNow;
-    appliedTotal += applyNow;
-  }
-
-  return appliedTotal;
-}
-
 
 export async function GET(request: NextRequest) {
   const kind = request.nextUrl.searchParams.get('kind');
@@ -534,9 +469,6 @@ export async function POST(request: NextRequest) {
         };
 
     let linkedId: string;
-    let invoiceAmountPaidCents = 0;
-    let invoiceBalanceDueCents = totals.totalCents;
-    let invoiceNetTotalCents = totals.totalCents;
 
     if (payload.kind === 'quote') {
       const enhancedQuote = await supabase
@@ -724,60 +656,6 @@ export async function POST(request: NextRequest) {
       }
 
       linkedId = invoice.data.id;
-
-      const autoAppliedCredits = await applyAvailableCustomerCredits({
-        supabase,
-        workshopAccountId: profile.workshop_account_id,
-        customerAccountId: customer.id,
-        invoiceId: linkedId,
-        maxApplyCents: totals.totalCents,
-        actorProfileId: profile.id
-      });
-
-      invoiceAmountPaidCents = autoAppliedCredits;
-      invoiceNetTotalCents = Math.max(totals.totalCents - autoAppliedCredits, 0);
-      invoiceBalanceDueCents = invoiceNetTotalCents;
-
-      const paymentStatus = invoiceBalanceDueCents <= 0 ? 'paid' : 'unpaid';
-
-      await supabase
-        .from('invoices')
-        .update({
-          subtotal_cents: Math.max(totals.subtotalCents - autoAppliedCredits, 0),
-          total_cents: invoiceNetTotalCents,
-          amount_paid_cents: 0,
-          balance_due_cents: invoiceBalanceDueCents,
-          payment_status: paymentStatus
-        })
-        .eq('id', linkedId)
-        .eq('workshop_account_id', profile.workshop_account_id);
-
-      if (autoAppliedCredits > 0) {
-        const creditLineInsert = await supabase.from('invoice_items').insert({
-          invoice_id: linkedId,
-          sort_order: computed.length,
-          description: 'Credit carried forward applied',
-          qty: 1,
-          unit_price_cents: -autoAppliedCredits,
-          line_total_cents: -autoAppliedCredits,
-          discount_type: 'none',
-          discount_value: 0,
-          discount_cents: 0,
-          tax_rate: 0,
-          tax_cents: 0,
-          category: 'credit'
-        });
-
-        if (creditLineInsert.error && isMissingColumnError(creditLineInsert.error)) {
-          await supabase.from('invoice_items').insert({
-            invoice_id: linkedId,
-            description: 'Credit carried forward applied',
-            qty: 1,
-            unit_price_cents: -autoAppliedCredits,
-            line_total_cents: -autoAppliedCredits
-          });
-        }
-      }
     }
 
     let logoBytes: Uint8Array | undefined;
@@ -851,10 +729,9 @@ export async function POST(request: NextRequest) {
         subtotalCents: totals.subtotalCents,
         discountCents: totals.discountCents,
         taxCents: totals.taxCents,
-        totalCents: payload.kind === 'invoice' ? invoiceNetTotalCents : totals.totalCents,
-        amountPaidCents: payload.kind === 'invoice' ? 0 : invoiceAmountPaidCents,
-        balanceDueCents:
-          payload.kind === 'invoice' ? invoiceBalanceDueCents : totals.totalCents
+        totalCents: totals.totalCents,
+        amountPaidCents: 0,
+        balanceDueCents: totals.totalCents
       }
     });
 

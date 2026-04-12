@@ -5,7 +5,6 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { getCustomerContextOrCreate } from '@/lib/customer/get-customer-context-or-create';
-import { filterVisibleCustomerVehicles, getTemporaryVehicleLimitByTier } from '@/lib/customer/temporary-vehicles';
 
 export default async function CustomerVehiclesPage() {
   const supabase = await createClient();
@@ -15,25 +14,13 @@ export default async function CustomerVehiclesPage() {
   const context = await getCustomerContextOrCreate();
   const customerAccountId = context?.customer_account?.id;
 
-  const [{ data: vehicles }, { data: account }] = customerAccountId
-    ? await Promise.all([
-        supabase
-          .from('vehicles')
-          .select('id,registration_number,make,model,year,status,is_temporary,archived_at')
-          .eq('current_customer_account_id', customerAccountId)
-          .order('registration_number', { ascending: true }),
-        supabase
-          .from('customer_accounts')
-          .select('tier,temporary_vehicle_limit')
-          .eq('id', customerAccountId)
-          .maybeSingle()
-      ])
-    : [{ data: [] }, { data: null }];
-
-  const temporaryLimit = Number(
-    account?.temporary_vehicle_limit ?? getTemporaryVehicleLimitByTier(account?.tier)
-  );
-  const visibleVehicles = filterVisibleCustomerVehicles(vehicles ?? [], temporaryLimit);
+  const { data: vehicles } = customerAccountId
+    ? await supabase
+        .from('vehicles')
+        .select('id,registration_number,make,model,year,status')
+        .eq('current_customer_account_id', customerAccountId)
+        .order('registration_number', { ascending: true })
+    : { data: [] };
 
   return (
     <main className="space-y-4">
@@ -43,7 +30,7 @@ export default async function CustomerVehiclesPage() {
         actions={<Button asChild><Link href="/customer/vehicles/new">Add vehicle</Link></Button>}
       />
       <div className="grid gap-3">
-        {visibleVehicles.map((vehicle) => (
+        {(vehicles ?? []).map((vehicle) => (
           <Card key={vehicle.id} className="rounded-2xl p-3">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -66,7 +53,7 @@ export default async function CustomerVehiclesPage() {
             </div>
           </Card>
         ))}
-        {visibleVehicles.length === 0 ? (
+        {(vehicles ?? []).length === 0 ? (
           <Card className="rounded-2xl p-5 text-sm text-gray-600">
             No vehicles yet. Add your first vehicle to get started.
           </Card>
