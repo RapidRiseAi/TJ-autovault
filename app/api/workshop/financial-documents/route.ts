@@ -13,7 +13,10 @@ import {
   computeFinancialLineItems,
   financialDocumentPayloadSchema
 } from '@/lib/workshop/financial-documents';
-import { addDaysToIsoDate, getNextDocumentReference } from '@/lib/workshop/document-references';
+import {
+  addDaysToIsoDate,
+  getNextDocumentReference
+} from '@/lib/workshop/document-references';
 
 function isMissingColumnError(error: unknown) {
   const message =
@@ -53,15 +56,16 @@ async function dispatchFinancialNotificationEmail(input: {
     .maybeSingle();
 
   if (!existingNotification?.id) {
-    const { data: createdNotification, error: createNotificationError } = await input.supabase.rpc('push_notification', {
-      p_workshop_account_id: input.workshopAccountId,
-      p_to_customer_account_id: input.customerAccountId,
-      p_kind: input.kind,
-      p_title: input.title,
-      p_body: input.body,
-      p_href: input.href,
-      p_data: input.data
-    });
+    const { data: createdNotification, error: createNotificationError } =
+      await input.supabase.rpc('push_notification', {
+        p_workshop_account_id: input.workshopAccountId,
+        p_to_customer_account_id: input.customerAccountId,
+        p_kind: input.kind,
+        p_title: input.title,
+        p_body: input.body,
+        p_href: input.href,
+        p_data: input.data
+      });
 
     if (createNotificationError) {
       await dispatchRecentCustomerNotifications({
@@ -91,7 +95,8 @@ async function dispatchFinancialNotificationEmail(input: {
       body: input.body,
       href: input.href,
       data: {
-        ...((existingNotification.data as Record<string, unknown> | null) ?? {}),
+        ...((existingNotification.data as Record<string, unknown> | null) ??
+          {}),
         ...input.data
       }
     })
@@ -104,38 +109,90 @@ async function applyAvailableCustomerCredits(params: {
   supabase: Awaited<ReturnType<typeof createClient>>;
   workshopAccountId: string;
   customerAccountId: string;
+  vehicleId: string;
   invoiceId: string;
   maxApplyCents: number;
   actorProfileId: string;
 }) {
-  if (params.maxApplyCents <= 0) return 0;
+  if (params.maxApplyCents <= 0)
+    return {
+      appliedTotal: 0,
+      applications: [] as Array<{
+        amountCents: number;
+        noteReference: string | null;
+        noteType: 'credit_note' | 'manual_credit';
+      }>
+    };
 
-  const { data: creditRows, error: creditsError } = await params.supabase
+  const enhancedCreditRows = await params.supabase
     .from('customer_credit_ledger')
-    .select('id,remaining_cents')
+    .select(
+      'id,remaining_cents,source_type,source_id,description,apply_scope,vehicle_id,apply_once,note_reference'
+    )
     .eq('workshop_account_id', params.workshopAccountId)
     .eq('customer_account_id', params.customerAccountId)
     .gt('remaining_cents', 0)
+    .is('consumed_at', null)
     .order('created_at', { ascending: true })
     .limit(200);
+  const { data: creditRows, error: creditsError } =
+    enhancedCreditRows.error && isMissingColumnError(enhancedCreditRows.error)
+      ? await params.supabase
+          .from('customer_credit_ledger')
+          .select('id,remaining_cents,source_type,source_id,description')
+          .eq('workshop_account_id', params.workshopAccountId)
+          .eq('customer_account_id', params.customerAccountId)
+          .gt('remaining_cents', 0)
+          .order('created_at', { ascending: true })
+          .limit(200)
+      : enhancedCreditRows;
 
-  if (creditsError || !creditRows?.length) return 0;
+  if (creditsError || !creditRows?.length)
+    return { appliedTotal: 0, applications: [] };
 
   let remainingToApply = params.maxApplyCents;
   let appliedTotal = 0;
+  const applications: Array<{
+    amountCents: number;
+    noteReference: string | null;
+    noteType: 'credit_note' | 'manual_credit';
+  }> = [];
 
   for (const row of creditRows) {
     if (remainingToApply <= 0) break;
+    const applyScope =
+      'apply_scope' in row && row.apply_scope === 'vehicle'
+        ? 'vehicle'
+        : 'customer';
+    const rowVehicleId =
+      'vehicle_id' in row && typeof row.vehicle_id === 'string'
+        ? row.vehicle_id
+        : null;
+    if (applyScope === 'vehicle' && rowVehicleId !== params.vehicleId) continue;
 
     const available = Number(row.remaining_cents ?? 0);
     const applyNow = Math.min(available, remainingToApply);
     if (applyNow <= 0) continue;
+    const applyOnce = 'apply_once' in row ? Boolean(row.apply_once) : false;
+    const nextRemaining = applyOnce ? 0 : available - applyNow;
 
-    const { error: updateLedgerError } = await params.supabase
+    const enhancedLedgerUpdate = await params.supabase
       .from('customer_credit_ledger')
-      .update({ remaining_cents: available - applyNow })
+      .update({
+        remaining_cents: nextRemaining,
+        consumed_at: applyOnce ? new Date().toISOString() : null
+      })
       .eq('id', row.id)
       .eq('workshop_account_id', params.workshopAccountId);
+    const { error: updateLedgerError } =
+      enhancedLedgerUpdate.error &&
+      isMissingColumnError(enhancedLedgerUpdate.error)
+        ? await params.supabase
+            .from('customer_credit_ledger')
+            .update({ remaining_cents: nextRemaining })
+            .eq('id', row.id)
+            .eq('workshop_account_id', params.workshopAccountId)
+        : enhancedLedgerUpdate;
 
     if (updateLedgerError) continue;
 
@@ -157,14 +214,34 @@ async function applyAvailableCustomerCredits(params: {
       remaining_cents: 0,
       created_by: params.actorProfileId
     });
+    if (applyOnce && available > applyNow) {
+      await params.supabase.from('customer_credit_ledger').insert({
+        workshop_account_id: params.workshopAccountId,
+        customer_account_id: params.customerAccountId,
+        source_type: 'credit_application',
+        source_id: params.invoiceId,
+        description: `Unused carry-forward expired from ${(('note_reference' in row ? row.note_reference : null) as string | null) ?? row.description ?? 'credit note'}`,
+        delta_cents: -(available - applyNow),
+        remaining_cents: 0,
+        created_by: params.actorProfileId
+      });
+    }
 
     remainingToApply -= applyNow;
     appliedTotal += applyNow;
+    applications.push({
+      amountCents: applyNow,
+      noteReference:
+        'note_reference' in row && typeof row.note_reference === 'string'
+          ? row.note_reference
+          : null,
+      noteType:
+        row.source_type === 'credit_note' ? 'credit_note' : 'manual_credit'
+    });
   }
 
-  return appliedTotal;
+  return { appliedTotal, applications };
 }
-
 
 export async function GET(request: NextRequest) {
   const kind = request.nextUrl.searchParams.get('kind');
@@ -196,7 +273,8 @@ export async function GET(request: NextRequest) {
   });
 
   const vehicleId = request.nextUrl.searchParams.get('vehicleId');
-  const customerAccountId = request.nextUrl.searchParams.get('customerAccountId');
+  const customerAccountId =
+    request.nextUrl.searchParams.get('customerAccountId');
   const quoteId = request.nextUrl.searchParams.get('quoteId');
 
   if (kind !== 'invoice' || !vehicleId || !customerAccountId) {
@@ -233,12 +311,15 @@ export async function GET(request: NextRequest) {
     if (!quoteError && quote) {
       const enhancedQuoteItems = await supabase
         .from('quote_items')
-        .select('description,qty,unit_price_cents,discount_type,discount_value,tax_rate,category,sort_order')
+        .select(
+          'description,qty,unit_price_cents,discount_type,discount_value,tax_rate,category,sort_order'
+        )
         .eq('quote_id', quote.id)
         .order('sort_order', { ascending: true });
 
       const quoteItems =
-        enhancedQuoteItems.error && isMissingColumnError(enhancedQuoteItems.error)
+        enhancedQuoteItems.error &&
+        isMissingColumnError(enhancedQuoteItems.error)
           ? (
               await supabase
                 .from('quote_items')
@@ -282,13 +363,14 @@ export async function GET(request: NextRequest) {
     .limit(100);
 
   if (quotesError) {
-    return NextResponse.json(
-      { error: quotesError.message },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: quotesError.message }, { status: 400 });
   }
 
-  return NextResponse.json({ referenceNumber, quotes: quotes ?? [], quoteTemplate });
+  return NextResponse.json({
+    referenceNumber,
+    quotes: quotes ?? [],
+    quoteTemplate
+  });
 }
 
 export async function POST(request: NextRequest) {
@@ -329,23 +411,21 @@ export async function POST(request: NextRequest) {
       .eq('workshop_account_id', profile.workshop_account_id)
       .maybeSingle();
 
-    let workshop:
-      | {
-          id: string;
-          name: string;
-          contact_email?: string | null;
-          contact_phone?: string | null;
-          billing_address?: string | null;
-          tax_number?: string | null;
-          bank_name?: string | null;
-          bank_account_number?: string | null;
-          bank_branch_code?: string | null;
-          co_reg_number?: string | null;
-          bank_account_name?: string | null;
-          bank_account_type?: string | null;
-          invoice_footer?: string | null;
-        }
-      | null = null;
+    let workshop: {
+      id: string;
+      name: string;
+      contact_email?: string | null;
+      contact_phone?: string | null;
+      billing_address?: string | null;
+      tax_number?: string | null;
+      bank_name?: string | null;
+      bank_account_number?: string | null;
+      bank_branch_code?: string | null;
+      co_reg_number?: string | null;
+      bank_account_name?: string | null;
+      bank_account_type?: string | null;
+      invoice_footer?: string | null;
+    } | null = null;
 
     const branding = await supabase
       .from('workshop_branding_settings')
@@ -361,7 +441,10 @@ export async function POST(request: NextRequest) {
       .eq('id', profile.workshop_account_id)
       .maybeSingle();
 
-    if (enhancedWorkshop.error && isMissingColumnError(enhancedWorkshop.error)) {
+    if (
+      enhancedWorkshop.error &&
+      isMissingColumnError(enhancedWorkshop.error)
+    ) {
       const fallbackWorkshop = await supabase
         .from('workshop_accounts')
         .select('id,name,contact_email,contact_phone')
@@ -390,7 +473,10 @@ export async function POST(request: NextRequest) {
           }
         : null;
     } else if (enhancedWorkshop.error) {
-      return NextResponse.json({ error: enhancedWorkshop.error.message }, { status: 400 });
+      return NextResponse.json(
+        { error: enhancedWorkshop.error.message },
+        { status: 400 }
+      );
     } else {
       workshop = enhancedWorkshop.data;
     }
@@ -398,30 +484,33 @@ export async function POST(request: NextRequest) {
     const resolvedCustomerId =
       payload.customerAccountId ?? vehicle?.current_customer_account_id ?? null;
 
-    let customer:
-      | {
-          id: string;
-          name: string;
-          linked_email?: string | null;
-          auth_user_id?: string | null;
-          billing_address?: string | null;
-          billing_name?: string | null;
-          billing_company?: string | null;
-          billing_email?: string | null;
-          billing_phone?: string | null;
-          billing_tax_number?: string | null;
-        }
-      | null = null;
+    let customer: {
+      id: string;
+      name: string;
+      linked_email?: string | null;
+      auth_user_id?: string | null;
+      billing_address?: string | null;
+      billing_name?: string | null;
+      billing_company?: string | null;
+      billing_email?: string | null;
+      billing_phone?: string | null;
+      billing_tax_number?: string | null;
+    } | null = null;
 
     if (resolvedCustomerId) {
       const enhancedCustomer = await supabase
         .from('customer_accounts')
-        .select('id,name,linked_email,auth_user_id,billing_name,billing_company,billing_address,billing_email,billing_phone,billing_tax_number')
+        .select(
+          'id,name,linked_email,auth_user_id,billing_name,billing_company,billing_address,billing_email,billing_phone,billing_tax_number'
+        )
         .eq('id', resolvedCustomerId)
         .eq('workshop_account_id', profile.workshop_account_id)
         .maybeSingle();
 
-      if (enhancedCustomer.error && isMissingColumnError(enhancedCustomer.error)) {
+      if (
+        enhancedCustomer.error &&
+        isMissingColumnError(enhancedCustomer.error)
+      ) {
         const fallbackCustomer = await supabase
           .from('customer_accounts')
           .select('id,name')
@@ -437,10 +526,21 @@ export async function POST(request: NextRequest) {
         }
 
         customer = fallbackCustomer.data
-          ? { ...fallbackCustomer.data, billing_address: null, billing_name: null, billing_company: null, billing_email: null, billing_phone: null, billing_tax_number: null }
+          ? {
+              ...fallbackCustomer.data,
+              billing_address: null,
+              billing_name: null,
+              billing_company: null,
+              billing_email: null,
+              billing_phone: null,
+              billing_tax_number: null
+            }
           : null;
       } else if (enhancedCustomer.error) {
-        return NextResponse.json({ error: enhancedCustomer.error.message }, { status: 400 });
+        return NextResponse.json(
+          { error: enhancedCustomer.error.message },
+          { status: 400 }
+        );
       } else {
         customer = enhancedCustomer.data;
       }
@@ -467,7 +567,10 @@ export async function POST(request: NextRequest) {
 
       if (linkedQuoteError || !linkedQuote) {
         return NextResponse.json(
-          { error: linkedQuoteError?.message ?? 'Invalid quote selected for invoice.' },
+          {
+            error:
+              linkedQuoteError?.message ?? 'Invalid quote selected for invoice.'
+          },
           { status: 400 }
         );
       }
@@ -478,7 +581,8 @@ export async function POST(request: NextRequest) {
 
     const { computed, totals } = computeFinancialLineItems(payload.lineItems);
 
-    const issueDate = payload.issueDate || new Date().toISOString().slice(0, 10);
+    const issueDate =
+      payload.issueDate || new Date().toISOString().slice(0, 10);
     const referenceNumber =
       payload.referenceNumber?.trim() ||
       (await getNextDocumentReference({
@@ -518,7 +622,10 @@ export async function POST(request: NextRequest) {
           billing_name: oneTimeClient.billingName ?? oneTimeClient.customerName,
           billing_company: oneTimeClient.billingCompany ?? null,
           billing_address: oneTimeClient.billingAddress ?? null,
-          billing_email: oneTimeClient.billingEmail ?? oneTimeClient.notificationEmail ?? null,
+          billing_email:
+            oneTimeClient.billingEmail ??
+            oneTimeClient.notificationEmail ??
+            null,
           billing_phone: oneTimeClient.billingPhone ?? null,
           billing_tax_number: null
         }
@@ -608,7 +715,8 @@ export async function POST(request: NextRequest) {
       );
 
       const quoteItemsError =
-        enhancedQuoteItems.error && isMissingColumnError(enhancedQuoteItems.error)
+        enhancedQuoteItems.error &&
+        isMissingColumnError(enhancedQuoteItems.error)
           ? (
               await supabase.from('quote_items').insert(
                 computed.map((item) => ({
@@ -623,7 +731,10 @@ export async function POST(request: NextRequest) {
           : enhancedQuoteItems.error;
 
       if (quoteItemsError) {
-        return NextResponse.json({ error: quoteItemsError.message }, { status: 400 });
+        return NextResponse.json(
+          { error: quoteItemsError.message },
+          { status: 400 }
+        );
       }
 
       linkedId = quote.data.id;
@@ -702,7 +813,8 @@ export async function POST(request: NextRequest) {
       );
 
       const invoiceItemsError =
-        enhancedInvoiceItems.error && isMissingColumnError(enhancedInvoiceItems.error)
+        enhancedInvoiceItems.error &&
+        isMissingColumnError(enhancedInvoiceItems.error)
           ? (
               await supabase.from('invoice_items').insert(
                 computed.map((item) => ({
@@ -725,17 +837,22 @@ export async function POST(request: NextRequest) {
 
       linkedId = invoice.data.id;
 
-      const autoAppliedCredits = await applyAvailableCustomerCredits({
+      const autoCreditResult = await applyAvailableCustomerCredits({
         supabase,
         workshopAccountId: profile.workshop_account_id,
         customerAccountId: customer.id,
+        vehicleId: vehicle.id,
         invoiceId: linkedId,
         maxApplyCents: totals.totalCents,
         actorProfileId: profile.id
       });
+      const autoAppliedCredits = autoCreditResult.appliedTotal;
 
       invoiceAmountPaidCents = autoAppliedCredits;
-      invoiceNetTotalCents = Math.max(totals.totalCents - autoAppliedCredits, 0);
+      invoiceNetTotalCents = Math.max(
+        totals.totalCents - autoAppliedCredits,
+        0
+      );
       invoiceBalanceDueCents = invoiceNetTotalCents;
 
       const paymentStatus = invoiceBalanceDueCents <= 0 ? 'paid' : 'unpaid';
@@ -743,7 +860,10 @@ export async function POST(request: NextRequest) {
       await supabase
         .from('invoices')
         .update({
-          subtotal_cents: Math.max(totals.subtotalCents - autoAppliedCredits, 0),
+          subtotal_cents: Math.max(
+            totals.subtotalCents - autoAppliedCredits,
+            0
+          ),
           total_cents: invoiceNetTotalCents,
           amount_paid_cents: 0,
           balance_due_cents: invoiceBalanceDueCents,
@@ -753,29 +873,42 @@ export async function POST(request: NextRequest) {
         .eq('workshop_account_id', profile.workshop_account_id);
 
       if (autoAppliedCredits > 0) {
-        const creditLineInsert = await supabase.from('invoice_items').insert({
-          invoice_id: linkedId,
-          sort_order: computed.length,
-          description: 'Credit carried forward applied',
-          qty: 1,
-          unit_price_cents: -autoAppliedCredits,
-          line_total_cents: -autoAppliedCredits,
-          discount_type: 'none',
-          discount_value: 0,
-          discount_cents: 0,
-          tax_rate: 0,
-          tax_cents: 0,
-          category: 'credit'
-        });
-
-        if (creditLineInsert.error && isMissingColumnError(creditLineInsert.error)) {
-          await supabase.from('invoice_items').insert({
+        const creditLines = autoCreditResult.applications.map(
+          (application, index) => ({
             invoice_id: linkedId,
-            description: 'Credit carried forward applied',
+            sort_order: computed.length + index,
+            description:
+              application.noteType === 'credit_note'
+                ? `Credit note ${application.noteReference ?? ''} carried forward`
+                : 'Customer account credit carried forward',
             qty: 1,
-            unit_price_cents: -autoAppliedCredits,
-            line_total_cents: -autoAppliedCredits
-          });
+            unit_price_cents: -application.amountCents,
+            line_total_cents: -application.amountCents,
+            discount_type: 'none',
+            discount_value: 0,
+            discount_cents: 0,
+            tax_rate: 0,
+            tax_cents: 0,
+            category: 'credit'
+          })
+        );
+        const creditLineInsert = await supabase
+          .from('invoice_items')
+          .insert(creditLines);
+
+        if (
+          creditLineInsert.error &&
+          isMissingColumnError(creditLineInsert.error)
+        ) {
+          await supabase.from('invoice_items').insert(
+            creditLines.map((line) => ({
+              invoice_id: line.invoice_id,
+              description: line.description,
+              qty: line.qty,
+              unit_price_cents: line.unit_price_cents,
+              line_total_cents: line.line_total_cents
+            }))
+          );
         }
       }
     }
@@ -823,20 +956,27 @@ export async function POST(request: NextRequest) {
       customer: {
         name: oneTimeClient?.customerName ?? customer.name,
         billingName: oneTimeClient?.billingName ?? customer.billing_name,
-        billingCompany: oneTimeClient?.billingCompany ?? customer.billing_company,
-        billingAddress: oneTimeClient?.billingAddress ?? customer.billing_address,
-        billingEmail: oneTimeClient?.billingEmail ?? oneTimeClient?.notificationEmail ?? customer.billing_email,
+        billingCompany:
+          oneTimeClient?.billingCompany ?? customer.billing_company,
+        billingAddress:
+          oneTimeClient?.billingAddress ?? customer.billing_address,
+        billingEmail:
+          oneTimeClient?.billingEmail ??
+          oneTimeClient?.notificationEmail ??
+          customer.billing_email,
         billingPhone: oneTimeClient?.billingPhone ?? customer.billing_phone,
         billingTaxNumber: customer.billing_tax_number
       },
       vehicle: {
-        registrationNumber: oneTimeClient?.registrationNumber ?? vehicle.registration_number,
+        registrationNumber:
+          oneTimeClient?.registrationNumber ?? vehicle.registration_number,
         make: oneTimeClient?.make ?? vehicle.make,
         model: oneTimeClient?.model ?? vehicle.model,
         vin: oneTimeClient?.vin ?? vehicle.vin,
-        mileageKm: payload.kind === 'invoice' && payload.updatedMileageKm != null
-          ? payload.updatedMileageKm
-          : vehicle.odometer_km
+        mileageKm:
+          payload.kind === 'invoice' && payload.updatedMileageKm != null
+            ? payload.updatedMileageKm
+            : vehicle.odometer_km
       },
       subject: payload.subject,
       referenceNumber,
@@ -851,10 +991,14 @@ export async function POST(request: NextRequest) {
         subtotalCents: totals.subtotalCents,
         discountCents: totals.discountCents,
         taxCents: totals.taxCents,
-        totalCents: payload.kind === 'invoice' ? invoiceNetTotalCents : totals.totalCents,
-        amountPaidCents: payload.kind === 'invoice' ? 0 : invoiceAmountPaidCents,
+        totalCents:
+          payload.kind === 'invoice' ? invoiceNetTotalCents : totals.totalCents,
+        amountPaidCents:
+          payload.kind === 'invoice' ? 0 : invoiceAmountPaidCents,
         balanceDueCents:
-          payload.kind === 'invoice' ? invoiceBalanceDueCents : totals.totalCents
+          payload.kind === 'invoice'
+            ? invoiceBalanceDueCents
+            : totals.totalCents
       }
     });
 
@@ -867,7 +1011,10 @@ export async function POST(request: NextRequest) {
       });
 
     if (storageError) {
-      return NextResponse.json({ error: storageError.message }, { status: 400 });
+      return NextResponse.json(
+        { error: storageError.message },
+        { status: 400 }
+      );
     }
 
     const { data: doc, error: docError } = await supabase
@@ -903,7 +1050,10 @@ export async function POST(request: NextRequest) {
         .eq('id', linkedId);
 
       if (quoteUpdate.error && isMissingColumnError(quoteUpdate.error)) {
-        await supabase.from('quotes').update({ document_id: doc.id }).eq('id', linkedId);
+        await supabase
+          .from('quotes')
+          .update({ document_id: doc.id })
+          .eq('id', linkedId);
       }
 
       await supabase
@@ -943,11 +1093,13 @@ export async function POST(request: NextRequest) {
       vehicle_id: vehicle.id,
       actor_profile_id: profile.id,
       actor_role: profile.role,
-      event_type: payload.kind === 'quote' ? 'quote_created' : 'invoice_created',
+      event_type:
+        payload.kind === 'quote' ? 'quote_created' : 'invoice_created',
       title: `${payload.kind === 'quote' ? 'Quote' : 'Invoice'} ${referenceNumber}`,
-      description: payload.kind === 'invoice' && linkedQuoteNumber
-        ? `${payload.subject} · Linked to quote ${linkedQuoteNumber}`
-        : payload.subject,
+      description:
+        payload.kind === 'invoice' && linkedQuoteNumber
+          ? `${payload.subject} · Linked to quote ${linkedQuoteNumber}`
+          : payload.subject,
       importance: 'info',
       metadata: {
         linked_id: linkedId,
@@ -958,7 +1110,6 @@ export async function POST(request: NextRequest) {
           : { quote_id: linkedId })
       }
     });
-
 
     if (payload.sendEmailTo) {
       const safeTo = payload.sendEmailTo.trim().toLowerCase();
@@ -981,22 +1132,22 @@ export async function POST(request: NextRequest) {
     if (!oneTimeClient) {
       const customerHref = `/customer/vehicles/${vehicle.id}`;
       await dispatchFinancialNotificationEmail({
-      supabase,
-      workshopAccountId: profile.workshop_account_id,
-      customerAccountId: customer.id,
-      kind: payload.kind,
-      title: payload.subject,
-      body:
-        payload.kind === 'quote'
-          ? `A new quote (${referenceNumber}) is available.`
-          : `A new invoice (${referenceNumber}) is available.`,
-      href: customerHref,
-      data: {
-        vehicle_id: vehicle.id,
-        linked_entity_id: linkedId,
-        document_id: doc.id,
-        document_type: payload.kind
-      }
+        supabase,
+        workshopAccountId: profile.workshop_account_id,
+        customerAccountId: customer.id,
+        kind: payload.kind,
+        title: payload.subject,
+        body:
+          payload.kind === 'quote'
+            ? `A new quote (${referenceNumber}) is available.`
+            : `A new invoice (${referenceNumber}) is available.`,
+        href: customerHref,
+        data: {
+          vehicle_id: vehicle.id,
+          linked_entity_id: linkedId,
+          document_id: doc.id,
+          document_type: payload.kind
+        }
       });
     }
 
