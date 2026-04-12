@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
 import { useToast } from '@/components/ui/toast-provider';
-import { createWorkshopCustomerVehicle, deleteWorkshopVehicle, updateWorkshopVehicleInfo } from '@/lib/actions/workshop';
+import { archiveWorkshopTemporaryVehicle, createWorkshopCustomerVehicle, deleteWorkshopVehicle, updateWorkshopVehicleInfo } from '@/lib/actions/workshop';
 import { VerifyVehicleButton } from '@/components/workshop/verify-vehicle-button';
 import { VEHICLE_MAKES, VEHICLE_MODELS_BY_MAKE } from '@/lib/vehicle-makes-models';
 
@@ -20,6 +20,8 @@ type Vehicle = {
   engine_number: string | null;
   odometer_km: number | null;
   status: string | null;
+  is_temporary: boolean;
+  archived_at: string | null;
   notes: string | null;
   primary_image_path: string | null;
 };
@@ -34,7 +36,8 @@ const INITIAL_FORM = {
   vin: '',
   engineNumber: '',
   currentMileage: '',
-  notes: ''
+  notes: '',
+  isTemporary: false
 };
 
 function getVehicleDisplayName(vehicle: Pick<Vehicle, 'make' | 'model' | 'registration_number'>) {
@@ -87,7 +90,8 @@ export function CustomerVehicleManager({ customerAccountId, vehicles }: { custom
       vin: vehicle.vin ?? '',
       engineNumber: vehicle.engine_number ?? '',
       currentMileage: vehicle.odometer_km != null ? String(vehicle.odometer_km) : '',
-      notes: vehicle.notes ?? ''
+      notes: vehicle.notes ?? '',
+      isTemporary: vehicle.is_temporary
     });
   }
 
@@ -104,7 +108,8 @@ export function CustomerVehicleManager({ customerAccountId, vehicles }: { custom
       vin: formValues.vin,
       engineNumber: formValues.engineNumber,
       currentMileage: formValues.currentMileage ? Number(formValues.currentMileage) : null,
-      notes: formValues.notes
+      notes: formValues.notes,
+      isTemporary: formValues.isTemporary
     });
     setIsLoading(false);
 
@@ -155,7 +160,8 @@ export function CustomerVehicleManager({ customerAccountId, vehicles }: { custom
       vin: formValues.vin,
       engineNumber: formValues.engineNumber,
       currentMileage: formValues.currentMileage ? Number(formValues.currentMileage) : null,
-      notes: formValues.notes
+      notes: formValues.notes,
+      isTemporary: formValues.isTemporary
     });
     setIsLoading(false);
 
@@ -197,6 +203,27 @@ export function CustomerVehicleManager({ customerAccountId, vehicles }: { custom
     router.refresh();
   }
 
+  async function archiveTemporaryVehicle(vehicle: Vehicle) {
+    setIsLoading(true);
+    const result = await archiveWorkshopTemporaryVehicle({
+      vehicleId: vehicle.id,
+      customerAccountId
+    });
+    setIsLoading(false);
+
+    if (!result.ok) {
+      pushToast({ title: 'Could not archive vehicle', description: result.error, tone: 'error' });
+      return;
+    }
+
+    pushToast({ title: 'Temporary vehicle archived', tone: 'success' });
+    router.refresh();
+  }
+
+  const activeStandardVehicles = vehicles.filter((vehicle) => !vehicle.is_temporary && !vehicle.archived_at);
+  const activeTemporaryVehicles = vehicles.filter((vehicle) => vehicle.is_temporary && !vehicle.archived_at);
+  const archivedTemporaryVehicles = vehicles.filter((vehicle) => vehicle.is_temporary && Boolean(vehicle.archived_at));
+
   return (
     <>
       <div className="mb-3 flex items-center justify-between">
@@ -208,29 +235,25 @@ export function CustomerVehicleManager({ customerAccountId, vehicles }: { custom
       </div>
 
       {!vehicles.length ? <p className="text-sm text-gray-500">No vehicles linked to this customer.</p> : (
-        <div className="space-y-2">
-          {vehicles.map((vehicle) => {
-            const pending = (vehicle.status ?? '').toLowerCase().includes('pending');
-            return (
-              <div key={vehicle.id} className="rounded-2xl border border-black/10 p-3">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex min-w-0 items-center gap-3">
-                    {vehicle.primary_image_path ? <img src={`/api/uploads/download?bucket=vehicle-images&path=${encodeURIComponent(vehicle.primary_image_path)}`} alt={vehicle.registration_number} className="h-12 w-12 rounded-xl object-cover" /> : <div className="h-12 w-12 rounded-xl bg-stone-100" />}
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold">{getVehicleDisplayName(vehicle)}</p>
-                      <p className="truncate text-xs text-gray-500">{vehicle.registration_number}</p>
-                      <span className="rounded-full border px-2 py-0.5 text-[10px] uppercase">{pending ? 'pending' : vehicle.status ?? 'active'}</span>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-2 sm:justify-end">
-                    {pending ? <VerifyVehicleButton vehicleId={vehicle.id} /> : null}
-                    <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => { setEditingVehicle(vehicle); setFromVehicle(vehicle); }}>Edit</Button>
-                    <Button asChild size="sm" variant="outline" className="w-full sm:w-auto"><Link href={`/workshop/vehicles/${vehicle.id}`}>Open vehicle</Link></Button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+        <div className="space-y-4">
+          <VehicleGroup
+            title="Active vehicles"
+            vehicles={activeStandardVehicles}
+            onEdit={(vehicle) => { setEditingVehicle(vehicle); setFromVehicle(vehicle); }}
+          />
+          <VehicleGroup
+            title="Temporary vehicles"
+            vehicles={activeTemporaryVehicles}
+            onEdit={(vehicle) => { setEditingVehicle(vehicle); setFromVehicle(vehicle); }}
+            onArchive={(vehicle) => void archiveTemporaryVehicle(vehicle)}
+            isLoading={isLoading}
+          />
+          <VehicleGroup
+            title="Archived temporary vehicles"
+            vehicles={archivedTemporaryVehicles}
+            onEdit={(vehicle) => { setEditingVehicle(vehicle); setFromVehicle(vehicle); }}
+            archived
+          />
         </div>
       )}
 
@@ -366,6 +389,14 @@ function VehicleForm({ values, setValues, onSubmit, isLoading, cta, vehiclePhoto
         Notes
         <textarea spellCheck autoCorrect="on" autoCapitalize="sentences" className="mt-1 w-full rounded-xl border border-black/15 px-3 py-2 text-sm placeholder:text-xs" placeholder="Optional notes about this vehicle" maxLength={500} rows={3} value={values.notes} onChange={(event) => setValues({ ...values, notes: event.target.value })} />
       </label>
+      <label className="flex items-center gap-2 text-sm text-gray-700">
+        <input
+          type="checkbox"
+          checked={values.isTemporary}
+          onChange={(event) => setValues({ ...values, isTemporary: event.target.checked })}
+        />
+        Temporary vehicle
+      </label>
       {setVehiclePhoto && photoRef ? (
         <div>
           <label className="mb-1 block text-sm font-medium">Vehicle photo (optional)</label>
@@ -378,5 +409,60 @@ function VehicleForm({ values, setValues, onSubmit, isLoading, cta, vehiclePhoto
       ) : null}
       <Button disabled={isLoading}>{isLoading ? 'Saving...' : cta}</Button>
     </form>
+  );
+}
+
+function VehicleGroup({
+  title,
+  vehicles,
+  onEdit,
+  onArchive,
+  isLoading,
+  archived
+}: {
+  title: string;
+  vehicles: Vehicle[];
+  onEdit: (vehicle: Vehicle) => void;
+  onArchive?: (vehicle: Vehicle) => void;
+  isLoading?: boolean;
+  archived?: boolean;
+}) {
+  if (!vehicles.length) return null;
+
+  return (
+    <div className="space-y-2">
+      <h3 className="text-sm font-semibold text-gray-700">{title}</h3>
+      {vehicles.map((vehicle) => {
+        const pending = (vehicle.status ?? '').toLowerCase().includes('pending');
+        return (
+          <div key={vehicle.id} className="rounded-2xl border border-black/10 p-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-center gap-3">
+                {vehicle.primary_image_path ? <img src={`/api/uploads/download?bucket=vehicle-images&path=${encodeURIComponent(vehicle.primary_image_path)}`} alt={vehicle.registration_number} className="h-12 w-12 rounded-xl object-cover" /> : <div className="h-12 w-12 rounded-xl bg-stone-100" />}
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">{getVehicleDisplayName(vehicle)}</p>
+                  <p className="truncate text-xs text-gray-500">{vehicle.registration_number}</p>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    <span className="rounded-full border px-2 py-0.5 text-[10px] uppercase">{pending ? 'pending' : vehicle.status ?? 'active'}</span>
+                    {vehicle.is_temporary ? <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] uppercase text-amber-700">temporary</span> : null}
+                    {vehicle.archived_at ? <span className="rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-[10px] uppercase text-slate-700">archived</span> : null}
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 sm:justify-end">
+                {pending ? <VerifyVehicleButton vehicleId={vehicle.id} /> : null}
+                {!archived && onArchive && vehicle.is_temporary ? (
+                  <Button size="sm" variant="secondary" className="w-full sm:w-auto" onClick={() => onArchive(vehicle)} disabled={isLoading}>
+                    {isLoading ? 'Archiving…' : 'Complete & archive'}
+                  </Button>
+                ) : null}
+                <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => onEdit(vehicle)}>Edit</Button>
+                <Button asChild size="sm" variant="outline" className="w-full sm:w-auto"><Link href={`/workshop/vehicles/${vehicle.id}`}>Open vehicle</Link></Button>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }

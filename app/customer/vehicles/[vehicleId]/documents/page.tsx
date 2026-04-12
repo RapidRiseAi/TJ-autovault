@@ -9,6 +9,7 @@ import { groupVehicleDocuments } from '@/lib/vehicle-documents';
 import { PageHeader } from '@/components/layout/page-header';
 import { RetryButton } from '@/components/ui/retry-button';
 import { EmptyState } from '@/components/ui/empty-state';
+import { getTemporaryVehicleLimitByTier, isVehicleVisibleForCustomer } from '@/lib/customer/temporary-vehicles';
 
 export default async function VehicleDocumentsPage({ params }: { params: Promise<{ vehicleId: string }> }) {
   const { vehicleId } = await params;
@@ -25,13 +26,22 @@ export default async function VehicleDocumentsPage({ params }: { params: Promise
 
   const customerAccountId = context.customer_account.id;
 
-  const [{ data: vehicle, error: vehicleError }, docsResult] = await Promise.all([
+  const [{ data: vehicle, error: vehicleError }, { data: account }, { data: allVehicles }, docsResult] = await Promise.all([
     supabase
       .from('vehicles')
-      .select('id,registration_number')
+      .select('id,registration_number,is_temporary,archived_at')
       .eq('id', vehicleId)
       .eq('current_customer_account_id', customerAccountId)
       .maybeSingle(),
+    supabase
+      .from('customer_accounts')
+      .select('tier,temporary_vehicle_limit')
+      .eq('id', customerAccountId)
+      .maybeSingle(),
+    supabase
+      .from('vehicles')
+      .select('id,is_temporary,archived_at')
+      .eq('current_customer_account_id', customerAccountId),
     supabase
       .from('vehicle_documents')
       .select('id,created_at,document_type,original_name,subject,storage_bucket,storage_path,importance')
@@ -41,6 +51,12 @@ export default async function VehicleDocumentsPage({ params }: { params: Promise
   ]);
 
   if (vehicleError || !vehicle) {
+    return <main><EmptyState title="Vehicle unavailable" description="Vehicle not found or you do not have access." /></main>;
+  }
+  const temporaryLimit = Number(
+    account?.temporary_vehicle_limit ?? getTemporaryVehicleLimitByTier(account?.tier)
+  );
+  if (!isVehicleVisibleForCustomer(vehicle, allVehicles ?? [], temporaryLimit)) {
     return <main><EmptyState title="Vehicle unavailable" description="Vehicle not found or you do not have access." /></main>;
   }
 
