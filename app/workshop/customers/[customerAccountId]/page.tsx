@@ -22,8 +22,6 @@ type CustomerVehicleRow = {
   engine_number: string | null;
   odometer_km: number | null;
   status: string | null;
-  is_temporary: boolean;
-  archived_at: string | null;
   notes: string | null;
   primary_image_path: string | null;
 };
@@ -153,7 +151,7 @@ async function loadCustomerVehicles({
   const withNotes = await supabase
     .from('vehicles')
     .select(
-      'id,registration_number,make,model,year,vin,engine_number,odometer_km,status,notes,primary_image_path,is_temporary,archived_at'
+      'id,registration_number,make,model,year,vin,engine_number,odometer_km,status,notes,primary_image_path'
     )
     .eq('current_customer_account_id', customerAccountId)
     .eq('workshop_account_id', workshopId);
@@ -183,7 +181,7 @@ async function loadCustomerVehicles({
     const withoutNotes = await supabase
       .from('vehicles')
       .select(
-        'id,registration_number,make,model,year,vin,odometer_km,status,primary_image_path,is_temporary,archived_at'
+        'id,registration_number,make,model,year,vin,odometer_km,status,primary_image_path'
       )
       .eq('current_customer_account_id', customerAccountId)
       .eq('workshop_account_id', workshopId);
@@ -193,9 +191,7 @@ async function loadCustomerVehicles({
         vehicles: (withoutNotes.data ?? []).map((vehicle) => ({
           ...vehicle,
           engine_number: null,
-          notes: null,
-          is_temporary: false,
-          archived_at: null
+          notes: null
         })) as CustomerVehicleRow[],
         error: null
       };
