@@ -8,11 +8,7 @@ import { Button } from '@/components/ui/button';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { importanceBadgeClass } from '@/lib/timeline';
 import type { ActivityItem } from '@/lib/activity-stream';
-import {
-  requestTimelineItemDeletion,
-  reviewTimelineItemDeletion,
-  workshopOverrideTimelineItemDeletion
-} from '@/lib/actions/timeline';
+import { requestTimelineItemDeletion, reviewTimelineItemDeletion } from '@/lib/actions/timeline';
 
 function iconForCategory(category: ActivityItem['category']) {
   if (category === 'requests') return Wrench;
@@ -40,7 +36,6 @@ export function WorldTimeline({ activities, vehicleId, viewerRole, deletionReque
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
   const [visibleCount, setVisibleCount] = useState(12);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [deleteMode, setDeleteMode] = useState<'request' | 'override'>('request');
   const [selectedActivity, setSelectedActivity] = useState<ActivityItem | null>(null);
   const [deletionReason, setDeletionReason] = useState('');
   const [deleteError, setDeleteError] = useState('');
@@ -81,19 +76,12 @@ export function WorldTimeline({ activities, vehicleId, viewerRole, deletionReque
 
   async function submitDeletionRequest() {
     if (!vehicleId || !selectedActivity || !deletionReason.trim()) return;
-    const result = deleteMode === 'override'
-      ? await workshopOverrideTimelineItemDeletion({
-          vehicleId,
-          targetKind: selectedActivity.kind,
-          targetId: selectedActivity.targetId,
-          reason: deletionReason.trim()
-        })
-      : await requestTimelineItemDeletion({
-          vehicleId,
-          targetKind: selectedActivity.kind,
-          targetId: selectedActivity.targetId,
-          reason: deletionReason.trim()
-        });
+    const result = await requestTimelineItemDeletion({
+      vehicleId,
+      targetKind: selectedActivity.kind,
+      targetId: selectedActivity.targetId,
+      reason: deletionReason.trim()
+    });
     if (!result.ok) {
       setDeleteError(result.error);
       return;
@@ -226,20 +214,10 @@ export function WorldTimeline({ activities, vehicleId, viewerRole, deletionReque
                       {(() => {
                         const pendingRequest = pendingRequests.find((request) => request.target_kind === activity.kind && request.target_id === activity.targetId);
                         if (!pendingRequest) {
-                          return (
-                            <div className="flex flex-wrap gap-2">
-                              <Button size="sm" variant="outline" onClick={() => { setDeleteMode('request'); setSelectedActivity(activity); setIsDeleteModalOpen(true); }}>Request deletion</Button>
-                              {viewerRole === 'workshop' ? <Button size="sm" variant="outline" onClick={() => { setDeleteMode('override'); setSelectedActivity(activity); setIsDeleteModalOpen(true); }}>Delete now (override)</Button> : null}
-                            </div>
-                          );
+                          return <Button size="sm" variant="outline" onClick={() => { setSelectedActivity(activity); setIsDeleteModalOpen(true); }}>Request deletion</Button>;
                         }
                         if (pendingRequest.requested_by_role === viewerRole) {
-                          return (
-                            <div className="space-y-2">
-                              <p className="text-xs text-amber-700">Deletion request pending approval from the other party.</p>
-                              {viewerRole === 'workshop' ? <Button size="sm" variant="outline" onClick={() => { setDeleteMode('override'); setSelectedActivity(activity); setIsDeleteModalOpen(true); }}>Delete now (override)</Button> : null}
-                            </div>
-                          );
+                          return <p className="text-xs text-amber-700">Deletion request pending approval from the other party.</p>;
                         }
                         return (
                           <div className="flex gap-2">
@@ -264,11 +242,11 @@ export function WorldTimeline({ activities, vehicleId, viewerRole, deletionReque
 
       <ConfirmModal
         open={isDeleteModalOpen}
-        onClose={() => { setIsDeleteModalOpen(false); setDeleteError(''); setDeleteMode('request'); }}
-        title={deleteMode === 'override' ? 'Delete immediately (workshop override)' : 'Request deletion'}
-        description={deleteMode === 'override' ? 'This deletes now without customer approval and logs the reason in timeline.' : 'Deleting an item requires approval from the other party.'}
+        onClose={() => { setIsDeleteModalOpen(false); setDeleteError(''); }}
+        title="Request deletion"
+        description="Deleting an item requires approval from the other party."
         onConfirm={() => void submitDeletionRequest()}
-        confirmLabel={deleteMode === 'override' ? 'Delete now' : 'Send request'}
+        confirmLabel="Send request"
       >
         <p className="text-xs text-gray-600">Item: {selectedActivity?.title ?? 'Unknown item'}</p>
         <textarea spellCheck autoCorrect="on" autoCapitalize="sentences" value={deletionReason} onChange={(event) => setDeletionReason(event.target.value)} rows={3} className="w-full rounded border p-2 text-sm" placeholder="Reason for deletion request" />

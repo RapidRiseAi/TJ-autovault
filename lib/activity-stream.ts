@@ -298,7 +298,7 @@ export function buildActivityStream(
   const invoiceGroups = new Map<string, ActivityItem[]>();
   const nonGrouped: ActivityItem[] = [];
   for (const item of maybeInvoiceCandidates) {
-    const invoiceKey = item.referenceNumber || item.invoiceId;
+    const invoiceKey = item.invoiceId || item.referenceNumber;
     const looksLikeCreationOrUpload =
       item.category === 'invoices' &&
       (item.kind === 'document' ||
@@ -328,7 +328,7 @@ export function buildActivityStream(
   const finalInvoiceGroups = new Map<string, ActivityItem[]>();
   const finalItems: ActivityItem[] = [];
   for (const item of preConsolidated) {
-    const invoiceKey = item.referenceNumber || item.invoiceId;
+    const invoiceKey = item.invoiceId || item.referenceNumber;
     const looksLikeCreationOrUpload =
       item.category === 'invoices' &&
       (/created|uploaded/i.test(item.subtitle) || /inv-\d+/i.test(item.title));
