@@ -47,6 +47,7 @@ export type ActivityItem = {
   quoteId?: string;
   invoiceId?: string;
   vehicleId?: string;
+  documentId?: string;
 };
 
 function labelDocumentType(type?: string | null) {
@@ -145,6 +146,12 @@ export function buildActivityStream(
       event.event_type === 'job_card_snapshot'
         ? `Job card snapshot${jobStatus ? ` · ${jobStatus}` : ''}`
         : event.event_type.replaceAll('_', ' ');
+    const documentId =
+      typeof event.metadata?.document_id === 'string'
+        ? event.metadata.document_id
+        : typeof event.metadata?.doc_id === 'string'
+          ? event.metadata.doc_id
+          : undefined;
 
     return {
       id: event.id,
@@ -170,7 +177,8 @@ export function buildActivityStream(
       vehicleId:
         typeof event.metadata?.vehicle_id === 'string'
           ? event.metadata.vehicle_id
-          : undefined
+          : undefined,
+      documentId
     };
   });
 
@@ -196,7 +204,8 @@ export function buildActivityStream(
     actorType: 'system',
     downloadHref: toDownloadHref(doc),
     quoteId: doc.quote_id ?? undefined,
-    invoiceId: doc.invoice_id ?? undefined
+    invoiceId: doc.invoice_id ?? undefined,
+    documentId: doc.id
   }));
 
   const filteredTimelineItems = timelineItems.filter((item) => {
@@ -209,28 +218,24 @@ export function buildActivityStream(
     return !metadataDocId || !docIds.has(metadataDocId);
   });
 
-  // Consolidate invoice "created/uploaded" duplicates so one row carries all useful
-  // context (invoice ref/title + preview/download) instead of rendering near-identical
-  // entries from timeline + document sources.
-  const invoiceGroups = new Map<string, ActivityItem[]>();
-  const nonGrouped: ActivityItem[] = [];
+  // Consolidate document-linked created/uploaded duplicates (quotes, invoices, notes, uploads)
+  // so one row carries the actions/labels, regardless of which source produced the event.
+  const documentLinkedGroups = new Map<string, ActivityItem[]>();
+  const maybeInvoiceCandidates: ActivityItem[] = [];
   for (const item of [...filteredTimelineItems, ...docItems]) {
-    const invoiceId = item.invoiceId;
+    const documentId = item.documentId;
     const looksLikeCreationOrUpload =
-      item.category === 'invoices' &&
-      (item.kind === 'document' ||
-        /created|uploaded/i.test(item.subtitle) ||
-        /inv-\d+/i.test(item.title));
-    if (!invoiceId || !looksLikeCreationOrUpload) {
-      nonGrouped.push(item);
+      item.kind === 'document' || /created|uploaded/i.test(item.subtitle);
+    if (!documentId || !looksLikeCreationOrUpload) {
+      maybeInvoiceCandidates.push(item);
       continue;
     }
-    const existing = invoiceGroups.get(invoiceId) ?? [];
+    const existing = documentLinkedGroups.get(documentId) ?? [];
     existing.push(item);
-    invoiceGroups.set(invoiceId, existing);
+    documentLinkedGroups.set(documentId, existing);
   }
 
-  const mergedInvoiceItems = Array.from(invoiceGroups.values()).map((items) => {
+  const mergeItems = (items: ActivityItem[]) => {
     const ranked = [...items].sort((a, b) => {
       const score = (item: ActivityItem) =>
         (item.downloadHref ? 10 : 0) +
@@ -264,9 +269,39 @@ export function buildActivityStream(
         preferred.actionLabel ||
         items.find((item) => item.actionLabel)?.actionLabel
     } satisfies ActivityItem;
-  });
+  };
 
-  return [...nonGrouped, ...mergedInvoiceItems].sort((a, b) => {
+  // Consolidate invoice "created/uploaded" duplicates so one row carries all useful
+  // context (invoice ref/title + preview/download) instead of rendering near-identical
+  // entries from timeline + document sources.
+  const invoiceGroups = new Map<string, ActivityItem[]>();
+  const nonGrouped: ActivityItem[] = [];
+  for (const item of maybeInvoiceCandidates) {
+    const invoiceId = item.invoiceId;
+    const looksLikeCreationOrUpload =
+      item.category === 'invoices' &&
+      (item.kind === 'document' ||
+        /created|uploaded/i.test(item.subtitle) ||
+        /inv-\d+/i.test(item.title));
+    if (!invoiceId || !looksLikeCreationOrUpload) {
+      nonGrouped.push(item);
+      continue;
+    }
+    const existing = invoiceGroups.get(invoiceId) ?? [];
+    existing.push(item);
+    invoiceGroups.set(invoiceId, existing);
+  }
+
+  const mergedDocumentLinkedItems = Array.from(
+    documentLinkedGroups.values()
+  ).map(mergeItems);
+  const mergedInvoiceItems = Array.from(invoiceGroups.values()).map(mergeItems);
+
+  return [
+    ...nonGrouped,
+    ...mergedDocumentLinkedItems,
+    ...mergedInvoiceItems
+  ].sort((a, b) => {
     const left = a.createdAt ? new Date(a.createdAt).getTime() : 0;
     const right = b.createdAt ? new Date(b.createdAt).getTime() : 0;
     return right - left;
