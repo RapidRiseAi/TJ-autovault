@@ -48,7 +48,14 @@ export type ActivityItem = {
   invoiceId?: string;
   vehicleId?: string;
   documentId?: string;
+  referenceNumber?: string;
 };
+
+function parseReferenceNumber(value: string | null | undefined) {
+  if (!value) return undefined;
+  const match = value.match(/\b((?:INV|CN|DN|QUO)-[A-Z0-9-]{3,})\b/i);
+  return match?.[1]?.toUpperCase();
+}
 
 function labelDocumentType(type?: string | null) {
   return (type ?? 'other').replaceAll('_', ' ');
@@ -152,6 +159,16 @@ export function buildActivityStream(
         : typeof event.metadata?.doc_id === 'string'
           ? event.metadata.doc_id
           : undefined;
+    const referenceNumber =
+      (typeof event.metadata?.invoice_number === 'string'
+        ? event.metadata.invoice_number
+        : undefined) ??
+      (typeof event.metadata?.reference_number === 'string'
+        ? event.metadata.reference_number
+        : undefined) ??
+      parseReferenceNumber(event.title) ??
+      parseReferenceNumber(event.description) ??
+      undefined;
 
     return {
       id: event.id,
@@ -178,7 +195,8 @@ export function buildActivityStream(
         typeof event.metadata?.vehicle_id === 'string'
           ? event.metadata.vehicle_id
           : undefined,
-      documentId
+      documentId,
+      referenceNumber
     };
   });
 
@@ -205,7 +223,10 @@ export function buildActivityStream(
     downloadHref: toDownloadHref(doc),
     quoteId: doc.quote_id ?? undefined,
     invoiceId: doc.invoice_id ?? undefined,
-    documentId: doc.id
+    documentId: doc.id,
+    referenceNumber:
+      parseReferenceNumber(doc.subject) ??
+      parseReferenceNumber(doc.original_name)
   }));
 
   const filteredTimelineItems = timelineItems.filter((item) => {
@@ -277,19 +298,19 @@ export function buildActivityStream(
   const invoiceGroups = new Map<string, ActivityItem[]>();
   const nonGrouped: ActivityItem[] = [];
   for (const item of maybeInvoiceCandidates) {
-    const invoiceId = item.invoiceId;
+    const invoiceKey = item.invoiceId || item.referenceNumber;
     const looksLikeCreationOrUpload =
       item.category === 'invoices' &&
       (item.kind === 'document' ||
         /created|uploaded/i.test(item.subtitle) ||
         /inv-\d+/i.test(item.title));
-    if (!invoiceId || !looksLikeCreationOrUpload) {
+    if (!invoiceKey || !looksLikeCreationOrUpload) {
       nonGrouped.push(item);
       continue;
     }
-    const existing = invoiceGroups.get(invoiceId) ?? [];
+    const existing = invoiceGroups.get(invoiceKey) ?? [];
     existing.push(item);
-    invoiceGroups.set(invoiceId, existing);
+    invoiceGroups.set(invoiceKey, existing);
   }
 
   const mergedDocumentLinkedItems = Array.from(
