@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import {
+  ArrowLeft,
   BadgeDollarSign,
   ClipboardList,
   ExternalLink,
@@ -56,7 +57,9 @@ function StatTile({
           {label}
         </p>
       </div>
-      <p className="mt-2 max-w-full whitespace-nowrap text-[clamp(0.78rem,3.4vw,1.5rem)] font-bold leading-none text-neutral-900 md:text-2xl">{value}</p>
+      <p className="mt-2 max-w-full whitespace-nowrap text-[clamp(0.78rem,3.4vw,1.5rem)] font-bold leading-none text-neutral-900 md:text-2xl">
+        {value}
+      </p>
       <p className="mt-1 text-[11px] text-gray-500 md:text-xs">{subtext}</p>
     </div>
   );
@@ -87,7 +90,24 @@ export default async function WorkshopVehiclePage({
   }>;
 }) {
   const { vehicleId } = await params;
-  const { quoteRecommendationId, upload, closeJobId, quoteId, oneTime, oneTimeName, oneTimeNotificationEmail, oneTimeBillingName, oneTimeBillingCompany, oneTimeBillingEmail, oneTimeBillingPhone, oneTimeBillingAddress, oneTimeReg, oneTimeMake, oneTimeModel, oneTimeVin } = await searchParams;
+  const {
+    quoteRecommendationId,
+    upload,
+    closeJobId,
+    quoteId,
+    oneTime,
+    oneTimeName,
+    oneTimeNotificationEmail,
+    oneTimeBillingName,
+    oneTimeBillingCompany,
+    oneTimeBillingEmail,
+    oneTimeBillingPhone,
+    oneTimeBillingAddress,
+    oneTimeReg,
+    oneTimeMake,
+    oneTimeModel,
+    oneTimeVin
+  } = await searchParams;
   const supabase = await createClient();
   const user = (await supabase.auth.getUser()).data.user;
   if (!user) redirect('/login');
@@ -271,6 +291,9 @@ export default async function WorkshopVehiclePage({
   const vehicleLabel =
     `${vehicle.make?.trim() || 'Vehicle'} ${vehicle.model?.trim() || ''}`.trim();
   const uploadDestinationLabel = `${customerName} • ${vehicleLabel} timeline`;
+  const customerPageHref = vehicle.current_customer_account_id
+    ? `/workshop/customers/${vehicle.current_customer_account_id}`
+    : null;
   const invoices = invoicesResult.data ?? [];
   const paidTotal = invoices
     .filter((x) => x.payment_status === 'paid')
@@ -396,7 +419,8 @@ export default async function WorkshopVehiclePage({
       ? {
           enabled: true,
           customerName: (oneTimeName ?? '').trim() || 'One-time customer',
-          notificationEmail: (oneTimeNotificationEmail ?? '').trim() || undefined,
+          notificationEmail:
+            (oneTimeNotificationEmail ?? '').trim() || undefined,
           billingName: (oneTimeBillingName ?? '').trim() || undefined,
           billingCompany: (oneTimeBillingCompany ?? '').trim() || undefined,
           billingEmail: (oneTimeBillingEmail ?? '').trim() || undefined,
@@ -423,17 +447,36 @@ export default async function WorkshopVehiclePage({
             <div className="h-20 w-20 rounded-2xl bg-white/10" />
           )}
           <div className="flex h-20 min-w-0 flex-1 flex-col">
-            <h1 className="truncate text-[clamp(2rem,11vw,2.65rem)] font-bold leading-none">{vehicle.registration_number}</h1>
+            <h1 className="truncate text-[clamp(2rem,11vw,2.65rem)] font-bold leading-none">
+              {vehicle.registration_number}
+            </h1>
             <p className="mt-auto truncate text-[clamp(1.15rem,5.2vw,1.4rem)] font-semibold leading-none text-white/86">
               {`${vehicle.make ?? ''} ${vehicle.model ?? ''} ${vehicle.year ? `(${vehicle.year})` : ''}`}
             </p>
           </div>
         </div>
         <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
-          <span className="inline-flex items-center justify-center rounded-full border border-white/25 bg-white/10 px-2 py-1">Mileage {vehicle.odometer_km ?? 'N/A'} km</span>
-          <span className="inline-flex items-center justify-center rounded-full border border-white/25 bg-white/10 px-2 py-1">Status {vehicle.status ?? 'pending'}</span>
+          <span className="inline-flex items-center justify-center rounded-full border border-white/25 bg-white/10 px-2 py-1">
+            Mileage {vehicle.odometer_km ?? 'N/A'} km
+          </span>
+          <span className="inline-flex items-center justify-center rounded-full border border-white/25 bg-white/10 px-2 py-1">
+            Status {vehicle.status ?? 'pending'}
+          </span>
         </div>
         <div className="mt-3 grid grid-cols-2 gap-2">
+          {customerPageHref ? (
+            <Button
+              asChild
+              size="sm"
+              variant="secondary"
+              className="col-span-2 h-9 text-xs"
+            >
+              <Link href={customerPageHref}>
+                <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
+                Back to customer
+              </Link>
+            </Button>
+          ) : null}
           <SendMessageModal
             triggerClassName="h-9 w-full text-xs"
             vehicles={[
@@ -450,8 +493,15 @@ export default async function WorkshopVehiclePage({
             defaultCustomerId={vehicle.current_customer_account_id}
           />
           {activeJob ? (
-            <Button asChild size="sm" variant="secondary" className="h-9 text-xs">
-              <Link href={`/workshop/jobs/${activeJob.id}`}>Open active job card</Link>
+            <Button
+              asChild
+              size="sm"
+              variant="secondary"
+              className="h-9 text-xs"
+            >
+              <Link href={`/workshop/jobs/${activeJob.id}`}>
+                Open active job card
+              </Link>
             </Button>
           ) : pendingVerification ? (
             <VerifyVehicleButton vehicleId={vehicle.id} />
@@ -459,10 +509,14 @@ export default async function WorkshopVehiclePage({
             <span />
           )}
           <Button asChild size="sm" variant="secondary" className="h-9 text-xs">
-            <Link href={`/workshop/vehicles/${vehicle.id}/timeline`}>View full timeline</Link>
+            <Link href={`/workshop/vehicles/${vehicle.id}/timeline`}>
+              View full timeline
+            </Link>
           </Button>
           <Button asChild size="sm" variant="secondary" className="h-9 text-xs">
-            <Link href={`/workshop/vehicles/${vehicle.id}/documents`}>View documents</Link>
+            <Link href={`/workshop/vehicles/${vehicle.id}/documents`}>
+              View documents
+            </Link>
           </Button>
         </div>
       </section>
@@ -495,6 +549,19 @@ export default async function WorkshopVehiclePage({
           }
           actions={
             <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
+              {customerPageHref ? (
+                <Button
+                  asChild
+                  size="sm"
+                  variant="secondary"
+                  className="h-8 px-2.5 text-[11px] sm:h-9 sm:px-3 sm:text-xs"
+                >
+                  <Link href={customerPageHref}>
+                    <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
+                    Back to customer
+                  </Link>
+                </Button>
+              ) : null}
               <div className="col-span-2 sm:col-span-1">
                 <SendMessageModal
                   vehicles={[
@@ -511,24 +578,41 @@ export default async function WorkshopVehiclePage({
                   defaultCustomerId={vehicle.current_customer_account_id}
                 />
               </div>
-              <Button asChild size="sm" variant="secondary" className="h-8 px-2.5 text-[11px] sm:h-9 sm:px-3 sm:text-xs">
+              <Button
+                asChild
+                size="sm"
+                variant="secondary"
+                className="h-8 px-2.5 text-[11px] sm:h-9 sm:px-3 sm:text-xs"
+              >
                 <Link href={`/workshop/vehicles/${vehicle.id}/timeline`}>
                   View full timeline
                 </Link>
               </Button>
-              <Button asChild size="sm" variant="secondary" className="h-8 px-2.5 text-[11px] sm:h-9 sm:px-3 sm:text-xs">
+              <Button
+                asChild
+                size="sm"
+                variant="secondary"
+                className="h-8 px-2.5 text-[11px] sm:h-9 sm:px-3 sm:text-xs"
+              >
                 <Link href={`/workshop/vehicles/${vehicle.id}/documents`}>
                   View documents
                 </Link>
               </Button>
               {activeJob ? (
-                <Button asChild size="sm" variant="secondary" className="h-8 px-2.5 text-[11px] sm:h-9 sm:px-3 sm:text-xs">
+                <Button
+                  asChild
+                  size="sm"
+                  variant="secondary"
+                  className="h-8 px-2.5 text-[11px] sm:h-9 sm:px-3 sm:text-xs"
+                >
                   <Link href={`/workshop/jobs/${activeJob.id}`}>
                     Open active job card
                   </Link>
                 </Button>
               ) : null}
-              {pendingVerification ? <VerifyVehicleButton vehicleId={vehicle.id} /> : null}
+              {pendingVerification ? (
+                <VerifyVehicleButton vehicleId={vehicle.id} />
+              ) : null}
             </div>
           }
         />
