@@ -12,6 +12,7 @@ type StatementPdfRow = {
     | 'invoice_credit_applied_note';
   typeCode: 'QUO' | 'INV' | 'CN' | 'DN' | 'APP';
   reference: string;
+  orderNumber?: string;
   linkedInvoiceRef?: string;
   description: string;
   debitCents: number;
@@ -97,11 +98,12 @@ export async function buildCustomerStatementPdf(params: {
   page.drawText('Date', { x: left, y, size: 9, font: bold });
   page.drawText('Type', { x: left + 52, y, size: 9, font: bold });
   page.drawText('Ref', { x: left + 86, y, size: 9, font: bold });
-  page.drawText('Linked', { x: left + 154, y, size: 9, font: bold });
-  page.drawText('Description', { x: left + 218, y, size: 9, font: bold });
-  page.drawText('Debit', { x: left + 378, y, size: 9, font: bold });
-  page.drawText('Credit', { x: left + 440, y, size: 9, font: bold });
-  page.drawText('Balance', { x: left + 503, y, size: 9, font: bold });
+  page.drawText('Order #', { x: left + 152, y, size: 9, font: bold });
+  page.drawText('Linked', { x: left + 206, y, size: 9, font: bold });
+  page.drawText('Description', { x: left + 258, y, size: 9, font: bold });
+  page.drawText('Debit', { x: left + 394, y, size: 9, font: bold });
+  page.drawText('Credit', { x: left + 452, y, size: 9, font: bold });
+  page.drawText('Balance', { x: left + 510, y, size: 9, font: bold });
   y -= 10;
   page.drawLine({
     start: { x: left, y },
@@ -125,18 +127,25 @@ export async function buildCustomerStatementPdf(params: {
     );
     const linkedLines = wrapText(
       row.linkedInvoiceRef ?? '-',
-      58,
+      48,
+      regular,
+      rowFontSize
+    ).slice(0, 2);
+    const orderLines = wrapText(
+      row.orderNumber?.trim() ? row.orderNumber : '-',
+      50,
       regular,
       rowFontSize
     ).slice(0, 2);
     const descriptionLines = wrapText(
       row.description,
-      154,
+      130,
       regular,
       rowFontSize
     ).slice(0, 3);
     const lineCount = Math.max(
       refLines.length,
+      orderLines.length,
       linkedLines.length,
       descriptionLines.length,
       1
@@ -158,11 +167,22 @@ export async function buildCustomerStatementPdf(params: {
         font: regular
       });
     });
+    orderLines.forEach((line, index) => {
+      page.drawText(
+        index === orderLines.length - 1 ? truncate(line, 18) : line,
+        {
+          x: left + 152,
+          y: y - index * 8,
+          size: rowFontSize,
+          font: regular
+        }
+      );
+    });
     linkedLines.forEach((line, index) => {
       page.drawText(
-        index === linkedLines.length - 1 ? truncate(line, 26) : line,
+        index === linkedLines.length - 1 ? truncate(line, 18) : line,
         {
-          x: left + 154,
+          x: left + 206,
           y: y - index * 8,
           size: rowFontSize,
           font: regular
@@ -173,7 +193,7 @@ export async function buildCustomerStatementPdf(params: {
       page.drawText(
         index === descriptionLines.length - 1 ? truncate(line, 70) : line,
         {
-          x: left + 218,
+          x: left + 258,
           y: y - index * 8,
           size: rowFontSize,
           font: regular
@@ -181,7 +201,7 @@ export async function buildCustomerStatementPdf(params: {
       );
     });
     page.drawText(row.debitCents > 0 ? formatMoney(row.debitCents) : '-', {
-      x: left + 378,
+      x: left + 394,
       y,
       size: rowFontSize,
       font: regular
@@ -189,7 +209,7 @@ export async function buildCustomerStatementPdf(params: {
     page.drawText(
       row.creditCents > 0 ? `-${formatMoney(row.creditCents)}` : '-',
       {
-        x: left + 440,
+        x: left + 452,
         y,
         size: rowFontSize,
         font: regular
@@ -199,7 +219,7 @@ export async function buildCustomerStatementPdf(params: {
       row.runningBalanceCents < 0
         ? `-${formatMoney(Math.abs(row.runningBalanceCents))}`
         : formatMoney(row.runningBalanceCents),
-      { x: left + 503, y, size: rowFontSize, font: regular }
+      { x: left + 510, y, size: rowFontSize, font: regular }
     );
 
     y -= rowHeight;

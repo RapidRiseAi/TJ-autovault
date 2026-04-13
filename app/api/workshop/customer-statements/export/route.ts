@@ -15,6 +15,7 @@ type StatementRow = {
   kind: StatementRowKind;
   typeCode: 'QUO' | 'INV' | 'CN' | 'DN' | 'APP';
   reference: string;
+  orderNumber?: string;
   linkedInvoiceRef?: string;
   description: string;
   vehicle: string;
@@ -157,6 +158,12 @@ export async function GET(request: NextRequest) {
       String(row.invoice_number ?? row.id ?? '')
     ])
   );
+  const invoiceOrderNumberById = new Map(
+    invoiceRows.map((row) => [
+      String(row.id ?? ''),
+      String(row.order_number ?? '')
+    ])
+  );
 
   const adjustmentSumsByInvoice = new Map<
     string,
@@ -297,6 +304,7 @@ export async function GET(request: NextRequest) {
     kind: 'quote',
     typeCode: 'QUO',
     reference: String(quote.quote_number ?? quote.id ?? ''),
+    orderNumber: String(quote.order_number ?? ''),
     description: `Quote ${(String(quote.order_number ?? '') || '-').trim()}`,
     vehicle:
       (quote.vehicles as { registration_number?: string } | null)
@@ -336,6 +344,7 @@ export async function GET(request: NextRequest) {
       kind: 'invoice',
       typeCode: 'INV',
       reference: String(invoice.invoice_number ?? invoice.id ?? ''),
+      orderNumber: String(invoice.order_number ?? ''),
       description: `Invoice amount context${appliedAnnotation}`,
       vehicle:
         (invoice.vehicles as { registration_number?: string } | null)
@@ -358,6 +367,8 @@ export async function GET(request: NextRequest) {
         invoiceReferenceById.get(linkedInvoiceId) ||
         linkedInvoiceId ||
         undefined;
+      const linkedInvoiceOrderNumber =
+        invoiceOrderNumberById.get(linkedInvoiceId) || undefined;
 
       const settlement = String(adjustment.settlement_preference ?? '').trim();
       const reason = String(adjustment.reason ?? adjustment.notes ?? '').trim();
@@ -386,6 +397,7 @@ export async function GET(request: NextRequest) {
         kind: isCredit ? 'credit_note' : 'debit_note',
         typeCode: isCredit ? 'CN' : 'DN',
         reference: String(adjustment.reference_number ?? adjustment.id ?? ''),
+        orderNumber: linkedInvoiceOrderNumber,
         linkedInvoiceRef,
         description: `${reason || (isCredit ? 'Credit note' : 'Debit note')}${settlementSummary}`,
         vehicle: '-',
@@ -423,6 +435,7 @@ export async function GET(request: NextRequest) {
       'Date',
       'Type',
       'Reference',
+      'Order Number',
       'Linked Invoice',
       'Description/Reason',
       'Status',
@@ -437,6 +450,7 @@ export async function GET(request: NextRequest) {
         csvEscape(row.date),
         csvEscape(row.typeCode),
         csvEscape(row.reference),
+        csvEscape(row.orderNumber ?? ''),
         csvEscape(row.linkedInvoiceRef ?? ''),
         csvEscape(row.description),
         csvEscape(row.status ?? ''),
