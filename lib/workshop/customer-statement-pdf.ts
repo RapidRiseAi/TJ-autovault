@@ -2,33 +2,8 @@ import 'server-only';
 
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 
-type StatementPdfRow = {
-  date: string;
-  kind:
-    | 'quote'
-    | 'invoice'
-    | 'credit_note'
-    | 'debit_note'
-    | 'invoice_credit_applied_note';
-  typeCode: 'QUO' | 'INV' | 'CN' | 'DN' | 'APP';
-  reference: string;
-  linkedInvoiceRef?: string;
-  description: string;
-  debitCents: number;
-  creditCents: number;
-  runningBalanceCents: number;
-};
-
 function formatMoney(cents: number) {
-  return new Intl.NumberFormat('en-ZA', {
-    style: 'currency',
-    currency: 'ZAR'
-  }).format(cents / 100);
-}
-
-function truncate(value: string, length: number) {
-  if (value.length <= length) return value;
-  return `${value.slice(0, Math.max(length - 1, 0))}…`;
+  return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(cents / 100);
 }
 
 export async function buildCustomerStatementPdf(params: {
@@ -42,7 +17,7 @@ export async function buildCustomerStatementPdf(params: {
   customerName: string;
   from: string;
   to: string;
-  rows: StatementPdfRow[];
+  rows: Array<{ date: string; kind: 'invoice' | 'quote'; number: string; orderNumber?: string; status: string; amountCents: number; paidCents?: number; balanceCents?: number; paymentMethod?: string; vehicle?: string }>;
 }) {
   const pdf = await PDFDocument.create();
   const page = pdf.addPage([595, 842]);
@@ -50,7 +25,7 @@ export async function buildCustomerStatementPdf(params: {
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
 
   let y = 805;
-  const left = 28;
+  const left = 40;
 
   page.drawText('Customer Statement', { x: left, y, size: 20, font: bold });
   y -= 24;
@@ -58,143 +33,58 @@ export async function buildCustomerStatementPdf(params: {
   y -= 14;
   page.drawText(params.customerName, { x: left, y, size: 11, font: bold });
   y -= 14;
-  page.drawText(`${params.from} to ${params.to}`, {
-    x: left,
-    y,
-    size: 10,
-    font: regular,
-    color: rgb(0.35, 0.35, 0.35)
-  });
+  page.drawText(`${params.from} to ${params.to}`, { x: left, y, size: 10, font: regular, color: rgb(0.35, 0.35, 0.35) });
   y -= 22;
 
   page.drawText('Date', { x: left, y, size: 9, font: bold });
-  page.drawText('Type', { x: left + 52, y, size: 9, font: bold });
-  page.drawText('Ref', { x: left + 86, y, size: 9, font: bold });
-  page.drawText('Linked', { x: left + 154, y, size: 9, font: bold });
-  page.drawText('Description', { x: left + 218, y, size: 9, font: bold });
-  page.drawText('Debit', { x: left + 378, y, size: 9, font: bold });
-  page.drawText('Credit', { x: left + 440, y, size: 9, font: bold });
-  page.drawText('Balance', { x: left + 503, y, size: 9, font: bold });
+  page.drawText('Type', { x: left + 70, y, size: 9, font: bold });
+  page.drawText('Number', { x: left + 110, y, size: 9, font: bold });
+  page.drawText('Order #', { x: left + 180, y, size: 9, font: bold });
+  page.drawText('Status', { x: left + 245, y, size: 9, font: bold });
+  page.drawText('Method', { x: left + 300, y, size: 9, font: bold });
+  page.drawText('Vehicle', { x: left + 350, y, size: 9, font: bold });
+  page.drawText('Amount', { x: left + 430, y, size: 9, font: bold });
+  page.drawText('Balance', { x: left + 500, y, size: 9, font: bold });
   y -= 10;
-  page.drawLine({
-    start: { x: left, y },
-    end: { x: 565, y },
-    thickness: 1,
-    color: rgb(0.85, 0.85, 0.85)
-  });
+  page.drawLine({ start: { x: left, y }, end: { x: 555, y }, thickness: 1, color: rgb(0.85, 0.85, 0.85) });
   y -= 12;
 
-  let totalDebits = 0;
-  let totalCredits = 0;
+  let totalAmount = 0;
+  let totalBalance = 0;
 
-  for (const row of params.rows.slice(0, 46)) {
-    totalDebits += row.debitCents;
-    totalCredits += row.creditCents;
+  for (const row of params.rows.slice(0, 45)) {
+    totalAmount += row.amountCents;
+    totalBalance += row.balanceCents ?? (row.kind === 'invoice' ? row.amountCents : 0);
 
     page.drawText(row.date, { x: left, y, size: 8, font: regular });
-    page.drawText(row.typeCode, { x: left + 52, y, size: 8, font: regular });
-    page.drawText(truncate(row.reference, 10), {
-      x: left + 86,
-      y,
-      size: 8,
-      font: regular
-    });
-    page.drawText(truncate(row.linkedInvoiceRef ?? '-', 10), {
-      x: left + 154,
-      y,
-      size: 8,
-      font: regular
-    });
-    page.drawText(truncate(row.description, 34), {
-      x: left + 218,
-      y,
-      size: 8,
-      font: regular
-    });
-    page.drawText(row.debitCents > 0 ? formatMoney(row.debitCents) : '-', {
-      x: left + 378,
-      y,
-      size: 8,
-      font: regular
-    });
-    page.drawText(
-      row.creditCents > 0 ? `-${formatMoney(row.creditCents)}` : '-',
-      {
-        x: left + 440,
-        y,
-        size: 8,
-        font: regular
-      }
-    );
-    page.drawText(
-      row.runningBalanceCents < 0
-        ? `-${formatMoney(Math.abs(row.runningBalanceCents))}`
-        : formatMoney(row.runningBalanceCents),
-      { x: left + 503, y, size: 8, font: regular }
-    );
+    page.drawText(row.kind === 'invoice' ? 'INV' : 'QUO', { x: left + 70, y, size: 8, font: regular });
+    page.drawText(row.number.slice(0, 10), { x: left + 110, y, size: 8, font: regular });
+    page.drawText((row.orderNumber || '-').slice(0, 10), { x: left + 180, y, size: 8, font: regular });
+    page.drawText(row.status.slice(0, 9), { x: left + 245, y, size: 8, font: regular });
+    page.drawText((row.paymentMethod || '-').slice(0, 8), { x: left + 300, y, size: 8, font: regular });
+    page.drawText((row.vehicle || '-').slice(0, 12), { x: left + 350, y, size: 8, font: regular });
+    page.drawText(formatMoney(row.amountCents), { x: left + 430, y, size: 8, font: regular });
+    page.drawText(formatMoney(row.balanceCents ?? 0), { x: left + 500, y, size: 8, font: regular });
 
     y -= 13;
     if (y < 80) break;
   }
 
   y -= 10;
-  page.drawText(`Total debits: ${formatMoney(totalDebits)}`, {
-    x: left + 300,
-    y,
-    size: 10,
-    font: bold
-  });
+  page.drawText(`Total amount: ${formatMoney(totalAmount)}`, { x: left + 320, y, size: 10, font: bold });
   y -= 14;
-  page.drawText(`Total credits: -${formatMoney(totalCredits)}`, {
-    x: left + 300,
-    y,
-    size: 10,
-    font: bold
-  });
-  y -= 14;
-  page.drawText(`Closing balance: ${formatMoney(totalDebits - totalCredits)}`, {
-    x: left + 300,
-    y,
-    size: 10,
-    font: bold
-  });
+  page.drawText(`Outstanding balance: ${formatMoney(totalBalance)}`, { x: left + 320, y, size: 10, font: bold });
 
   y -= 26;
-  page.drawText('Business banking details', {
-    x: left,
-    y,
-    size: 10,
-    font: bold
-  });
+  page.drawText('Business banking details', { x: left, y, size: 10, font: bold });
   y -= 14;
-  page.drawText(`Bank: ${params.workshopBank?.bankName || '-'}`, {
-    x: left,
-    y,
-    size: 9,
-    font: regular
-  });
+  page.drawText(`Bank: ${params.workshopBank?.bankName || '-'}`, { x: left, y, size: 9, font: regular });
   y -= 12;
-  page.drawText(
-    `Account name: ${params.workshopBank?.accountName || params.workshopName}`,
-    { x: left, y, size: 9, font: regular }
-  );
+  page.drawText(`Account name: ${params.workshopBank?.accountName || params.workshopName}`, { x: left, y, size: 9, font: regular });
   y -= 12;
-  page.drawText(
-    `Account number: ${params.workshopBank?.accountNumber || '-'}`,
-    {
-      x: left,
-      y,
-      size: 9,
-      font: regular
-    }
-  );
+  page.drawText(`Account number: ${params.workshopBank?.accountNumber || '-'}`, { x: left, y, size: 9, font: regular });
   y -= 12;
-  page.drawText(`Branch code: ${params.workshopBank?.branchCode || '-'}`, {
-    x: left,
-    y,
-    size: 9,
-    font: regular
-  });
+  page.drawText(`Branch code: ${params.workshopBank?.branchCode || '-'}`, { x: left, y, size: 9, font: regular });
 
   return pdf.save();
 }
