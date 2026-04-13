@@ -59,26 +59,6 @@ export async function reviewTimelineItemDeletion(input: {
   };
 }
 
-export async function workshopOverrideTimelineItemDeletion(input: {
-  vehicleId: string;
-  targetKind: 'timeline' | 'document';
-  targetId: string;
-  reason: string;
-}): Promise<ActionResult> {
-  const supabase = await createClient();
-
-  const { error } = await supabase.rpc('workshop_override_timeline_item_deletion', {
-    p_target_kind: input.targetKind,
-    p_target_id: input.targetId,
-    p_reason: input.reason
-  });
-
-  if (error) return { ok: false, error: error.message };
-
-  vehiclePaths(input.vehicleId).forEach((path) => revalidatePath(path));
-  return { ok: true, message: 'Item deleted with workshop override.' };
-}
-
 export async function createCustomerTimelineLog(input: {
   vehicleId: string;
   title: string;
