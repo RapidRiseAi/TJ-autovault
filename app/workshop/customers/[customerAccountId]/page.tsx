@@ -1,16 +1,24 @@
 import { notFound, redirect } from 'next/navigation';
+import Link from 'next/link';
 import { revalidatePath } from 'next/cache';
 import { PageHeader } from '@/components/layout/page-header';
 import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { SendMessageModal } from '@/components/messages/send-message-modal';
 import { CustomerVehicleManager } from '@/components/workshop/customer-vehicle-manager';
 import { RemoveCustomerAccountButton } from '@/components/workshop/remove-customer-account-button';
-import { CustomerBillingDetailsForm, type CustomerBillingActionState } from '@/components/workshop/customer-billing-details-form';
+import {
+  CustomerBillingDetailsForm,
+  type CustomerBillingActionState
+} from '@/components/workshop/customer-billing-details-form';
 import { UnlinkedNotificationSettingsForm } from '@/components/workshop/unlinked-notification-settings-form';
 import { dispatchRecentCustomerNotifications } from '@/lib/email/dispatch-now';
-import { composeBillingAddress, splitBillingAddress } from '@/lib/customer/billing-address';
+import {
+  composeBillingAddress,
+  splitBillingAddress
+} from '@/lib/customer/billing-address';
 
 type CustomerVehicleRow = {
   id: string;
@@ -49,7 +57,10 @@ type CustomerDetail = {
   }>;
 };
 
-type UnlinkedNotificationActionState = { status: 'idle' | 'success' | 'error'; message?: string };
+type UnlinkedNotificationActionState = {
+  status: 'idle' | 'success' | 'error';
+  message?: string;
+};
 
 type CustomerOptionalColumn =
   | 'linked_email'
@@ -106,8 +117,6 @@ function extractMissingBillingColumns(
   const combined = `${error.code ?? ''} ${error.message ?? ''}`.toLowerCase();
   return keys.filter((column) => combined.includes(column));
 }
-
-
 
 function isMissingRelationOrColumnError(
   error: { code?: string; message?: string } | null,
@@ -194,8 +203,11 @@ async function loadCustomerVehicles({
           ...vehicle,
           engine_number: null,
           notes: null,
-          is_temporary: (vehicle as { is_temporary?: boolean | null }).is_temporary ?? false,
-          archived_at: (vehicle as { archived_at?: string | null }).archived_at ?? null
+          is_temporary:
+            (vehicle as { is_temporary?: boolean | null }).is_temporary ??
+            false,
+          archived_at:
+            (vehicle as { archived_at?: string | null }).archived_at ?? null
         })) as CustomerVehicleRow[],
         error: null
       };
@@ -236,7 +248,11 @@ export default async function WorkshopCustomerPage({
     error: { code?: string; message?: string } | null;
   } = { data: null, error: null };
 
-  for (let attempt = 0; attempt <= CUSTOMER_OPTIONAL_COLUMNS.length; attempt += 1) {
+  for (
+    let attempt = 0;
+    attempt <= CUSTOMER_OPTIONAL_COLUMNS.length;
+    attempt += 1
+  ) {
     const selectClause = [
       'id',
       'name',
@@ -255,7 +271,10 @@ export default async function WorkshopCustomerPage({
     if (!query.error) break;
     if (!isMissingProspectColumnsError(query.error)) break;
 
-    const missingColumns = extractMissingBillingColumns(query.error, availableCustomerColumns);
+    const missingColumns = extractMissingBillingColumns(
+      query.error,
+      availableCustomerColumns
+    );
     if (!missingColumns.length) {
       availableCustomerColumns = [];
       continue;
@@ -290,7 +309,6 @@ export default async function WorkshopCustomerPage({
     customer.customer_users?.[0]?.profiles?.[0]?.display_name || customer.name;
   const billingAddressDefaults = splitBillingAddress(customer.billing_address);
 
-
   async function updateCustomerBillingDetails(
     _prevState: CustomerBillingActionState,
     formData: FormData
@@ -315,23 +333,42 @@ export default async function WorkshopCustomerPage({
     }
 
     const billingName = (formData.get('billing_name')?.toString() ?? '').trim();
-    const billingCompany = (formData.get('billing_company')?.toString() ?? '').trim();
-    const billingAddressStreet = (formData.get('billing_address_street')?.toString() ?? '').trim();
-    const billingAddressCity = (formData.get('billing_address_city')?.toString() ?? '').trim();
-    const billingAddressProvince = (formData.get('billing_address_province')?.toString() ?? '').trim();
-    const billingAddressPostalCode = (formData.get('billing_address_postal_code')?.toString() ?? '').trim();
+    const billingCompany = (
+      formData.get('billing_company')?.toString() ?? ''
+    ).trim();
+    const billingAddressStreet = (
+      formData.get('billing_address_street')?.toString() ?? ''
+    ).trim();
+    const billingAddressCity = (
+      formData.get('billing_address_city')?.toString() ?? ''
+    ).trim();
+    const billingAddressProvince = (
+      formData.get('billing_address_province')?.toString() ?? ''
+    ).trim();
+    const billingAddressPostalCode = (
+      formData.get('billing_address_postal_code')?.toString() ?? ''
+    ).trim();
     const billingAddress = composeBillingAddress({
       street: billingAddressStreet,
       city: billingAddressCity,
       province: billingAddressProvince,
       postalCode: billingAddressPostalCode
     });
-    const billingEmail = (formData.get('billing_email')?.toString() ?? '').trim().toLowerCase();
-    const billingPhone = (formData.get('billing_phone')?.toString() ?? '').trim();
-    const billingTaxNumber = (formData.get('billing_tax_number')?.toString() ?? '').trim();
+    const billingEmail = (formData.get('billing_email')?.toString() ?? '')
+      .trim()
+      .toLowerCase();
+    const billingPhone = (
+      formData.get('billing_phone')?.toString() ?? ''
+    ).trim();
+    const billingTaxNumber = (
+      formData.get('billing_tax_number')?.toString() ?? ''
+    ).trim();
 
     if (!billingName && !billingCompany) {
-      return { status: 'error', message: 'Billing name or company is required.' };
+      return {
+        status: 'error',
+        message: 'Billing name or company is required.'
+      };
     }
 
     const displayName = billingName || billingCompany;
@@ -353,7 +390,11 @@ export default async function WorkshopCustomerPage({
       error: { code?: string; message?: string } | null;
     } | null = null;
 
-    for (let attempt = 0; attempt <= BILLING_COLUMN_NAMES.length; attempt += 1) {
+    for (
+      let attempt = 0;
+      attempt <= BILLING_COLUMN_NAMES.length;
+      attempt += 1
+    ) {
       const result = await supabase
         .from('customer_accounts')
         .update(updatePayload)
@@ -376,7 +417,10 @@ export default async function WorkshopCustomerPage({
       const payloadColumns = Object.keys(updatePayload).filter(
         (column) => column !== 'name'
       );
-      const missingColumns = extractMissingBillingColumns(result.error, payloadColumns);
+      const missingColumns = extractMissingBillingColumns(
+        result.error,
+        payloadColumns
+      );
       for (const missingColumn of missingColumns) {
         missingBillingColumns.add(missingColumn);
       }
@@ -423,7 +467,9 @@ export default async function WorkshopCustomerPage({
     }
 
     if (billingColumnsMissing) {
-      const missingColumnsText = Array.from(missingBillingColumns).sort().join(', ');
+      const missingColumnsText = Array.from(missingBillingColumns)
+        .sort()
+        .join(', ');
       return {
         status: 'error',
         message: missingColumnsText
@@ -449,8 +495,7 @@ export default async function WorkshopCustomerPage({
       .maybeSingle();
 
     const hasLinkedAuth =
-      !authLookup.error &&
-      Boolean(authLookup.data?.auth_user_id);
+      !authLookup.error && Boolean(authLookup.data?.auth_user_id);
 
     if (hasLinkedAuth) {
       const href = '/customer/profile';
@@ -482,8 +527,10 @@ export default async function WorkshopCustomerPage({
     };
   }
 
-
-  async function updateUnlinkedNotificationSettings(_prevState: UnlinkedNotificationActionState, formData: FormData): Promise<UnlinkedNotificationActionState> {
+  async function updateUnlinkedNotificationSettings(
+    _prevState: UnlinkedNotificationActionState,
+    formData: FormData
+  ): Promise<UnlinkedNotificationActionState> {
     'use server';
 
     const supabase = await createClient();
@@ -504,8 +551,12 @@ export default async function WorkshopCustomerPage({
       return { status: 'error', message: 'Access denied' };
     }
 
-    const sendToEmail = (formData.get('send_to_email')?.toString() ?? '').trim().toLowerCase();
-    const linkedEmail = (formData.get('linked_email')?.toString() ?? '').trim().toLowerCase();
+    const sendToEmail = (formData.get('send_to_email')?.toString() ?? '')
+      .trim()
+      .toLowerCase();
+    const linkedEmail = (formData.get('linked_email')?.toString() ?? '')
+      .trim()
+      .toLowerCase();
 
     const accountUpdate = await admin
       .from('customer_accounts')
@@ -528,7 +579,10 @@ export default async function WorkshopCustomerPage({
       return { status: 'error', message: accountStateError.message };
     }
 
-    if (!accountState?.auth_user_id && accountState?.onboarding_status !== 'prospect_unpaid') {
+    if (
+      !accountState?.auth_user_id &&
+      accountState?.onboarding_status !== 'prospect_unpaid'
+    ) {
       await admin
         .from('customer_accounts')
         .update({ onboarding_status: 'prospect_unpaid' })
@@ -538,23 +592,36 @@ export default async function WorkshopCustomerPage({
 
     const settingsUpsert = await admin
       .from('customer_notification_email_settings')
-      .upsert({
-        customer_account_id: customerAccountId,
-        workshop_account_id: currentProfile.workshop_account_id,
-        email_enabled: formData.get('email_enabled') === 'on',
-        send_to_email: sendToEmail || null,
-        notify_quotes: formData.get('notify_quotes') === 'on',
-        notify_invoices: formData.get('notify_invoices') === 'on',
-        notify_reports: formData.get('notify_reports') === 'on',
-        notify_system: formData.get('notify_system') === 'on'
-      }, { onConflict: 'customer_account_id' });
+      .upsert(
+        {
+          customer_account_id: customerAccountId,
+          workshop_account_id: currentProfile.workshop_account_id,
+          email_enabled: formData.get('email_enabled') === 'on',
+          send_to_email: sendToEmail || null,
+          notify_quotes: formData.get('notify_quotes') === 'on',
+          notify_invoices: formData.get('notify_invoices') === 'on',
+          notify_reports: formData.get('notify_reports') === 'on',
+          notify_system: formData.get('notify_system') === 'on'
+        },
+        { onConflict: 'customer_account_id' }
+      );
 
     if (settingsUpsert.error) {
-      if (isMissingRelationOrColumnError(settingsUpsert.error, ['customer_notification_email_settings', 'send_to_email', 'notify_quotes', 'notify_invoices', 'notify_reports', 'notify_system'])) {
+      if (
+        isMissingRelationOrColumnError(settingsUpsert.error, [
+          'customer_notification_email_settings',
+          'send_to_email',
+          'notify_quotes',
+          'notify_invoices',
+          'notify_reports',
+          'notify_system'
+        ])
+      ) {
         revalidatePath(`/workshop/customers/${customerAccountId}`);
         return {
           status: 'success',
-          message: 'Linked email saved. Notification settings table is missing in this environment. Please run latest migrations.'
+          message:
+            'Linked email saved. Notification settings table is missing in this environment. Please run latest migrations.'
         };
       }
       return { status: 'error', message: settingsUpsert.error.message };
@@ -600,13 +667,17 @@ export default async function WorkshopCustomerPage({
     (async () => {
       const result = await admin
         .from('customer_notification_email_settings')
-        .select('email_enabled,send_to_email,notify_quotes,notify_invoices,notify_reports,notify_system')
+        .select(
+          'email_enabled,send_to_email,notify_quotes,notify_invoices,notify_reports,notify_system'
+        )
         .eq('customer_account_id', customerAccountId)
         .maybeSingle();
 
       if (
         result.error &&
-        isMissingRelationOrColumnError(result.error, ['customer_notification_email_settings'])
+        isMissingRelationOrColumnError(result.error, [
+          'customer_notification_email_settings'
+        ])
       ) {
         return { data: null };
       }
@@ -622,6 +693,11 @@ export default async function WorkshopCustomerPage({
         subtitle={`Customer account: ${customer.name}${customer.linked_email ? ` • ${customer.linked_email}` : ''}`}
         actions={
           <div className="flex items-center gap-2">
+            <Button asChild variant="secondary" size="sm">
+              <Link href={`/workshop/customers/${customer.id}/timeline`}>
+                View timeline
+              </Link>
+            </Button>
             <SendMessageModal
               vehicles={vehicles.map((vehicle) => ({
                 id: vehicle.id,
@@ -651,13 +727,19 @@ export default async function WorkshopCustomerPage({
                 : 'Prospect unpaid'
           ]
         ].map(([label, value]) => (
-          <Card key={label as string} className="rounded-xl p-2 md:rounded-2xl md:p-3">
-            <p className="text-[10px] leading-tight text-gray-500 md:text-xs">{label}</p>
-            <p className="mt-1 text-base font-semibold leading-tight md:text-xl">{value as number | string}</p>
+          <Card
+            key={label as string}
+            className="rounded-xl p-2 md:rounded-2xl md:p-3"
+          >
+            <p className="text-[10px] leading-tight text-gray-500 md:text-xs">
+              {label}
+            </p>
+            <p className="mt-1 text-base font-semibold leading-tight md:text-xl">
+              {value as number | string}
+            </p>
           </Card>
         ))}
       </div>
-
 
       <Card className="rounded-3xl">
         {vehiclesError ? (
@@ -665,40 +747,80 @@ export default async function WorkshopCustomerPage({
             Could not load linked vehicles: {vehiclesError}
           </p>
         ) : null}
-        <CustomerVehicleManager customerAccountId={customer.id} vehicles={vehicles} />
+        <CustomerVehicleManager
+          customerAccountId={customer.id}
+          vehicles={vehicles}
+        />
       </Card>
-
-
-
 
       {!customer.auth_user_id ? (
         <Card className="rounded-3xl p-6">
           <details>
             <summary className="cursor-pointer list-none text-base font-semibold [&::-webkit-details-marker]:hidden">
-              <span className="inline-flex items-center gap-2">Unlinked customer notification settings <span className="text-xs text-gray-500">(expand)</span></span>
+              <span className="inline-flex items-center gap-2">
+                Unlinked customer notification settings{' '}
+                <span className="text-xs text-gray-500">(expand)</span>
+              </span>
             </summary>
             <p className="mt-2 text-sm text-gray-600">
-              Control notification emails for this unlinked customer and choose the recipient address.
+              Control notification emails for this unlinked customer and choose
+              the recipient address.
             </p>
             <UnlinkedNotificationSettingsForm
               action={updateUnlinkedNotificationSettings}
               defaults={{
                 linkedEmail: customer.linked_email ?? '',
-                sendToEmail: (unlinkedNotificationSettings as { send_to_email?: string | null } | null)?.send_to_email ?? customer.linked_email ?? '',
-                emailEnabled: (unlinkedNotificationSettings as { email_enabled?: boolean } | null)?.email_enabled ?? true,
-                notifyQuotes: (unlinkedNotificationSettings as { notify_quotes?: boolean } | null)?.notify_quotes ?? true,
-                notifyInvoices: (unlinkedNotificationSettings as { notify_invoices?: boolean } | null)?.notify_invoices ?? true,
-                notifyReports: (unlinkedNotificationSettings as { notify_reports?: boolean } | null)?.notify_reports ?? true,
-                notifySystem: (unlinkedNotificationSettings as { notify_system?: boolean } | null)?.notify_system ?? true
+                sendToEmail:
+                  (
+                    unlinkedNotificationSettings as {
+                      send_to_email?: string | null;
+                    } | null
+                  )?.send_to_email ??
+                  customer.linked_email ??
+                  '',
+                emailEnabled:
+                  (
+                    unlinkedNotificationSettings as {
+                      email_enabled?: boolean;
+                    } | null
+                  )?.email_enabled ?? true,
+                notifyQuotes:
+                  (
+                    unlinkedNotificationSettings as {
+                      notify_quotes?: boolean;
+                    } | null
+                  )?.notify_quotes ?? true,
+                notifyInvoices:
+                  (
+                    unlinkedNotificationSettings as {
+                      notify_invoices?: boolean;
+                    } | null
+                  )?.notify_invoices ?? true,
+                notifyReports:
+                  (
+                    unlinkedNotificationSettings as {
+                      notify_reports?: boolean;
+                    } | null
+                  )?.notify_reports ?? true,
+                notifySystem:
+                  (
+                    unlinkedNotificationSettings as {
+                      notify_system?: boolean;
+                    } | null
+                  )?.notify_system ?? true
               }}
             />
           </details>
         </Card>
       ) : (
         <Card className="rounded-3xl border-emerald-200 bg-emerald-50 p-5">
-          <p className="text-sm font-semibold text-emerald-900">Linked portal account</p>
+          <p className="text-sm font-semibold text-emerald-900">
+            Linked portal account
+          </p>
           <p className="mt-1 text-sm text-emerald-800">
-            This customer is linked to a signed-in portal profile, so workshop-side unlinked notification settings are not shown for this account.
+            This customer is linked to a signed-in portal profile, so
+            workshop-side unlinked notification settings are not shown for this
+            account.
           </p>
         </Card>
       )}
@@ -706,10 +828,14 @@ export default async function WorkshopCustomerPage({
       <Card className="rounded-3xl p-6">
         <details>
           <summary className="cursor-pointer list-none text-base font-semibold [&::-webkit-details-marker]:hidden">
-            <span className="inline-flex items-center gap-2">Billing details <span className="text-xs text-gray-500">(expand)</span></span>
+            <span className="inline-flex items-center gap-2">
+              Billing details{' '}
+              <span className="text-xs text-gray-500">(expand)</span>
+            </span>
           </summary>
           <p className="mt-2 text-sm text-gray-600">
-            Update billing information used on quotes and invoices for this customer.
+            Update billing information used on quotes and invoices for this
+            customer.
           </p>
           <div className="mt-4">
             <CustomerBillingDetailsForm
@@ -720,7 +846,8 @@ export default async function WorkshopCustomerPage({
                 billingAddressCity: billingAddressDefaults.city,
                 billingAddressProvince: billingAddressDefaults.province,
                 billingAddressPostalCode: billingAddressDefaults.postalCode,
-                billingEmail: customer.billing_email ?? customer.linked_email ?? '',
+                billingEmail:
+                  customer.billing_email ?? customer.linked_email ?? '',
                 billingPhone: customer.billing_phone ?? '',
                 billingTaxNumber: customer.billing_tax_number ?? ''
               }}

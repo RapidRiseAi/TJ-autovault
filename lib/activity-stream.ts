@@ -26,7 +26,14 @@ export type ActivityItem = {
   id: string;
   kind: 'timeline' | 'document';
   targetId: string;
-  category: 'requests' | 'quotes' | 'invoices' | 'credit_notes' | 'uploads' | 'recommendations' | 'system';
+  category:
+    | 'requests'
+    | 'quotes'
+    | 'invoices'
+    | 'credit_notes'
+    | 'uploads'
+    | 'recommendations'
+    | 'system';
   createdAt: string | null;
   title: string;
   description: string | null;
@@ -38,6 +45,8 @@ export type ActivityItem = {
   actionHref?: string;
   actionLabel?: string;
   quoteId?: string;
+  invoiceId?: string;
+  vehicleId?: string;
 };
 
 function labelDocumentType(type?: string | null) {
@@ -51,15 +60,30 @@ function mapActorType(label: string): ActivityItem['actorType'] {
   return 'system';
 }
 
-function mapCategory(eventType?: string | null, metadata?: Record<string, unknown> | null): ActivityItem['category'] {
+function mapCategory(
+  eventType?: string | null,
+  metadata?: Record<string, unknown> | null
+): ActivityItem['category'] {
   const value = (eventType ?? '').toLowerCase();
-  const metadataDocType = typeof metadata?.document_type === 'string' ? metadata.document_type.toLowerCase() : '';
-  const metadataDocTypeAlt = typeof metadata?.doc_type === 'string' ? metadata.doc_type.toLowerCase() : '';
+  const metadataDocType =
+    typeof metadata?.document_type === 'string'
+      ? metadata.document_type.toLowerCase()
+      : '';
+  const metadataDocTypeAlt =
+    typeof metadata?.doc_type === 'string'
+      ? metadata.doc_type.toLowerCase()
+      : '';
   const docType = metadataDocType || metadataDocTypeAlt;
   if (value.includes('job')) return 'system';
   if (value.includes('request')) return 'requests';
   if (value.includes('quote') || docType === 'quote') return 'quotes';
-  if (value.includes('credit_note') || value.includes('credit note') || docType === 'credit_note' || docType === 'debit_note') return 'credit_notes';
+  if (
+    value.includes('credit_note') ||
+    value.includes('credit note') ||
+    docType === 'credit_note' ||
+    docType === 'debit_note'
+  )
+    return 'credit_notes';
   if (value.includes('invoice') || docType === 'invoice') return 'invoices';
   if (value.includes('doc') || value.includes('upload')) return 'uploads';
   if (value.includes('recommend')) return 'recommendations';
@@ -73,18 +97,25 @@ function toDownloadHref(doc?: DocumentItem) {
 
 function attachmentDownloadHref(metadata?: Record<string, unknown> | null) {
   const attachment = metadata?.attachment;
-  const attachmentBucket = typeof (attachment as Record<string, unknown> | undefined)?.bucket === 'string'
-    ? (attachment as Record<string, string>).bucket
-    : null;
-  const attachmentPath = typeof (attachment as Record<string, unknown> | undefined)?.path === 'string'
-    ? (attachment as Record<string, string>).path
-    : null;
+  const attachmentBucket =
+    typeof (attachment as Record<string, unknown> | undefined)?.bucket ===
+    'string'
+      ? (attachment as Record<string, string>).bucket
+      : null;
+  const attachmentPath =
+    typeof (attachment as Record<string, unknown> | undefined)?.path ===
+    'string'
+      ? (attachment as Record<string, string>).path
+      : null;
 
   if (!attachmentBucket || !attachmentPath) return undefined;
   return `/api/uploads/download?bucket=${encodeURIComponent(attachmentBucket)}&path=${encodeURIComponent(attachmentPath)}`;
 }
 
-export function buildActivityStream(timelineRows: TimelineEventItem[], docs: DocumentItem[]): ActivityItem[] {
+export function buildActivityStream(
+  timelineRows: TimelineEventItem[],
+  docs: DocumentItem[]
+): ActivityItem[] {
   const docIds = new Set(docs.map((doc) => doc.id));
   const docsByInvoiceId = new Map<string, DocumentItem>();
 
@@ -94,15 +125,26 @@ export function buildActivityStream(timelineRows: TimelineEventItem[], docs: Doc
 
   const timelineItems: ActivityItem[] = timelineRows.map((event) => {
     const category = mapCategory(event.event_type, event.metadata);
-    const invoiceId = typeof event.metadata?.invoice_id === 'string' ? event.metadata.invoice_id : undefined;
-    const quoteId = typeof event.metadata?.quote_id === 'string' ? event.metadata.quote_id : undefined;
-    const jobCardId = typeof event.metadata?.job_card_id === 'string' ? event.metadata.job_card_id : undefined;
-    const jobStatus = typeof event.metadata?.job_status === 'string'
-      ? event.metadata.job_status.replaceAll('_', ' ')
-      : null;
-    const subtitle = event.event_type === 'job_card_snapshot'
-      ? `Job card snapshot${jobStatus ? ` · ${jobStatus}` : ''}`
-      : event.event_type.replaceAll('_', ' ');
+    const invoiceId =
+      typeof event.metadata?.invoice_id === 'string'
+        ? event.metadata.invoice_id
+        : undefined;
+    const quoteId =
+      typeof event.metadata?.quote_id === 'string'
+        ? event.metadata.quote_id
+        : undefined;
+    const jobCardId =
+      typeof event.metadata?.job_card_id === 'string'
+        ? event.metadata.job_card_id
+        : undefined;
+    const jobStatus =
+      typeof event.metadata?.job_status === 'string'
+        ? event.metadata.job_status.replaceAll('_', ' ')
+        : null;
+    const subtitle =
+      event.event_type === 'job_card_snapshot'
+        ? `Job card snapshot${jobStatus ? ` · ${jobStatus}` : ''}`
+        : event.event_type.replaceAll('_', ' ');
 
     return {
       id: event.id,
@@ -123,7 +165,12 @@ export function buildActivityStream(timelineRows: TimelineEventItem[], docs: Doc
           : undefined),
       actionHref: jobCardId ? `/customer/jobs/${jobCardId}` : undefined,
       actionLabel: jobCardId ? 'View job' : undefined,
-      quoteId
+      quoteId,
+      invoiceId,
+      vehicleId:
+        typeof event.metadata?.vehicle_id === 'string'
+          ? event.metadata.vehicle_id
+          : undefined
     };
   });
 
@@ -136,7 +183,8 @@ export function buildActivityStream(timelineRows: TimelineEventItem[], docs: Doc
         ? 'invoices'
         : doc.document_type === 'quote'
           ? 'quotes'
-          : doc.document_type === 'credit_note' || doc.document_type === 'debit_note'
+          : doc.document_type === 'credit_note' ||
+              doc.document_type === 'debit_note'
             ? 'credit_notes'
             : 'uploads',
     createdAt: doc.created_at,
@@ -147,17 +195,78 @@ export function buildActivityStream(timelineRows: TimelineEventItem[], docs: Doc
     actorLabel: 'Document upload',
     actorType: 'system',
     downloadHref: toDownloadHref(doc),
-    quoteId: doc.quote_id ?? undefined
+    quoteId: doc.quote_id ?? undefined,
+    invoiceId: doc.invoice_id ?? undefined
   }));
 
   const filteredTimelineItems = timelineItems.filter((item) => {
     const eventRow = timelineRows.find((row) => row.id === item.id);
     if (!eventRow || eventRow.event_type !== 'doc_uploaded') return true;
-    const metadataDocId = typeof eventRow.metadata?.doc_id === 'string' ? eventRow.metadata.doc_id : null;
+    const metadataDocId =
+      typeof eventRow.metadata?.doc_id === 'string'
+        ? eventRow.metadata.doc_id
+        : null;
     return !metadataDocId || !docIds.has(metadataDocId);
   });
 
-  return [...filteredTimelineItems, ...docItems].sort((a, b) => {
+  // Consolidate invoice "created/uploaded" duplicates so one row carries all useful
+  // context (invoice ref/title + preview/download) instead of rendering near-identical
+  // entries from timeline + document sources.
+  const invoiceGroups = new Map<string, ActivityItem[]>();
+  const nonGrouped: ActivityItem[] = [];
+  for (const item of [...filteredTimelineItems, ...docItems]) {
+    const invoiceId = item.invoiceId;
+    const looksLikeCreationOrUpload =
+      item.category === 'invoices' &&
+      (item.kind === 'document' ||
+        /created|uploaded/i.test(item.subtitle) ||
+        /inv-\d+/i.test(item.title));
+    if (!invoiceId || !looksLikeCreationOrUpload) {
+      nonGrouped.push(item);
+      continue;
+    }
+    const existing = invoiceGroups.get(invoiceId) ?? [];
+    existing.push(item);
+    invoiceGroups.set(invoiceId, existing);
+  }
+
+  const mergedInvoiceItems = Array.from(invoiceGroups.values()).map((items) => {
+    const ranked = [...items].sort((a, b) => {
+      const score = (item: ActivityItem) =>
+        (item.downloadHref ? 10 : 0) +
+        (/inv-\d+/i.test(item.title) ? 6 : 0) +
+        (item.kind === 'timeline' ? 3 : 0) +
+        (item.description ? 1 : 0);
+      return score(b) - score(a);
+    });
+    const preferred = ranked[0];
+    const newest = [...items].sort((a, b) => {
+      const left = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const right = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return right - left;
+    })[0];
+
+    return {
+      ...preferred,
+      createdAt: newest.createdAt,
+      subtitle: preferred.subtitle || newest.subtitle,
+      description:
+        preferred.description ||
+        items.find((item) => item.description)?.description ||
+        null,
+      downloadHref:
+        preferred.downloadHref ||
+        items.find((item) => item.downloadHref)?.downloadHref,
+      actionHref:
+        preferred.actionHref ||
+        items.find((item) => item.actionHref)?.actionHref,
+      actionLabel:
+        preferred.actionLabel ||
+        items.find((item) => item.actionLabel)?.actionLabel
+    } satisfies ActivityItem;
+  });
+
+  return [...nonGrouped, ...mergedInvoiceItems].sort((a, b) => {
     const left = a.createdAt ? new Date(a.createdAt).getTime() : 0;
     const right = b.createdAt ? new Date(b.createdAt).getTime() : 0;
     return right - left;
