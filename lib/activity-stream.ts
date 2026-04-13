@@ -318,10 +318,32 @@ export function buildActivityStream(
   ).map(mergeItems);
   const mergedInvoiceItems = Array.from(invoiceGroups.values()).map(mergeItems);
 
-  return [
+  // Final invoice-level pass to collapse edge cases where one event was merged via
+  // document linkage and another related invoice-created event had no document_id.
+  const preConsolidated = [
     ...nonGrouped,
     ...mergedDocumentLinkedItems,
     ...mergedInvoiceItems
+  ];
+  const finalInvoiceGroups = new Map<string, ActivityItem[]>();
+  const finalItems: ActivityItem[] = [];
+  for (const item of preConsolidated) {
+    const invoiceKey = item.invoiceId || item.referenceNumber;
+    const looksLikeCreationOrUpload =
+      item.category === 'invoices' &&
+      (/created|uploaded/i.test(item.subtitle) || /inv-\d+/i.test(item.title));
+    if (!invoiceKey || !looksLikeCreationOrUpload) {
+      finalItems.push(item);
+      continue;
+    }
+    const existing = finalInvoiceGroups.get(invoiceKey) ?? [];
+    existing.push(item);
+    finalInvoiceGroups.set(invoiceKey, existing);
+  }
+
+  return [
+    ...finalItems,
+    ...Array.from(finalInvoiceGroups.values()).map(mergeItems)
   ].sort((a, b) => {
     const left = a.createdAt ? new Date(a.createdAt).getTime() : 0;
     const right = b.createdAt ? new Date(b.createdAt).getTime() : 0;
