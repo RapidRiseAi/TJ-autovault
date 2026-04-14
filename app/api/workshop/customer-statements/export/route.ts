@@ -116,7 +116,7 @@ export async function GET(request: NextRequest) {
       : supabase
           .from('invoices')
           .select(
-            'id,invoice_number,order_number,status,payment_status,payment_method,total_cents,amount_paid_cents,balance_due_cents,created_at,vehicle_id,vehicles(registration_number)'
+            'id,invoice_number,order_number,status,payment_status,payment_method,total_cents,amount_paid_cents,balance_due_cents,created_at,updated_at,vehicle_id,vehicles(registration_number)'
           )
           .eq('workshop_account_id', profile.workshop_account_id)
           .eq('customer_account_id', customerId)
@@ -357,6 +357,51 @@ export async function GET(request: NextRequest) {
     };
   });
 
+  const paymentStatementRows = invoiceRows.reduce<StatementRow[]>(
+    (rows, invoice) => {
+      const paymentStatus = String(
+        invoice.payment_status ?? invoice.status ?? ''
+      ).toLowerCase();
+      if (paymentStatus !== 'paid') return rows;
+
+      const invoiceId = String(invoice.id ?? '');
+      const adjustmentSummary = adjustmentSumsByInvoice.get(invoiceId) ?? {
+        creditCents: 0,
+        debitCents: 0
+      };
+      const appliedCredits = appliedCreditsFromInvoiceLines.get(invoiceId) ?? 0;
+      const invoiceContextAmount =
+        Number(invoice.total_cents ?? 0) +
+        adjustmentSummary.creditCents -
+        adjustmentSummary.debitCents +
+        appliedCredits;
+      const paymentCents = Math.max(invoiceContextAmount, 0);
+      if (paymentCents <= 0) return rows;
+
+      const updatedAt = String(invoice.updated_at ?? invoice.created_at ?? '');
+      rows.push({
+        date: updatedAt.slice(0, 10),
+        timestamp: updatedAt,
+        kind: 'invoice_credit_applied_note',
+        typeCode: 'APP',
+        reference: `PAY-${String(invoice.invoice_number ?? invoice.id ?? '')}`,
+        orderNumber: String(invoice.order_number ?? ''),
+        linkedInvoiceRef: String(invoice.invoice_number ?? invoice.id ?? ''),
+        description: `Invoice payment received`,
+        vehicle:
+          (invoice.vehicles as { registration_number?: string } | null)
+            ?.registration_number ?? '-',
+        debitCents: 0,
+        creditCents: paymentCents,
+        runningBalanceCents: 0,
+        status: 'paid',
+        paymentMethod: String(invoice.payment_method ?? '')
+      });
+      return rows;
+    },
+    []
+  );
+
   const adjustmentStatementRows: StatementRow[] = adjustmentRows.map(
     (adjustment) => {
       const noteType = String(adjustment.note_type ?? '');
@@ -411,6 +456,7 @@ export async function GET(request: NextRequest) {
   const allRows = [
     ...quoteStatementRows,
     ...invoiceStatementRows,
+    ...paymentStatementRows,
     ...adjustmentStatementRows
   ].sort((a, b) => {
     if (a.timestamp === b.timestamp)
