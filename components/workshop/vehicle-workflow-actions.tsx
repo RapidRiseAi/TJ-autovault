@@ -47,6 +47,7 @@ export function VehicleWorkflowActions({
 }) {
   const [open, setOpen] = useState<Mode>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<string[]>([]);
   const [adjustmentType, setAdjustmentType] = useState<'credit' | 'debit'>(
     'credit'
   );
@@ -61,6 +62,14 @@ export function VehicleWorkflowActions({
   const unpaidInvoices = invoices.filter(
     (invoice) => (invoice.paymentStatus ?? '').toLowerCase() !== 'paid'
   );
+
+  function toggleInvoice(invoiceId: string) {
+    setSelectedInvoiceIds((current) =>
+      current.includes(invoiceId)
+        ? current.filter((id) => id !== invoiceId)
+        : [...current, invoiceId]
+    );
+  }
 
   async function on(run: () => Promise<ActionResponse>) {
     setIsLoading(true);
@@ -114,7 +123,10 @@ export function VehicleWorkflowActions({
             description="Mark invoice payment progress for this vehicle."
             icon={<BadgeDollarSign className="h-4 w-4" />}
             compactMobile
-            onClick={() => setOpen('payment')}
+            onClick={() => {
+              setSelectedInvoiceIds(unpaidInvoices.map((invoice) => invoice.id));
+              setOpen('payment');
+            }}
           />
         ) : null}
         {invoices.length ? (
@@ -268,7 +280,7 @@ export function VehicleWorkflowActions({
             const formData = new FormData(event.currentTarget);
             void on(() =>
               updateInvoicePaymentStatus({
-                invoiceId: String(formData.get('invoiceId')),
+                invoiceIds: selectedInvoiceIds,
                 paymentStatus: String(formData.get('paymentStatus')) as
                   | 'unpaid'
                   | 'partial'
@@ -279,22 +291,35 @@ export function VehicleWorkflowActions({
           }}
         >
           <ModalFormShell>
-            <select name="invoiceId">
-              {unpaidInvoices.map((invoice) => {
-                const ref =
-                  invoice.invoiceNumber ||
-                  `#${invoice.id.slice(0, 8).toUpperCase()}`;
-                const amount = new Intl.NumberFormat('en-ZA', {
-                  style: 'currency',
-                  currency: 'ZAR'
-                }).format((invoice.totalCents ?? 0) / 100);
-                return (
-                  <option key={invoice.id} value={invoice.id}>
-                    {ref} · {amount} unpaid
-                  </option>
-                );
-              })}
-            </select>
+            <div className="rounded-xl border border-black/10 p-3">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.13em] text-gray-500">Select invoices</p>
+                <div className="flex gap-2">
+                  <Button type="button" size="sm" variant="outline" onClick={() => setSelectedInvoiceIds(unpaidInvoices.map((invoice) => invoice.id))}>
+                    Select all unpaid
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" onClick={() => setSelectedInvoiceIds(invoices.map((invoice) => invoice.id))}>
+                    Select all
+                  </Button>
+                </div>
+              </div>
+              <div className="max-h-44 space-y-2 overflow-y-auto pr-1">
+                {invoices.map((invoice) => {
+                  const ref = invoice.invoiceNumber || `#${invoice.id.slice(0, 8).toUpperCase()}`;
+                  const amount = new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format((invoice.totalCents ?? 0) / 100);
+                  const isPaid = (invoice.paymentStatus ?? '').toLowerCase() === 'paid';
+                  return (
+                    <label key={invoice.id} className={`flex items-center justify-between gap-2 rounded-lg border px-2 py-1.5 text-xs ${isPaid ? 'border-emerald-200 bg-emerald-50' : 'border-rose-200 bg-rose-50'}`}>
+                      <span className="flex items-center gap-2">
+                        <input type="checkbox" checked={selectedInvoiceIds.includes(invoice.id)} onChange={() => toggleInvoice(invoice.id)} />
+                        <span>{ref}</span>
+                      </span>
+                      <span className="font-semibold">{amount}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
             <select name="paymentStatus">
               <option value="unpaid">Unpaid</option>
               <option value="partial">Partial</option>

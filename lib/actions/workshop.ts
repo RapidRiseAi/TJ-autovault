@@ -1047,7 +1047,8 @@ export async function createInvoice(input: {
 }
 
 export async function updateInvoicePaymentStatus(input: {
-  invoiceId: string;
+  invoiceId?: string;
+  invoiceIds?: string[];
   paymentStatus: 'unpaid' | 'partial' | 'paid';
   paymentMethod?: string | null;
 }): Promise<Result> {
@@ -1060,50 +1061,64 @@ export async function updateInvoicePaymentStatus(input: {
     return { ok: false, error: 'Please select how the invoice was paid.' };
   }
 
+  const targetInvoiceIds = Array.from(
+    new Set(
+      (input.invoiceIds ?? [])
+        .concat(input.invoiceId ? [input.invoiceId] : [])
+        .filter((value): value is string => Boolean(value?.trim()))
+        .map((value) => value.trim())
+    )
+  );
+  if (!targetInvoiceIds.length) {
+    return { ok: false, error: 'Select at least one invoice.' };
+  }
+
   const { data, error } = await ctx.supabase
     .from('invoices')
     .update({
       payment_status: input.paymentStatus,
       payment_method: normalizedPaymentMethod || null
     })
-    .eq('id', input.invoiceId)
+    .in('id', targetInvoiceIds)
     .eq('workshop_account_id', ctx.profile.workshop_account_id)
     .select(
-      'vehicle_id,customer_account_id,workshop_account_id,total_cents,updated_at'
-    )
-    .maybeSingle();
+      'id,vehicle_id,customer_account_id,workshop_account_id,total_cents,updated_at'
+    );
 
-  if (error || !data)
+  if (error || !data?.length)
     return { ok: false, error: error?.message ?? 'Could not update invoice' };
 
-  await ctx.supabase.from('vehicle_timeline_events').insert({
-    workshop_account_id: data.workshop_account_id,
-    customer_account_id: data.customer_account_id,
-    vehicle_id: data.vehicle_id,
+  const timelineRows = data.map((row) => ({
+    workshop_account_id: row.workshop_account_id,
+    customer_account_id: row.customer_account_id,
+    vehicle_id: row.vehicle_id,
     actor_profile_id: ctx.profile.id,
     actor_role: ctx.profile.role,
     event_type: 'payment_status_changed',
     title: `Payment ${input.paymentStatus}`,
     importance: input.paymentStatus === 'paid' ? 'info' : 'warning',
     metadata: {
-      invoice_id: input.invoiceId,
+      invoice_id: row.id,
       payment_method: normalizedPaymentMethod || null
     }
-  });
+  }));
+  await ctx.supabase.from('vehicle_timeline_events').insert(timelineRows);
 
-  await syncInvoiceIncomeEntry(ctx.supabase, {
-    workshopAccountId: data.workshop_account_id,
-    invoiceId: input.invoiceId,
-    paymentStatus: input.paymentStatus,
-    paymentMethod: normalizedPaymentMethod || null,
-    totalCents: Number(data.total_cents ?? 0),
-    occurredOnIso: data.updated_at,
-    actorId: ctx.profile.id
-  });
+  for (const row of data) {
+    await syncInvoiceIncomeEntry(ctx.supabase, {
+      workshopAccountId: row.workshop_account_id,
+      invoiceId: row.id,
+      paymentStatus: input.paymentStatus,
+      paymentMethod: normalizedPaymentMethod || null,
+      totalCents: Number(row.total_cents ?? 0),
+      occurredOnIso: row.updated_at,
+      actorId: ctx.profile.id
+    });
 
-  revalidatePath(`/workshop/vehicles/${data.vehicle_id}`);
-  revalidatePath(`/customer/vehicles/${data.vehicle_id}`);
-  return { ok: true };
+    revalidatePath(`/workshop/vehicles/${row.vehicle_id}`);
+    revalidatePath(`/customer/vehicles/${row.vehicle_id}`);
+  }
+  return { ok: true, message: `Updated ${data.length} invoice${data.length === 1 ? '' : 's'}.` };
 }
 
 export async function createRecommendation(input: {
