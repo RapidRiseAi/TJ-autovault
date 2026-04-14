@@ -8,7 +8,13 @@ import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
 import { Card } from '@/components/ui/card';
 import { useToast } from '@/components/ui/toast-provider';
-import { formatMoney } from '@/lib/workshop/management';
+
+function formatMoney(cents: number) {
+  return new Intl.NumberFormat('en-ZA', {
+    style: 'currency',
+    currency: 'ZAR'
+  }).format((Number.isFinite(cents) ? cents : 0) / 100);
+}
 
 type InvoiceRow = {
   id: string;
