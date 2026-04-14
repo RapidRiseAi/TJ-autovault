@@ -766,6 +766,9 @@ export default async function WorkshopCustomerPage({
           const vehicle = vehicles.find((item) => item.id === invoice.vehicle_id);
           return {
             ...invoice,
+            customer_id: customer.id,
+            customer_label: customerDisplayName,
+            vehicle_id: invoice.vehicle_id,
             vehicle_label: vehicle
               ? `${vehicle.registration_number} · ${vehicle.make ?? ''} ${vehicle.model ?? ''}`.trim()
               : 'Unassigned vehicle'

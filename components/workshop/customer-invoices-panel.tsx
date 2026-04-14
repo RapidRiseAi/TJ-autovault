@@ -24,6 +24,9 @@ type InvoiceRow = {
   total_cents: number | null;
   balance_due_cents: number | null;
   created_at: string | null;
+  customer_id?: string | null;
+  customer_label?: string | null;
+  vehicle_id?: string | null;
   vehicle_label: string;
 };
 
@@ -35,9 +38,48 @@ export function CustomerInvoicesPanel({ invoices }: { invoices: InvoiceRow[] }) 
   const [paymentStatus, setPaymentStatus] = useState<'unpaid' | 'partial' | 'paid'>('paid');
   const [paymentMethod, setPaymentMethod] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'unpaid'>('all');
+  const [customerFilter, setCustomerFilter] = useState<string>('all');
+  const [vehicleFilter, setVehicleFilter] = useState<string>('all');
 
   const unpaidTotal = useMemo(
     () => invoices.filter((row) => (row.payment_status ?? 'unpaid') !== 'paid').reduce((sum, row) => sum + Number(row.balance_due_cents ?? row.total_cents ?? 0), 0),
+    [invoices]
+  );
+  const filteredInvoices = useMemo(
+    () =>
+      invoices.filter((row) => {
+        const isPaid = (row.payment_status ?? '').toLowerCase() === 'paid';
+        const statusMatch =
+          statusFilter === 'all' ? true : statusFilter === 'paid' ? isPaid : !isPaid;
+        const customerMatch =
+          customerFilter === 'all' ? true : (row.customer_id ?? '') === customerFilter;
+        const vehicleMatch =
+          vehicleFilter === 'all' ? true : (row.vehicle_id ?? '') === vehicleFilter;
+        return statusMatch && customerMatch && vehicleMatch;
+      }),
+    [invoices, statusFilter, customerFilter, vehicleFilter]
+  );
+  const customerOptions = useMemo(
+    () =>
+      Array.from(
+        new Map(
+          invoices
+            .filter((row) => row.customer_id && row.customer_label)
+            .map((row) => [row.customer_id as string, row.customer_label as string])
+        )
+      ).map(([id, label]) => ({ id, label })),
+    [invoices]
+  );
+  const vehicleOptions = useMemo(
+    () =>
+      Array.from(
+        new Map(
+          invoices
+            .filter((row) => row.vehicle_id && row.vehicle_label)
+            .map((row) => [row.vehicle_id as string, row.vehicle_label])
+        )
+      ).map(([id, label]) => ({ id, label })),
     [invoices]
   );
 
@@ -67,13 +109,32 @@ export function CustomerInvoicesPanel({ invoices }: { invoices: InvoiceRow[] }) 
           <h2 className="text-base font-semibold text-black">Invoices & payment status</h2>
           <p className="text-sm text-gray-600">Total owed (unpaid only): <strong>{formatMoney(unpaidTotal)}</strong></p>
         </div>
-        <Button onClick={() => { setOpen(true); setSelectedIds(invoices.filter((row) => (row.payment_status ?? 'unpaid') !== 'paid').map((row) => row.id)); }}>
+        <Button onClick={() => { setOpen(true); setSelectedIds(filteredInvoices.filter((row) => (row.payment_status ?? 'unpaid') !== 'paid').map((row) => row.id)); }}>
           <BadgeDollarSign className="mr-2 h-4 w-4" />Update payment status
         </Button>
       </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        <select className="rounded-xl border border-black/15 px-3 py-2 text-sm" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as 'all' | 'paid' | 'unpaid')}>
+          <option value="all">All payment statuses</option>
+          <option value="paid">Paid only</option>
+          <option value="unpaid">Unpaid/partial only</option>
+        </select>
+        <select className="rounded-xl border border-black/15 px-3 py-2 text-sm" value={customerFilter} onChange={(event) => setCustomerFilter(event.target.value)}>
+          <option value="all">All customers</option>
+          {customerOptions.map((customer) => (
+            <option key={customer.id} value={customer.id}>{customer.label}</option>
+          ))}
+        </select>
+        <select className="rounded-xl border border-black/15 px-3 py-2 text-sm" value={vehicleFilter} onChange={(event) => setVehicleFilter(event.target.value)}>
+          <option value="all">All vehicles</option>
+          {vehicleOptions.map((vehicle) => (
+            <option key={vehicle.id} value={vehicle.id}>{vehicle.label}</option>
+          ))}
+        </select>
+      </div>
 
       <div className="mt-4 space-y-2">
-        {invoices.map((invoice) => {
+        {filteredInvoices.map((invoice) => {
           const paid = (invoice.payment_status ?? '').toLowerCase() === 'paid';
           return (
             <div key={invoice.id} className={`rounded-xl border p-3 text-sm ${paid ? 'border-emerald-200 bg-emerald-50' : 'border-rose-200 bg-rose-50'}`}>
@@ -81,7 +142,7 @@ export function CustomerInvoicesPanel({ invoices }: { invoices: InvoiceRow[] }) 
                 <p className="font-semibold">{invoice.invoice_number ?? `INV-${invoice.id.slice(0, 8).toUpperCase()}`}</p>
                 <p className="font-semibold">{formatMoney(Number(invoice.total_cents ?? 0))}</p>
               </div>
-              <p className="text-xs text-gray-600">{invoice.vehicle_label} · Status: {(invoice.payment_status ?? 'unpaid').replace('_', ' ')}</p>
+              <p className="text-xs text-gray-600">{invoice.customer_label ? `${invoice.customer_label} · ` : ''}{invoice.vehicle_label} · Status: {(invoice.payment_status ?? 'unpaid').replace('_', ' ')}</p>
             </div>
           );
         })}
@@ -90,11 +151,11 @@ export function CustomerInvoicesPanel({ invoices }: { invoices: InvoiceRow[] }) 
       <Modal open={open} onClose={() => setOpen(false)} title="Bulk update invoice payment status">
         <div className="space-y-3">
           <div className="flex gap-2">
-            <Button type="button" size="sm" variant="outline" onClick={() => setSelectedIds(invoices.map((row) => row.id))}>Select all</Button>
-            <Button type="button" size="sm" variant="outline" onClick={() => setSelectedIds(invoices.filter((row) => (row.payment_status ?? 'unpaid') !== 'paid').map((row) => row.id))}>Select unpaid</Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => setSelectedIds(filteredInvoices.map((row) => row.id))}>Select all filtered</Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => setSelectedIds(filteredInvoices.filter((row) => (row.payment_status ?? 'unpaid') !== 'paid').map((row) => row.id))}>Select unpaid filtered</Button>
           </div>
           <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
-            {invoices.map((invoice) => (
+            {filteredInvoices.map((invoice) => (
               <label key={invoice.id} className="flex items-center justify-between rounded-lg border border-black/10 px-2 py-1.5 text-xs">
                 <span className="flex items-center gap-2">
                   <input

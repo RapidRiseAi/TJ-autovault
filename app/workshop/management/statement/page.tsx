@@ -41,7 +41,7 @@ export default async function WorkshopMonthlyStatementPage() {
     ,
     supabase
       .from('invoices')
-      .select('id,invoice_number,payment_status,total_cents,balance_due_cents,created_at')
+      .select('id,invoice_number,payment_status,total_cents,balance_due_cents,created_at,updated_at')
       .eq('workshop_account_id', ctx.profile.workshop_account_id)
       .order('created_at', { ascending: false })
       .limit(200)
@@ -60,6 +60,13 @@ export default async function WorkshopMonthlyStatementPage() {
   const unpaidTotal = (invoices ?? [])
     .filter((invoice) => (invoice.payment_status ?? 'unpaid') !== 'paid')
     .reduce((sum, invoice) => sum + Number(invoice.balance_due_cents ?? invoice.total_cents ?? 0), 0);
+  const paymentEvents = (invoices ?? [])
+    .filter((invoice) => (invoice.payment_status ?? '').toLowerCase() === 'paid')
+    .filter((invoice) => {
+      const paidDate = String(invoice.updated_at ?? '').slice(0, 10);
+      return paidDate >= currentMonthStart && paidDate <= currentMonthEnd;
+    })
+    .sort((a, b) => String(b.updated_at ?? '').localeCompare(String(a.updated_at ?? '')));
 
   return (
     <main className="space-y-4">
@@ -137,6 +144,24 @@ export default async function WorkshopMonthlyStatementPage() {
               </div>
             );
           })}
+        </div>
+      </Card>
+
+      <Card className="rounded-3xl border-black/10 p-5">
+        <h2 className="text-base font-semibold text-black">Payment lines this month</h2>
+        <p className="mt-1 text-xs text-gray-500">Every invoice marked paid in this month is shown as a payment line.</p>
+        <div className="mt-3 space-y-2">
+          {paymentEvents.length ? paymentEvents.map((invoice) => (
+            <div key={`payment-${invoice.id}`} className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm">
+              <div className="flex items-center justify-between gap-2">
+                <p className="font-semibold">{invoice.invoice_number ?? `INV-${invoice.id.slice(0, 8).toUpperCase()}`} paid</p>
+                <p className="font-semibold text-emerald-700">+{formatMoney(Number(invoice.total_cents ?? 0))}</p>
+              </div>
+              <p className="text-xs text-gray-600">Paid on {String(invoice.updated_at ?? '').slice(0, 10)}</p>
+            </div>
+          )) : (
+            <p className="text-sm text-gray-500">No invoices were marked paid in this month yet.</p>
+          )}
         </div>
       </Card>
     </main>

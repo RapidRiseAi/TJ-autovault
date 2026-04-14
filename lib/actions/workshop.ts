@@ -1073,12 +1073,21 @@ export async function updateInvoicePaymentStatus(input: {
     return { ok: false, error: 'Select at least one invoice.' };
   }
 
+  const invoiceStatusUpdate: {
+    payment_status: 'unpaid' | 'partial' | 'paid';
+    payment_method: string | null;
+    balance_due_cents?: number;
+  } = {
+    payment_status: input.paymentStatus,
+    payment_method: normalizedPaymentMethod || null
+  };
+  if (input.paymentStatus === 'paid') {
+    invoiceStatusUpdate.balance_due_cents = 0;
+  }
+
   const { data, error } = await ctx.supabase
     .from('invoices')
-    .update({
-      payment_status: input.paymentStatus,
-      payment_method: normalizedPaymentMethod || null
-    })
+    .update(invoiceStatusUpdate)
     .in('id', targetInvoiceIds)
     .eq('workshop_account_id', ctx.profile.workshop_account_id)
     .select(

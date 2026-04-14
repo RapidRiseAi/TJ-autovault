@@ -708,6 +708,9 @@ export default async function WorkshopManagementPage() {
           const customerName = invoice.customer_account_id ? customerNameById.get(invoice.customer_account_id) : null;
           return {
             ...invoice,
+            customer_id: invoice.customer_account_id,
+            customer_label: customerName ?? 'Customer',
+            vehicle_id: invoice.vehicle_id,
             vehicle_label: `${customerName ?? 'Customer'} · ${vehicle ? `${vehicle.registration_number} ${vehicle.make ?? ''} ${vehicle.model ?? ''}`.trim() : 'Vehicle unavailable'}`
           };
         })}
