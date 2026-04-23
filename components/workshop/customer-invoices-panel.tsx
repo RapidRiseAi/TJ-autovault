@@ -37,6 +37,8 @@ export function CustomerInvoicesPanel({ invoices }: { invoices: InvoiceRow[] }) 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [paymentStatus, setPaymentStatus] = useState<'unpaid' | 'partial' | 'paid'>('paid');
   const [paymentMethod, setPaymentMethod] = useState('');
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'unpaid'>('all');
   const [customerFilter, setCustomerFilter] = useState<string>('all');
@@ -85,10 +87,90 @@ export function CustomerInvoicesPanel({ invoices }: { invoices: InvoiceRow[] }) 
 
   async function save() {
     setIsSaving(true);
+    if (paymentProofFile && !selectedIds.length) {
+      pushToast({ title: 'Select invoice(s) first', tone: 'error' });
+      setIsSaving(false);
+      return;
+    }
+    if (paymentProofFile) {
+      const selectedInvoices = filteredInvoices.filter((invoice) =>
+        selectedIds.includes(invoice.id)
+      );
+      const firstVehicleId = selectedInvoices[0]?.vehicle_id ?? null;
+      if (!firstVehicleId) {
+        pushToast({
+          title: 'Proof upload requires a vehicle',
+          description: 'Filter to a specific vehicle and try again.',
+          tone: 'error'
+        });
+        setIsSaving(false);
+        return;
+      }
+
+      const signResponse = await fetch('/api/uploads/sign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vehicleId: firstVehicleId,
+          fileName: paymentProofFile.name,
+          contentType: paymentProofFile.type || 'application/octet-stream',
+          kind: 'file',
+          documentType: 'other'
+        })
+      });
+      if (!signResponse.ok) {
+        pushToast({ title: 'Could not sign proof upload', tone: 'error' });
+        setIsSaving(false);
+        return;
+      }
+      const signedPayload = (await signResponse.json()) as {
+        bucket: string;
+        path: string;
+        token: string;
+      };
+      const uploadResponse = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/upload/sign/${signedPayload.bucket}/${signedPayload.path}?token=${signedPayload.token}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type':
+              paymentProofFile.type || 'application/octet-stream',
+            'x-upsert': 'true'
+          },
+          body: paymentProofFile
+        }
+      );
+      if (!uploadResponse.ok) {
+        pushToast({ title: 'Could not upload proof file', tone: 'error' });
+        setIsSaving(false);
+        return;
+      }
+      await fetch('/api/uploads/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vehicleId: firstVehicleId,
+          bucket: signedPayload.bucket,
+          path: signedPayload.path,
+          contentType: paymentProofFile.type || 'application/octet-stream',
+          size: paymentProofFile.size,
+          originalName: paymentProofFile.name,
+          docType: 'other',
+          subject: `Payment proof uploaded (${selectedIds.length} invoice${selectedIds.length === 1 ? '' : 's'})`,
+          urgency: 'info'
+        })
+      });
+    }
+
+    const parsedPaymentAmount = Number(paymentAmount);
     const result = await updateInvoicePaymentStatus({
       invoiceIds: selectedIds,
       paymentStatus,
-      paymentMethod: paymentMethod || null
+      paymentMethod: paymentMethod || null,
+      paymentAmountCents:
+        Number.isFinite(parsedPaymentAmount) && parsedPaymentAmount > 0
+          ? Math.round(parsedPaymentAmount * 100)
+          : null
     });
     setIsSaving(false);
 
@@ -99,6 +181,8 @@ export function CustomerInvoicesPanel({ invoices }: { invoices: InvoiceRow[] }) 
 
     pushToast({ title: 'Payment status updated', description: result.message ?? undefined, tone: 'success' });
     setOpen(false);
+    setPaymentAmount('');
+    setPaymentProofFile(null);
     router.refresh();
   }
 
@@ -181,6 +265,23 @@ export function CustomerInvoicesPanel({ invoices }: { invoices: InvoiceRow[] }) 
             <option value="card">Card</option>
             <option value="other">Other</option>
           </select>
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            className="w-full rounded-xl border border-black/15 px-3 py-2 text-sm"
+            placeholder="Payment amount received (e.g. 500.00)"
+            value={paymentAmount}
+            onChange={(event) => setPaymentAmount(event.target.value)}
+          />
+          <input
+            type="file"
+            accept=".pdf,.jpg,.jpeg,.png,.webp"
+            className="w-full rounded-xl border border-black/15 px-3 py-2 text-sm"
+            onChange={(event) =>
+              setPaymentProofFile(event.target.files?.[0] ?? null)
+            }
+          />
           <Button disabled={isSaving || !selectedIds.length} onClick={() => void save()} className="w-full">
             {isSaving ? 'Updating…' : `Update ${selectedIds.length} invoice${selectedIds.length === 1 ? '' : 's'}`}
           </Button>

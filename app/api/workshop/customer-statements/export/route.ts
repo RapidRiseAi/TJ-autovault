@@ -375,7 +375,11 @@ export async function GET(request: NextRequest) {
         adjustmentSummary.creditCents -
         adjustmentSummary.debitCents +
         appliedCredits;
-      const paymentCents = Math.max(invoiceContextAmount, 0);
+      const recordedPaidCents = Math.max(Number(invoice.amount_paid_cents ?? 0), 0);
+      const paymentCents =
+        recordedPaidCents > 0
+          ? recordedPaidCents
+          : Math.max(invoiceContextAmount, 0);
       if (paymentCents <= 0) return rows;
 
       const updatedAt = String(invoice.updated_at ?? invoice.created_at ?? '');

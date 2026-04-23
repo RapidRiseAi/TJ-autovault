@@ -48,6 +48,8 @@ export function VehicleWorkflowActions({
   const [open, setOpen] = useState<Mode>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<string[]>([]);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null);
   const [adjustmentType, setAdjustmentType] = useState<'credit' | 'debit'>(
     'credit'
   );
@@ -78,6 +80,8 @@ export function VehicleWorkflowActions({
     if (result.ok) {
       pushToast({ title: result.message ?? 'Saved', tone: 'success' });
       setMsg('');
+      setPaymentAmount('');
+      setPaymentProofFile(null);
       setOpen(null);
       router.refresh();
     } else {
@@ -278,16 +282,75 @@ export function VehicleWorkflowActions({
           onSubmit={(event) => {
             event.preventDefault();
             const formData = new FormData(event.currentTarget);
-            void on(() =>
-              updateInvoicePaymentStatus({
+            void on(async () => {
+              if (paymentProofFile) {
+                const signResponse = await fetch('/api/uploads/sign', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    vehicleId,
+                    fileName: paymentProofFile.name,
+                    contentType:
+                      paymentProofFile.type || 'application/octet-stream',
+                    kind: 'file',
+                    documentType: 'other'
+                  })
+                });
+                if (!signResponse.ok) {
+                  return { ok: false, error: 'Could not sign proof upload.' };
+                }
+                const signedPayload = (await signResponse.json()) as {
+                  bucket: string;
+                  path: string;
+                  token: string;
+                };
+                const uploadResponse = await fetch(
+                  `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/upload/sign/${signedPayload.bucket}/${signedPayload.path}?token=${signedPayload.token}`,
+                  {
+                    method: 'PUT',
+                    headers: {
+                      'Content-Type':
+                        paymentProofFile.type || 'application/octet-stream',
+                      'x-upsert': 'true'
+                    },
+                    body: paymentProofFile
+                  }
+                );
+                if (!uploadResponse.ok) {
+                  return { ok: false, error: 'Could not upload proof file.' };
+                }
+                await fetch('/api/uploads/complete', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    vehicleId,
+                    bucket: signedPayload.bucket,
+                    path: signedPayload.path,
+                    contentType:
+                      paymentProofFile.type || 'application/octet-stream',
+                    size: paymentProofFile.size,
+                    originalName: paymentProofFile.name,
+                    docType: 'other',
+                    subject: `Payment proof uploaded (${selectedInvoiceIds.length} invoice${selectedInvoiceIds.length === 1 ? '' : 's'})`,
+                    urgency: 'info'
+                  })
+                });
+              }
+
+              const parsedPaymentAmount = Number(paymentAmount);
+              return updateInvoicePaymentStatus({
                 invoiceIds: selectedInvoiceIds,
                 paymentStatus: String(formData.get('paymentStatus')) as
                   | 'unpaid'
                   | 'partial'
                   | 'paid',
-                paymentMethod: String(formData.get('paymentMethod') || '')
-              })
-            );
+                paymentMethod: String(formData.get('paymentMethod') || ''),
+                paymentAmountCents:
+                  Number.isFinite(parsedPaymentAmount) && parsedPaymentAmount > 0
+                    ? Math.round(parsedPaymentAmount * 100)
+                    : null
+              });
+            });
           }}
         >
           <ModalFormShell>
@@ -332,6 +395,21 @@ export function VehicleWorkflowActions({
               <option value="card">Card</option>
               <option value="other">Other</option>
             </select>
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              placeholder="Payment amount received"
+              value={paymentAmount}
+              onChange={(event) => setPaymentAmount(event.target.value)}
+            />
+            <input
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png,.webp"
+              onChange={(event) =>
+                setPaymentProofFile(event.target.files?.[0] ?? null)
+              }
+            />
             <Button disabled={isLoading}>
               {isLoading ? 'Updating...' : 'Update'}
             </Button>

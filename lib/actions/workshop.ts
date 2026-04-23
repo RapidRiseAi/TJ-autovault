@@ -67,6 +67,7 @@ type InvoiceFinanceSyncInput = {
   paymentStatus: 'unpaid' | 'partial' | 'paid';
   paymentMethod?: string | null;
   totalCents: number;
+  amountReceivedCents?: number;
   occurredOnIso?: string | null;
   actorId?: string | null;
 };
@@ -80,7 +81,14 @@ async function syncInvoiceIncomeEntry(
     10
   );
 
-  if (input.paymentStatus === 'paid') {
+  const normalizedAmount = Math.max(
+    0,
+    Number(
+      input.amountReceivedCents != null ? input.amountReceivedCents : input.totalCents
+    )
+  );
+
+  if ((input.paymentStatus === 'paid' || input.paymentStatus === 'partial') && normalizedAmount > 0) {
     const { error } = await supabase.from('workshop_finance_entries').upsert(
       {
         workshop_account_id: input.workshopAccountId,
@@ -88,7 +96,7 @@ async function syncInvoiceIncomeEntry(
         source_type: 'job_income',
         category: 'jobs',
         description: 'Invoice payment',
-        amount_cents: Math.max(input.totalCents ?? 0, 0),
+        amount_cents: normalizedAmount,
         occurred_on: occurredOn,
         external_ref_type: 'invoice',
         external_ref_id: input.invoiceId,
@@ -1051,6 +1059,7 @@ export async function updateInvoicePaymentStatus(input: {
   invoiceIds?: string[];
   paymentStatus: 'unpaid' | 'partial' | 'paid';
   paymentMethod?: string | null;
+  paymentAmountCents?: number | null;
 }): Promise<Result> {
   const ctx = await getWorkshopContext();
   if (!ctx) return { ok: false, error: 'Unauthorized' };
@@ -1073,53 +1082,114 @@ export async function updateInvoicePaymentStatus(input: {
     return { ok: false, error: 'Select at least one invoice.' };
   }
 
-  const invoiceStatusUpdate: {
-    payment_status: 'unpaid' | 'partial' | 'paid';
-    payment_method: string | null;
-    balance_due_cents?: number;
-  } = {
-    payment_status: input.paymentStatus,
-    payment_method: normalizedPaymentMethod || null
-  };
-  if (input.paymentStatus === 'paid') {
-    invoiceStatusUpdate.balance_due_cents = 0;
-  }
-
-  const { data, error } = await ctx.supabase
+  const { data: selectedInvoices, error: selectedInvoicesError } = await ctx.supabase
     .from('invoices')
-    .update(invoiceStatusUpdate)
+    .select('id,vehicle_id,customer_account_id,workshop_account_id,total_cents,balance_due_cents,updated_at')
     .in('id', targetInvoiceIds)
     .eq('workshop_account_id', ctx.profile.workshop_account_id)
-    .select(
-      'id,vehicle_id,customer_account_id,workshop_account_id,total_cents,updated_at'
+    .order('created_at', { ascending: true });
+  if (selectedInvoicesError || !selectedInvoices?.length) {
+    return {
+      ok: false,
+      error: selectedInvoicesError?.message ?? 'Could not load invoices to update'
+    };
+  }
+
+  const normalizedPaymentAmountCents =
+    input.paymentAmountCents != null && Number.isFinite(input.paymentAmountCents)
+      ? Math.max(Math.round(input.paymentAmountCents), 0)
+      : null;
+
+  let remainingDistributedCents = normalizedPaymentAmountCents;
+  const updatedRows: Array<{
+    id: string;
+    vehicle_id: string;
+    customer_account_id: string;
+    workshop_account_id: string;
+    total_cents: number | null;
+    updated_at: string | null;
+    appliedPaymentCents: number;
+    resolvedStatus: 'unpaid' | 'partial' | 'paid';
+  }> = [];
+
+  for (const invoice of selectedInvoices) {
+    const baseDue = Math.max(
+      Number(invoice.balance_due_cents ?? invoice.total_cents ?? 0),
+      0
     );
+    let appliedPaymentCents = 0;
 
-  if (error || !data?.length)
-    return { ok: false, error: error?.message ?? 'Could not update invoice' };
+    if (remainingDistributedCents != null) {
+      appliedPaymentCents = Math.min(baseDue, remainingDistributedCents);
+      remainingDistributedCents -= appliedPaymentCents;
+    } else if (input.paymentStatus === 'paid') {
+      appliedPaymentCents = baseDue;
+    } else if (input.paymentStatus === 'partial') {
+      appliedPaymentCents = Math.max(Math.round(baseDue / 2), 0);
+    }
 
-  const timelineRows = data.map((row) => ({
+    const nextBalance = Math.max(baseDue - appliedPaymentCents, 0);
+    const resolvedStatus: 'unpaid' | 'partial' | 'paid' =
+      nextBalance <= 0
+        ? 'paid'
+        : appliedPaymentCents > 0
+          ? 'partial'
+          : 'unpaid';
+
+    const { data: updatedInvoice, error: updateInvoiceError } = await ctx.supabase
+      .from('invoices')
+      .update({
+        payment_status:
+          input.paymentStatus === 'unpaid' ? 'unpaid' : resolvedStatus,
+        payment_method: normalizedPaymentMethod || null,
+        amount_paid_cents:
+          input.paymentStatus === 'unpaid' ? 0 : appliedPaymentCents,
+        balance_due_cents:
+          input.paymentStatus === 'unpaid' ? baseDue : nextBalance
+      })
+      .eq('id', invoice.id)
+      .eq('workshop_account_id', ctx.profile.workshop_account_id)
+      .select('id,vehicle_id,customer_account_id,workshop_account_id,total_cents,updated_at')
+      .maybeSingle();
+
+    if (updateInvoiceError || !updatedInvoice) {
+      return {
+        ok: false,
+        error: updateInvoiceError?.message ?? 'Could not update invoice'
+      };
+    }
+    updatedRows.push({
+      ...updatedInvoice,
+      appliedPaymentCents,
+      resolvedStatus: input.paymentStatus === 'unpaid' ? 'unpaid' : resolvedStatus
+    });
+  }
+
+  const timelineRows = updatedRows.map((row) => ({
     workshop_account_id: row.workshop_account_id,
     customer_account_id: row.customer_account_id,
     vehicle_id: row.vehicle_id,
     actor_profile_id: ctx.profile.id,
     actor_role: ctx.profile.role,
     event_type: 'payment_status_changed',
-    title: `Payment ${input.paymentStatus}`,
-    importance: input.paymentStatus === 'paid' ? 'info' : 'warning',
+    title: `Payment ${row.resolvedStatus}`,
+    importance: row.resolvedStatus === 'paid' ? 'info' : 'warning',
     metadata: {
       invoice_id: row.id,
-      payment_method: normalizedPaymentMethod || null
+      payment_method: normalizedPaymentMethod || null,
+      payment_amount_cents: row.appliedPaymentCents
     }
   }));
   await ctx.supabase.from('vehicle_timeline_events').insert(timelineRows);
 
-  for (const row of data) {
+  for (const row of updatedRows) {
     await syncInvoiceIncomeEntry(ctx.supabase, {
       workshopAccountId: row.workshop_account_id,
       invoiceId: row.id,
-      paymentStatus: input.paymentStatus,
+      paymentStatus: row.resolvedStatus,
       paymentMethod: normalizedPaymentMethod || null,
       totalCents: Number(row.total_cents ?? 0),
+      amountReceivedCents: row.appliedPaymentCents,
       occurredOnIso: row.updated_at,
       actorId: ctx.profile.id
     });
@@ -1127,7 +1197,7 @@ export async function updateInvoicePaymentStatus(input: {
     revalidatePath(`/workshop/vehicles/${row.vehicle_id}`);
     revalidatePath(`/customer/vehicles/${row.vehicle_id}`);
   }
-  return { ok: true, message: `Updated ${data.length} invoice${data.length === 1 ? '' : 's'}.` };
+  return { ok: true, message: `Updated ${updatedRows.length} invoice${updatedRows.length === 1 ? '' : 's'}.` };
 }
 
 export async function createRecommendation(input: {
