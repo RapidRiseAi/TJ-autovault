@@ -187,7 +187,8 @@ export default async function CustomerInvoicesPage({
                     </Button>
                     <Button asChild size="sm" variant="secondary">
                       <a
-                        href={`/api/uploads/download?bucket=${encodeURIComponent(file.storage_bucket ?? '')}&path=${encodeURIComponent(file.storage_path ?? '')}&download=1`}
+                        href={`/api/uploads/download?bucket=${encodeURIComponent(file.storage_bucket ?? '')}&path=${encodeURIComponent(file.storage_path ?? '')}`}
+                        download
                       >
                         Download
                       </a>

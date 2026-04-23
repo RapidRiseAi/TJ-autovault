@@ -15,7 +15,6 @@ type StatementPdfRow = {
   orderNumber?: string;
   linkedInvoiceRef?: string;
   description: string;
-  status?: string;
   debitCents: number;
   creditCents: number;
   runningBalanceCents: number;
@@ -101,8 +100,7 @@ export async function buildCustomerStatementPdf(params: {
   page.drawText('Ref', { x: left + 86, y, size: 9, font: bold });
   page.drawText('Order #', { x: left + 152, y, size: 9, font: bold });
   page.drawText('Linked', { x: left + 206, y, size: 9, font: bold });
-  page.drawText('Status', { x: left + 258, y, size: 9, font: bold });
-  page.drawText('Description', { x: left + 302, y, size: 9, font: bold });
+  page.drawText('Description', { x: left + 258, y, size: 9, font: bold });
   page.drawText('Debit', { x: left + 394, y, size: 9, font: bold });
   page.drawText('Credit', { x: left + 452, y, size: 9, font: bold });
   page.drawText('Balance', { x: left + 510, y, size: 9, font: bold });
@@ -141,11 +139,10 @@ export async function buildCustomerStatementPdf(params: {
     ).slice(0, 2);
     const descriptionLines = wrapText(
       row.description,
-      86,
+      130,
       regular,
       rowFontSize
     ).slice(0, 3);
-    const statusLabel = truncate((row.status ?? '-').replaceAll('_', ' '), 10);
     const lineCount = Math.max(
       refLines.length,
       orderLines.length,
@@ -192,17 +189,11 @@ export async function buildCustomerStatementPdf(params: {
         }
       );
     });
-    page.drawText(statusLabel, {
-      x: left + 258,
-      y,
-      size: rowFontSize,
-      font: regular
-    });
     descriptionLines.forEach((line, index) => {
       page.drawText(
         index === descriptionLines.length - 1 ? truncate(line, 70) : line,
         {
-          x: left + 302,
+          x: left + 258,
           y: y - index * 8,
           size: rowFontSize,
           font: regular

@@ -26,7 +26,7 @@ export default async function WorkshopMonthlyStatementPage() {
   const currentMonthStart = monthStartIso(year, month);
   const currentMonthEnd = monthEndIso(year, month);
 
-  const [{ data: entries, error: entriesError }, { data: vendors }, { data: invoices }] = await Promise.all([
+  const [{ data: entries, error: entriesError }, { data: vendors }] = await Promise.all([
     supabase
       .from('workshop_finance_entries')
       .select('id,entry_kind,source_type,category,description,amount_cents,occurred_on,vendor_id')
@@ -38,13 +38,6 @@ export default async function WorkshopMonthlyStatementPage() {
       .from('workshop_vendors')
       .select('id,name')
       .eq('workshop_account_id', ctx.profile.workshop_account_id)
-    ,
-    supabase
-      .from('invoices')
-      .select('id,invoice_number,payment_status,total_cents,balance_due_cents,created_at,updated_at')
-      .eq('workshop_account_id', ctx.profile.workshop_account_id)
-      .order('created_at', { ascending: false })
-      .limit(200)
   ]);
 
   const vendorNameById = new Map((vendors ?? []).map((vendor) => [vendor.id, vendor.name]));
@@ -57,16 +50,6 @@ export default async function WorkshopMonthlyStatementPage() {
     .filter((entry) => entry.entry_kind === 'expense')
     .reduce((sum, entry) => sum + Number(entry.amount_cents ?? 0), 0);
   const profitMonth = incomeMonth - expenseMonth;
-  const unpaidTotal = (invoices ?? [])
-    .filter((invoice) => (invoice.payment_status ?? 'unpaid') !== 'paid')
-    .reduce((sum, invoice) => sum + Number(invoice.balance_due_cents ?? invoice.total_cents ?? 0), 0);
-  const paymentEvents = (invoices ?? [])
-    .filter((invoice) => (invoice.payment_status ?? '').toLowerCase() === 'paid')
-    .filter((invoice) => {
-      const paidDate = String(invoice.updated_at ?? '').slice(0, 10);
-      return paidDate >= currentMonthStart && paidDate <= currentMonthEnd;
-    })
-    .sort((a, b) => String(b.updated_at ?? '').localeCompare(String(a.updated_at ?? '')));
 
   return (
     <main className="space-y-4">
@@ -85,7 +68,6 @@ export default async function WorkshopMonthlyStatementPage() {
         <p className="rounded-xl bg-rose-50 px-3 py-2 text-rose-700">Total debits: <strong>{formatMoney(expenseMonth)}</strong></p>
         <p className="rounded-xl bg-neutral-100 px-3 py-2 text-neutral-800">Net: <strong>{formatMoney(profitMonth)}</strong></p>
       </div>
-      <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-800">Total owed (all unpaid invoices): <strong>{formatMoney(unpaidTotal)}</strong></p>
 
       <Card className="rounded-3xl border-black/10 p-5">
         {entriesError ? (
@@ -127,42 +109,6 @@ export default async function WorkshopMonthlyStatementPage() {
             </table>
           </div>
         )}
-      </Card>
-
-      <Card className="rounded-3xl border-black/10 p-5">
-        <h2 className="text-base font-semibold text-black">Invoice payment statuses</h2>
-        <div className="mt-3 space-y-2">
-          {(invoices ?? []).map((invoice) => {
-            const paid = (invoice.payment_status ?? '').toLowerCase() === 'paid';
-            return (
-              <div key={invoice.id} className={`rounded-xl border px-3 py-2 text-sm ${paid ? 'border-emerald-200 bg-emerald-50' : 'border-rose-200 bg-rose-50'}`}>
-                <div className="flex items-center justify-between gap-2">
-                  <p className="font-semibold">{invoice.invoice_number ?? `INV-${invoice.id.slice(0, 8).toUpperCase()}`}</p>
-                  <p className="font-semibold">{formatMoney(Number(invoice.total_cents ?? 0))}</p>
-                </div>
-                <p className="text-xs text-gray-600">Status: {(invoice.payment_status ?? 'unpaid').replace('_', ' ')}</p>
-              </div>
-            );
-          })}
-        </div>
-      </Card>
-
-      <Card className="rounded-3xl border-black/10 p-5">
-        <h2 className="text-base font-semibold text-black">Payment lines this month</h2>
-        <p className="mt-1 text-xs text-gray-500">Every invoice marked paid in this month is shown as a payment line.</p>
-        <div className="mt-3 space-y-2">
-          {paymentEvents.length ? paymentEvents.map((invoice) => (
-            <div key={`payment-${invoice.id}`} className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm">
-              <div className="flex items-center justify-between gap-2">
-                <p className="font-semibold">{invoice.invoice_number ?? `INV-${invoice.id.slice(0, 8).toUpperCase()}`} paid</p>
-                <p className="font-semibold text-emerald-700">+{formatMoney(Number(invoice.total_cents ?? 0))}</p>
-              </div>
-              <p className="text-xs text-gray-600">Paid on {String(invoice.updated_at ?? '').slice(0, 10)}</p>
-            </div>
-          )) : (
-            <p className="text-sm text-gray-500">No invoices were marked paid in this month yet.</p>
-          )}
-        </div>
       </Card>
     </main>
   );

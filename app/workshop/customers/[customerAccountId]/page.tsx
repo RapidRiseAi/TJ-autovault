@@ -14,7 +14,6 @@ import {
   type CustomerBillingActionState
 } from '@/components/workshop/customer-billing-details-form';
 import { UnlinkedNotificationSettingsForm } from '@/components/workshop/unlinked-notification-settings-form';
-import { CustomerInvoicesPanel } from '@/components/workshop/customer-invoices-panel';
 import { dispatchRecentCustomerNotifications } from '@/lib/email/dispatch-now';
 import {
   composeBillingAddress,
@@ -637,7 +636,6 @@ export default async function WorkshopCustomerPage({
   const [
     { vehicles, error: vehiclesError },
     { count: unpaidInvoices },
-    { data: customerInvoices },
     { count: pendingQuotes },
     { count: activeJobs },
     { data: unlinkedNotificationSettings }
@@ -648,12 +646,6 @@ export default async function WorkshopCustomerPage({
       .select('id', { count: 'exact', head: true })
       .eq('customer_account_id', customerAccountId)
       .neq('payment_status', 'paid'),
-    supabase
-      .from('invoices')
-      .select('id,invoice_number,payment_status,payment_method,total_cents,balance_due_cents,created_at,vehicle_id')
-      .eq('customer_account_id', customerAccountId)
-      .eq('workshop_account_id', workshopId)
-      .order('created_at', { ascending: false }),
     supabase
       .from('quotes')
       .select('id', { count: 'exact', head: true })
@@ -760,21 +752,6 @@ export default async function WorkshopCustomerPage({
           vehicles={vehicles}
         />
       </Card>
-
-      <CustomerInvoicesPanel
-        invoices={(customerInvoices ?? []).map((invoice) => {
-          const vehicle = vehicles.find((item) => item.id === invoice.vehicle_id);
-          return {
-            ...invoice,
-            customer_id: customer.id,
-            customer_label: customerDisplayName,
-            vehicle_id: invoice.vehicle_id,
-            vehicle_label: vehicle
-              ? `${vehicle.registration_number} · ${vehicle.make ?? ''} ${vehicle.model ?? ''}`.trim()
-              : 'Unassigned vehicle'
-          };
-        })}
-      />
 
       {!customer.auth_user_id ? (
         <Card className="rounded-3xl p-6">
