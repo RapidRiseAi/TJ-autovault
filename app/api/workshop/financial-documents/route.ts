@@ -879,10 +879,7 @@ export async function POST(request: NextRequest) {
       autoCreditApplications = autoCreditResult.applications;
 
       invoiceAmountPaidCents = autoAppliedCredits;
-      invoiceNetTotalCents = Math.max(
-        totals.totalCents - autoAppliedCredits,
-        0
-      );
+      invoiceNetTotalCents = totals.totalCents - autoAppliedCredits;
       invoiceBalanceDueCents = invoiceNetTotalCents;
 
       const paymentStatus = invoiceBalanceDueCents <= 0 ? 'paid' : 'unpaid';
@@ -890,10 +887,7 @@ export async function POST(request: NextRequest) {
       await supabase
         .from('invoices')
         .update({
-          subtotal_cents: Math.max(
-            totals.subtotalCents - autoAppliedCredits,
-            0
-          ),
+          subtotal_cents: totals.subtotalCents - autoAppliedCredits,
           total_cents: invoiceNetTotalCents,
           amount_paid_cents: 0,
           balance_due_cents: invoiceBalanceDueCents,
