@@ -60,7 +60,7 @@ function addDaysIso(dateIso: string, days = 7) {
 
 function toCents(value: string) {
   const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  if (!Number.isFinite(parsed)) return null;
   return Math.round(parsed * 100);
 }
 
@@ -214,9 +214,11 @@ export function FinancialDocumentBuilder({
     return (
       subject.trim().length > 0 &&
       items.every((item) => {
-        const qtyValid = item.qty.trim().length > 0 && Number(item.qty) > 0;
+        const qtyValid =
+          item.qty.trim().length > 0 && Number.isFinite(Number(item.qty));
         const unitValid =
-          item.unitPrice.trim().length > 0 && Number(item.unitPrice) >= 0;
+          item.unitPrice.trim().length > 0 &&
+          Number.isFinite(Number(item.unitPrice));
         const discountValid =
           item.discountType === 'none'
             ? true
@@ -459,7 +461,6 @@ export function FinancialDocumentBuilder({
                 <input
                   className="rounded border p-2"
                   type="number"
-                  min="0.01"
                   step="0.01"
                   inputMode="decimal"
                   placeholder="Qty (how many?)"
@@ -469,7 +470,6 @@ export function FinancialDocumentBuilder({
                 <input
                   className="rounded border p-2"
                   type="number"
-                  min="0"
                   step="0.01"
                   inputMode="decimal"
                   placeholder="Unit price"

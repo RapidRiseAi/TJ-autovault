@@ -3,8 +3,8 @@ import { z } from 'zod';
 
 export const financialLineItemSchema = z.object({
   description: z.string().trim().min(1),
-  qty: z.number().positive(),
-  unitPriceCents: z.number().int().min(0),
+  qty: z.number().finite(),
+  unitPriceCents: z.number().int(),
   discountType: z.enum(['none', 'percent', 'fixed']).default('none'),
   discountValue: z.number().min(0).default(0),
   taxRate: z.number().min(0).max(100).default(0),
@@ -62,7 +62,7 @@ export function formatMoney(cents: number, currency = 'ZAR') {
 }
 
 function toCentsFromCurrency(value: number) {
-  return Math.max(0, Math.round(value * 100));
+  return Math.round(value * 100);
 }
 
 export function computeFinancialLineItems(items: FinancialLineItemInput[]) {
@@ -76,9 +76,9 @@ export function computeFinancialLineItems(items: FinancialLineItemInput[]) {
           : 0;
     const boundedDiscountCents = Math.min(
       Math.max(discountCents, 0),
-      lineSubtotalCents
+      Math.abs(lineSubtotalCents)
     );
-    const taxableCents = Math.max(lineSubtotalCents - boundedDiscountCents, 0);
+    const taxableCents = lineSubtotalCents - boundedDiscountCents;
     const taxCents = Math.round(taxableCents * (item.taxRate / 100));
     const lineTotalCents = taxableCents + taxCents;
 
