@@ -47,6 +47,9 @@ export function VehicleWorkflowActions({
 }) {
   const [open, setOpen] = useState<Mode>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<string[]>([]);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null);
   const [adjustmentType, setAdjustmentType] = useState<'credit' | 'debit'>(
     'credit'
   );
@@ -62,6 +65,14 @@ export function VehicleWorkflowActions({
     (invoice) => (invoice.paymentStatus ?? '').toLowerCase() !== 'paid'
   );
 
+  function toggleInvoice(invoiceId: string) {
+    setSelectedInvoiceIds((current) =>
+      current.includes(invoiceId)
+        ? current.filter((id) => id !== invoiceId)
+        : [...current, invoiceId]
+    );
+  }
+
   async function on(run: () => Promise<ActionResponse>) {
     setIsLoading(true);
     const result = await run();
@@ -69,6 +80,8 @@ export function VehicleWorkflowActions({
     if (result.ok) {
       pushToast({ title: result.message ?? 'Saved', tone: 'success' });
       setMsg('');
+      setPaymentAmount('');
+      setPaymentProofFile(null);
       setOpen(null);
       router.refresh();
     } else {
@@ -114,7 +127,10 @@ export function VehicleWorkflowActions({
             description="Mark invoice payment progress for this vehicle."
             icon={<BadgeDollarSign className="h-4 w-4" />}
             compactMobile
-            onClick={() => setOpen('payment')}
+            onClick={() => {
+              setSelectedInvoiceIds(unpaidInvoices.map((invoice) => invoice.id));
+              setOpen('payment');
+            }}
           />
         ) : null}
         {invoices.length ? (
@@ -266,35 +282,107 @@ export function VehicleWorkflowActions({
           onSubmit={(event) => {
             event.preventDefault();
             const formData = new FormData(event.currentTarget);
-            void on(() =>
-              updateInvoicePaymentStatus({
-                invoiceId: String(formData.get('invoiceId')),
+            void on(async () => {
+              if (paymentProofFile) {
+                const signResponse = await fetch('/api/uploads/sign', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    vehicleId,
+                    fileName: paymentProofFile.name,
+                    contentType:
+                      paymentProofFile.type || 'application/octet-stream',
+                    kind: 'file',
+                    documentType: 'other'
+                  })
+                });
+                if (!signResponse.ok) {
+                  return { ok: false, error: 'Could not sign proof upload.' };
+                }
+                const signedPayload = (await signResponse.json()) as {
+                  bucket: string;
+                  path: string;
+                  token: string;
+                };
+                const uploadResponse = await fetch(
+                  `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/upload/sign/${signedPayload.bucket}/${signedPayload.path}?token=${signedPayload.token}`,
+                  {
+                    method: 'PUT',
+                    headers: {
+                      'Content-Type':
+                        paymentProofFile.type || 'application/octet-stream',
+                      'x-upsert': 'true'
+                    },
+                    body: paymentProofFile
+                  }
+                );
+                if (!uploadResponse.ok) {
+                  return { ok: false, error: 'Could not upload proof file.' };
+                }
+                await fetch('/api/uploads/complete', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    vehicleId,
+                    bucket: signedPayload.bucket,
+                    path: signedPayload.path,
+                    contentType:
+                      paymentProofFile.type || 'application/octet-stream',
+                    size: paymentProofFile.size,
+                    originalName: paymentProofFile.name,
+                    docType: 'other',
+                    subject: `Payment proof uploaded (${selectedInvoiceIds.length} invoice${selectedInvoiceIds.length === 1 ? '' : 's'})`,
+                    urgency: 'info'
+                  })
+                });
+              }
+
+              const parsedPaymentAmount = Number(paymentAmount);
+              return updateInvoicePaymentStatus({
+                invoiceIds: selectedInvoiceIds,
                 paymentStatus: String(formData.get('paymentStatus')) as
                   | 'unpaid'
                   | 'partial'
                   | 'paid',
-                paymentMethod: String(formData.get('paymentMethod') || '')
-              })
-            );
+                paymentMethod: String(formData.get('paymentMethod') || ''),
+                paymentAmountCents:
+                  Number.isFinite(parsedPaymentAmount) && parsedPaymentAmount > 0
+                    ? Math.round(parsedPaymentAmount * 100)
+                    : null
+              });
+            });
           }}
         >
           <ModalFormShell>
-            <select name="invoiceId">
-              {unpaidInvoices.map((invoice) => {
-                const ref =
-                  invoice.invoiceNumber ||
-                  `#${invoice.id.slice(0, 8).toUpperCase()}`;
-                const amount = new Intl.NumberFormat('en-ZA', {
-                  style: 'currency',
-                  currency: 'ZAR'
-                }).format((invoice.totalCents ?? 0) / 100);
-                return (
-                  <option key={invoice.id} value={invoice.id}>
-                    {ref} · {amount} unpaid
-                  </option>
-                );
-              })}
-            </select>
+            <div className="rounded-xl border border-black/10 p-3">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.13em] text-gray-500">Select invoices</p>
+                <div className="flex gap-2">
+                  <Button type="button" size="sm" variant="outline" onClick={() => setSelectedInvoiceIds(unpaidInvoices.map((invoice) => invoice.id))}>
+                    Select all unpaid
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" onClick={() => setSelectedInvoiceIds(invoices.map((invoice) => invoice.id))}>
+                    Select all
+                  </Button>
+                </div>
+              </div>
+              <div className="max-h-44 space-y-2 overflow-y-auto pr-1">
+                {invoices.map((invoice) => {
+                  const ref = invoice.invoiceNumber || `#${invoice.id.slice(0, 8).toUpperCase()}`;
+                  const amount = new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format((invoice.totalCents ?? 0) / 100);
+                  const isPaid = (invoice.paymentStatus ?? '').toLowerCase() === 'paid';
+                  return (
+                    <label key={invoice.id} className={`flex items-center justify-between gap-2 rounded-lg border px-2 py-1.5 text-xs ${isPaid ? 'border-emerald-200 bg-emerald-50' : 'border-rose-200 bg-rose-50'}`}>
+                      <span className="flex items-center gap-2">
+                        <input type="checkbox" checked={selectedInvoiceIds.includes(invoice.id)} onChange={() => toggleInvoice(invoice.id)} />
+                        <span>{ref}</span>
+                      </span>
+                      <span className="font-semibold">{amount}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
             <select name="paymentStatus">
               <option value="unpaid">Unpaid</option>
               <option value="partial">Partial</option>
@@ -307,6 +395,21 @@ export function VehicleWorkflowActions({
               <option value="card">Card</option>
               <option value="other">Other</option>
             </select>
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              placeholder="Payment amount received"
+              value={paymentAmount}
+              onChange={(event) => setPaymentAmount(event.target.value)}
+            />
+            <input
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png,.webp"
+              onChange={(event) =>
+                setPaymentProofFile(event.target.files?.[0] ?? null)
+              }
+            />
             <Button disabled={isLoading}>
               {isLoading ? 'Updating...' : 'Update'}
             </Button>
