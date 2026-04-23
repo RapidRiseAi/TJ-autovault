@@ -108,7 +108,7 @@ export function FinancialDocumentBuilder({
   const [selectedQuoteId, setSelectedQuoteId] = useState(linkedQuoteId ?? '');
   const [prefilledItemIndexes, setPrefilledItemIndexes] = useState<Set<number>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [invoiceMileage, setInvoiceMileage] = useState(String(currentMileage || ''));
+  const [documentMileage, setDocumentMileage] = useState(String(currentMileage || ''));
 
   const [emailDocument, setEmailDocument] = useState(false);
   const [emailAddress, setEmailAddress] = useState('');
@@ -132,7 +132,7 @@ export function FinancialDocumentBuilder({
     setIsExpiryDateManuallyEdited(false);
     setEmailDocument(false);
     setEmailAddress(oneTimeClientDetails?.notificationEmail ?? oneTimeClientDetails?.billingEmail ?? '');
-    setInvoiceMileage(String(currentMileage || ''));
+    setDocumentMileage(String(currentMileage || ''));
   }, [kind, linkedQuoteId, oneTimeClientDetails, currentMileage]);
 
   useEffect(() => {
@@ -279,7 +279,9 @@ export function FinancialDocumentBuilder({
           notes: notes.trim() || undefined,
           orderNumber: orderNumber.trim() || undefined,
           lineItems,
-          updatedMileageKm: kind === 'invoice' && invoiceMileage.trim() ? Number(invoiceMileage) : undefined,
+          updatedMileageKm: documentMileage.trim()
+            ? Number(documentMileage)
+            : undefined,
           quoteId: kind === 'invoice' ? selectedQuoteId || undefined : undefined,
           sendEmailTo: oneTimeClientDetails?.enabled && emailDocument ? emailAddress.trim().toLowerCase() || undefined : undefined,
           oneTimeClient: oneTimeClientDetails?.enabled
@@ -360,19 +362,19 @@ export function FinancialDocumentBuilder({
         </label>
       </div>
 
-      {kind === 'invoice' ? (
-        <label className="block">
-          Vehicle mileage (km)
-          <p className="mt-1 text-xs text-gray-500">Printed on invoice and saved to the vehicle when changed.</p>
-          <input
-            type="number"
-            min={0}
-            value={invoiceMileage}
-            onChange={(event) => setInvoiceMileage(event.target.value)}
-            className="mt-1 w-full rounded border p-2 md:max-w-xs"
-          />
-        </label>
-      ) : null}
+      <label className="block">
+        Vehicle mileage (km)
+        <p className="mt-1 text-xs text-gray-500">
+          Printed on {kind} and saved to the vehicle when changed.
+        </p>
+        <input
+          type="number"
+          min={0}
+          value={documentMileage}
+          onChange={(event) => setDocumentMileage(event.target.value)}
+          className="mt-1 w-full rounded border p-2 md:max-w-xs"
+        />
+      </label>
 
       {kind === 'invoice' ? (
         <label className="block">
