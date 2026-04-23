@@ -467,7 +467,9 @@ export async function buildFinancialDocumentPdf(params: {
   const tableTop = 530;
   const showDiscount = params.items.some((item) => item.discountCents > 0);
 
-  const rowItems = params.items.slice(0, 6);
+  const maxPrimaryRows = 8;
+  const rowItems = params.items.slice(0, maxPrimaryRows);
+  const overflowItems = params.items.slice(maxPrimaryRows);
   const qtyTexts = rowItems.map((item) => String(item.qty));
   const unitTexts = rowItems.map((item) => money(item.unitPriceCents));
   const totalTexts = rowItems.map((item) => money(item.lineTotalCents));
@@ -804,6 +806,71 @@ export async function buildFinancialDocumentPdf(params: {
       font: regular,
       color: rgb(0.82, 0.1, 0.1)
     });
+  }
+
+  if (overflowItems.length > 0) {
+    const chunkSize = 20;
+    for (let start = 0; start < overflowItems.length; start += chunkSize) {
+      const chunk = overflowItems.slice(start, start + chunkSize);
+      const continuation = pdf.addPage([595, 842]);
+      const continuationTop = 790;
+      continuation.drawText(
+        `${params.kind === 'invoice' ? 'Invoice' : 'Quote'} line items (continued)`,
+        { x: left, y: continuationTop, size: 13, font: bold }
+      );
+      continuation.drawText(params.referenceNumber, {
+        x: left,
+        y: continuationTop - 16,
+        size: 9,
+        font: regular
+      });
+
+      const contTableTop = continuationTop - 34;
+      const contRowHeight = 26;
+      continuation.drawRectangle({
+        x: tableLeft,
+        y: contTableTop - 24,
+        width: tableWidth,
+        height: 24,
+        borderWidth: thin,
+        borderColor: rgb(0, 0, 0)
+      });
+      continuation.drawLine({ start: { x: cols.descRight, y: contTableTop }, end: { x: cols.descRight, y: contTableTop - 24 }, thickness: thin, color: rgb(0, 0, 0) });
+      continuation.drawLine({ start: { x: cols.qtyRight, y: contTableTop }, end: { x: cols.qtyRight, y: contTableTop - 24 }, thickness: thin, color: rgb(0, 0, 0) });
+      continuation.drawLine({ start: { x: cols.unitRight, y: contTableTop }, end: { x: cols.unitRight, y: contTableTop - 24 }, thickness: thin, color: rgb(0, 0, 0) });
+      if (showDiscount) {
+        continuation.drawLine({ start: { x: cols.discountRight, y: contTableTop }, end: { x: cols.discountRight, y: contTableTop - 24 }, thickness: thin, color: rgb(0, 0, 0) });
+      }
+      continuation.drawText('Description', { x: cols.descLeft + 10, y: contTableTop - 16, size: 9, font: bold });
+      continuation.drawText('Qty', { x: cols.descRight + 10, y: contTableTop - 16, size: 9, font: bold });
+      continuation.drawText('Unit price', { x: cols.qtyRight + 8, y: contTableTop - 16, size: 9, font: bold });
+      if (showDiscount) continuation.drawText('Discount', { x: cols.unitRight + 8, y: contTableTop - 16, size: 9, font: bold });
+      continuation.drawText('Total', { x: (showDiscount ? cols.discountRight : cols.unitRight) + 8, y: contTableTop - 16, size: 9, font: bold });
+
+      let continuationRowTop = contTableTop - 24;
+      for (const item of chunk) {
+        const rowBottom = continuationRowTop - contRowHeight;
+        continuation.drawRectangle({ x: tableLeft, y: rowBottom, width: tableWidth, height: contRowHeight, borderWidth: thin, borderColor: rgb(0, 0, 0) });
+        continuation.drawLine({ start: { x: cols.descRight, y: continuationRowTop }, end: { x: cols.descRight, y: rowBottom }, thickness: thin, color: rgb(0, 0, 0) });
+        continuation.drawLine({ start: { x: cols.qtyRight, y: continuationRowTop }, end: { x: cols.qtyRight, y: rowBottom }, thickness: thin, color: rgb(0, 0, 0) });
+        continuation.drawLine({ start: { x: cols.unitRight, y: continuationRowTop }, end: { x: cols.unitRight, y: rowBottom }, thickness: thin, color: rgb(0, 0, 0) });
+        if (showDiscount) continuation.drawLine({ start: { x: cols.discountRight, y: continuationRowTop }, end: { x: cols.discountRight, y: rowBottom }, thickness: thin, color: rgb(0, 0, 0) });
+
+        continuation.drawText(clampText(item.description, 58), { x: cols.descLeft + 10, y: continuationRowTop - 16, size: 9, font: regular });
+        const qtyText = String(item.qty);
+        continuation.drawText(qtyText, { x: cols.qtyRight - 10 - regular.widthOfTextAtSize(qtyText, 9), y: continuationRowTop - 16, size: 9, font: regular });
+        const unitValue = money(item.unitPriceCents);
+        continuation.drawText(unitValue, { x: cols.unitRight - 10 - regular.widthOfTextAtSize(unitValue, 9), y: continuationRowTop - 16, size: 9, font: regular });
+        const totalValue = money(item.lineTotalCents);
+        continuation.drawText(totalValue, { x: cols.totalRight - 10 - regular.widthOfTextAtSize(totalValue, 9), y: continuationRowTop - 16, size: 9, font: regular });
+        if (showDiscount) {
+          const discountValue = money(item.discountCents);
+          continuation.drawText(discountValue, { x: cols.discountRight - 10 - regular.widthOfTextAtSize(discountValue, 9), y: continuationRowTop - 16, size: 9, font: regular });
+        }
+
+        continuationRowTop = rowBottom;
+      }
+    }
   }
 
   return pdf.save();

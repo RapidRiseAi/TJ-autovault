@@ -31,4 +31,27 @@ jobs:
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           SUPABASE_DB_MIGRATIONS_DIR: supabase/migrations
-        run: yes | supabase db push --include-all --db-url "$SUPABASE_DB_URL"
+        run: |
+          DB_URL="$SUPABASE_DB_URL"
+          # Supabase pooler/pgBouncer can fail with:
+          # "prepared statement ... already exists" when statement cache is enabled.
+          # Disable pgx statement cache for migration sessions.
+          if [[ "$DB_URL" == *"?"* ]]; then
+            DB_URL="${DB_URL}&statement_cache_capacity=0"
+          else
+            DB_URL="${DB_URL}?statement_cache_capacity=0"
+          fi
+
+          for attempt in 1 2 3; do
+            if yes | supabase db push --include-all --db-url "$DB_URL"; then
+              exit 0
+            fi
+            echo "Migration push failed (attempt $attempt)."
+            if [ "$attempt" -lt 3 ]; then
+              echo "Retrying in 5s..."
+              sleep 5
+            fi
+          done
+
+          echo "Migration push failed after 3 attempts."
+          exit 1

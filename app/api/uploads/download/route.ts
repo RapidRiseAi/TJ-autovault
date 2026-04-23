@@ -6,6 +6,7 @@ import { canAccessProfileAvatar, extractAvatarOwnerId } from '@/lib/uploads/avat
 export async function GET(request: NextRequest) {
   const bucket = request.nextUrl.searchParams.get('bucket');
   const pathParam = request.nextUrl.searchParams.get('path');
+  const forceDownload = request.nextUrl.searchParams.get('download') === '1';
   if (!bucket || !pathParam) return NextResponse.json({ error: 'Missing path' }, { status: 400 });
   if (bucket !== 'vehicle-images' && bucket !== 'vehicle-files' && bucket !== 'profile-avatars') {
     return NextResponse.json({ error: 'Invalid file path' }, { status: 400 });
@@ -21,9 +22,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
-    const { data: signed, error } = await supabase.storage.from(bucket).createSignedUrl(pathParam, 60);
+    const { data: signed, error } = await supabase.storage.from(bucket).createSignedUrl(pathParam, 60, forceDownload ? { download: true } : undefined);
     if (error || !signed?.signedUrl) return NextResponse.json({ error: error?.message ?? 'Could not sign download URL' }, { status: 400 });
-    return NextResponse.redirect(signed.signedUrl);
+    return NextResponse.redirect(signed.signedUrl, { headers: { 'Cache-Control': 'no-store' } });
   }
 
   const { data: doc } = await supabase.from('vehicle_documents').select('customer_account_id').eq('storage_bucket', bucket).eq('storage_path', pathParam).maybeSingle();
@@ -33,7 +34,7 @@ export async function GET(request: NextRequest) {
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
   if (!membership && profile?.role === 'customer') return NextResponse.json({ error: 'Access denied' }, { status: 403 });
 
-  const { data: signed, error } = await supabase.storage.from(bucket).createSignedUrl(pathParam, 60);
+  const { data: signed, error } = await supabase.storage.from(bucket).createSignedUrl(pathParam, 60, forceDownload ? { download: true } : undefined);
   if (error || !signed?.signedUrl) return NextResponse.json({ error: error?.message ?? 'Could not sign download URL' }, { status: 400 });
-  return NextResponse.redirect(signed.signedUrl);
+  return NextResponse.redirect(signed.signedUrl, { headers: { 'Cache-Control': 'no-store' } });
 }

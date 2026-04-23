@@ -6,7 +6,8 @@ import { createClient } from '@/lib/supabase/server';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { SegmentRing } from '@/components/ui/segment-ring';
-import { OneTimeUploadModal } from '@/components/workshop/one-time-upload-modal';
+import { ManagementUploadModal } from '@/components/workshop/management-upload-modal';
+import { CustomerInvoicesPanel } from '@/components/workshop/customer-invoices-panel';
 import {
   addMonths,
   ensureStatementArchivesUpToLastMonth,
@@ -30,14 +31,37 @@ function isMissingColumnError(error: { code?: string; message?: string } | null)
   return error.code === '42703' || error.code === 'PGRST204' || message.includes('column') || message.includes('does not exist');
 }
 
-async function createUnlinkedUploadCase(_prevState: OneTimeUploadActionState, formData: FormData): Promise<OneTimeUploadActionState> {
+async function openManagementUploadFlow(_prevState: OneTimeUploadActionState, formData: FormData): Promise<OneTimeUploadActionState> {
   'use server';
   const supabase = await createClient();
   const ctx = await requireWorkshopContext(supabase);
   if (!ctx || !ctx.profile.workshop_account_id) return { status: 'error', message: 'Unauthorized' };
 
-  const customerName = (formData.get('customerName')?.toString() ?? '').trim();
+  const uploadMode = (formData.get('uploadMode')?.toString() ?? 'customer').trim();
   const uploadType = (formData.get('uploadType')?.toString() ?? 'quote').trim();
+  if (uploadMode === 'customer') {
+    const customerId = (formData.get('customerId')?.toString() ?? '').trim();
+    const vehicleId = (formData.get('vehicleId')?.toString() ?? '').trim();
+    if (!customerId || !vehicleId) return { status: 'error', message: 'Select a customer and vehicle.' };
+
+    const { data: vehicle } = await supabase
+      .from('vehicles')
+      .select('id,current_customer_account_id')
+      .eq('id', vehicleId)
+      .eq('workshop_account_id', ctx.profile.workshop_account_id)
+      .maybeSingle();
+    if (!vehicle || vehicle.current_customer_account_id !== customerId) {
+      return { status: 'error', message: 'Selected vehicle/customer combination is invalid.' };
+    }
+
+    const safeUploadType =
+      uploadType === 'invoice' || uploadType === 'inspection_report'
+        ? uploadType
+        : 'quote';
+    redirect(`/workshop/vehicles/${vehicleId}?upload=${safeUploadType}`);
+  }
+
+  const customerName = (formData.get('customerName')?.toString() ?? '').trim();
   if (!customerName) return { status: 'error', message: 'Customer name is required.' };
 
   const oneTimeAccountName = '__ONE_TIME_CLIENT__';
@@ -413,7 +437,10 @@ export default async function WorkshopManagementPage() {
     { data: currentPaidInvoices },
     { data: currentPayouts },
     { data: yearlyPaidInvoices },
-    { data: yearlyPayouts }
+    { data: yearlyPayouts },
+    { data: managementCustomers },
+    { data: managementVehicles },
+    { data: managementInvoices }
   ] = await Promise.all([
     supabase
       .from('workshop_accounts')
@@ -488,6 +515,21 @@ export default async function WorkshopManagementPage() {
       .neq('status', 'rejected')
       .gte('paid_at', `${trendStart}T00:00:00.000Z`)
       .lte('paid_at', `${currentMonthEnd}T23:59:59.999Z`),
+    supabase
+      .from('customer_accounts')
+      .select('id,name')
+      .eq('workshop_account_id', workshopId)
+      .order('name', { ascending: true }),
+    supabase
+      .from('vehicles')
+      .select('id,registration_number,make,model,current_customer_account_id')
+      .eq('workshop_account_id', workshopId)
+      .is('archived_at', null),
+    supabase
+      .from('invoices')
+      .select('id,invoice_number,payment_status,payment_method,total_cents,balance_due_cents,created_at,vehicle_id,customer_account_id')
+      .eq('workshop_account_id', workshopId)
+      .order('created_at', { ascending: false })
   ]);
 
   const financeTablesAvailable = !currentEntriesError && !yearlyEntriesError;
@@ -613,6 +655,18 @@ export default async function WorkshopManagementPage() {
   });
 
   const statementLines = [...entries].sort((a, b) => a.occurred_on.localeCompare(b.occurred_on));
+  const customerNameById = new Map((managementCustomers ?? []).map((customer) => [customer.id, customer.name]));
+  const vehicleById = new Map((managementVehicles ?? []).map((vehicle) => [vehicle.id, vehicle]));
+  const uploadCustomers = (managementCustomers ?? []).map((customer) => ({
+    id: customer.id,
+    name: customer.name,
+    vehicles: (managementVehicles ?? [])
+      .filter((vehicle) => vehicle.current_customer_account_id === customer.id)
+      .map((vehicle) => ({
+        id: vehicle.id,
+        label: `${vehicle.registration_number} · ${vehicle.make ?? ''} ${vehicle.model ?? ''}`.trim()
+      }))
+  })).filter((customer) => customer.vehicles.length > 0);
 
   return (
     <main className="space-y-6 pb-10">
@@ -641,12 +695,26 @@ export default async function WorkshopManagementPage() {
       <Card className="rounded-3xl border-black/10 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-base font-semibold text-black">One-time customer document upload</h2>
-            <p className="mt-1 text-sm text-gray-600">Open the quick popup and continue into the normal upload workflow.</p>
+            <h2 className="text-base font-semibold text-black">Upload document</h2>
+            <p className="mt-1 text-sm text-gray-600">Choose an existing customer + vehicle, or open a one-time customer upload.</p>
           </div>
-          <OneTimeUploadModal action={createUnlinkedUploadCase} />
+          <ManagementUploadModal action={openManagementUploadFlow} customers={uploadCustomers} />
         </div>
       </Card>
+
+      <CustomerInvoicesPanel
+        invoices={(managementInvoices ?? []).map((invoice) => {
+          const vehicle = invoice.vehicle_id ? vehicleById.get(invoice.vehicle_id) : null;
+          const customerName = invoice.customer_account_id ? customerNameById.get(invoice.customer_account_id) : null;
+          return {
+            ...invoice,
+            customer_id: invoice.customer_account_id,
+            customer_label: customerName ?? 'Customer',
+            vehicle_id: invoice.vehicle_id,
+            vehicle_label: `${customerName ?? 'Customer'} · ${vehicle ? `${vehicle.registration_number} ${vehicle.make ?? ''} ${vehicle.model ?? ''}`.trim() : 'Vehicle unavailable'}`
+          };
+        })}
+      />
 
       <section className="grid gap-4 xl:grid-cols-4">
         <Card className="rounded-3xl border-black/10 p-5">

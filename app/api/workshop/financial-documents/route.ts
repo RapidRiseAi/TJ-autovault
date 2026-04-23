@@ -1028,7 +1028,7 @@ export async function POST(request: NextRequest) {
         model: oneTimeClient?.model ?? vehicle.model,
         vin: oneTimeClient?.vin ?? vehicle.vin,
         mileageKm:
-          payload.kind === 'invoice' && payload.updatedMileageKm != null
+          payload.updatedMileageKm != null
             ? payload.updatedMileageKm
             : vehicle.odometer_km
       },
@@ -1135,13 +1135,14 @@ export async function POST(request: NextRequest) {
         .update({ invoice_id: linkedId })
         .eq('id', doc.id);
 
-      if (payload.updatedMileageKm != null) {
-        await supabase
-          .from('vehicles')
-          .update({ odometer_km: payload.updatedMileageKm })
-          .eq('id', vehicle.id)
-          .eq('workshop_account_id', profile.workshop_account_id);
-      }
+    }
+
+    if (payload.updatedMileageKm != null) {
+      await supabase
+        .from('vehicles')
+        .update({ odometer_km: payload.updatedMileageKm })
+        .eq('id', vehicle.id)
+        .eq('workshop_account_id', profile.workshop_account_id);
     }
 
     await supabase.from('vehicle_timeline_events').insert({

@@ -14,7 +14,7 @@ function toLabel(type?: string | null) {
 function toDownloadHref(doc: VehicleDocument, customerMode: boolean) {
   if (customerMode) return `/api/customer/documents/${doc.id}/download`;
   if (!doc.storage_path) return null;
-  return `/api/uploads/download?bucket=${encodeURIComponent(doc.storage_bucket ?? '')}&path=${encodeURIComponent(doc.storage_path)}`;
+  return `/api/uploads/download?bucket=${encodeURIComponent(doc.storage_bucket ?? '')}&path=${encodeURIComponent(doc.storage_path)}&v=${encodeURIComponent(doc.id)}`;
 }
 
 function DocumentList({ documents, customerMode, workshopMode = false, vehicleId }: { documents: VehicleDocument[]; customerMode: boolean; workshopMode?: boolean; vehicleId?: string }) {
@@ -45,7 +45,7 @@ function DocumentList({ documents, customerMode, workshopMode = false, vehicleId
                 {downloadHref ? (
                   <>
                     <Button asChild size="sm" variant="outline"><Link href={downloadHref}>Preview</Link></Button>
-                    <Button asChild size="sm" variant="outline"><Link href={downloadHref} download>Download</Link></Button>
+                    <Button asChild size="sm" variant="outline"><Link href={`${downloadHref}${downloadHref.includes('?') ? '&' : '?'}download=1`}>Download</Link></Button>
                   </>
                 ) : <span className="text-xs text-gray-500">Unavailable</span>}
               </div>
