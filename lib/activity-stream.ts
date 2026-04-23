@@ -100,7 +100,7 @@ function mapCategory(
 
 function toDownloadHref(doc?: DocumentItem) {
   if (!doc?.storage_path) return undefined;
-  return `/api/uploads/download?bucket=${encodeURIComponent(doc.storage_bucket ?? '')}&path=${encodeURIComponent(doc.storage_path)}&v=${encodeURIComponent(doc.id)}`;
+  return `/api/uploads/download?bucket=${encodeURIComponent(doc.storage_bucket ?? '')}&path=${encodeURIComponent(doc.storage_path)}`;
 }
 
 function attachmentDownloadHref(metadata?: Record<string, unknown> | null) {

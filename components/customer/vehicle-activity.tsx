@@ -217,7 +217,7 @@ export function WorldTimeline({ activities, vehicleId, viewerRole, deletionReque
                         <Button asChild size="sm"><Link href={`/workshop/vehicles/${vehicleId}?upload=invoice&quoteId=${activity.quoteId}`}>Create invoice</Link></Button>
                       ) : null}
                       {activity.downloadHref ? <Button asChild size="sm" variant="outline"><Link href={activity.downloadHref}>Preview</Link></Button> : null}
-                      {activity.downloadHref ? <Button asChild size="sm" variant="outline"><Link href={`${activity.downloadHref}${activity.downloadHref.includes('?') ? '&' : '?'}download=1`}>Download</Link></Button> : null}
+                      {activity.downloadHref ? <Button asChild size="sm" variant="outline"><Link href={activity.downloadHref} download>Download</Link></Button> : null}
                       {activity.actionHref ? <Button asChild size="sm"><Link href={activity.actionHref}>{activity.actionLabel ?? 'Open details'}</Link></Button> : null}
                     </div>
                   ) : null}
